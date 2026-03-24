@@ -1,0 +1,117 @@
+import crypto from "node:crypto";
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { contextRepository } from "../repositories/context-repository.js";
+import { unitRepository } from "../repositories/unit-repository.js";
+
+const createUnitSchema = z.object({
+  unitName: z.string().trim().min(1, "单位名称不能为空").max(100, "单位名称不能超过100个字符"),
+  remark: z.string().trim().max(300, "备注不能超过300个字符").optional(),
+});
+
+const deleteChallengeSchema = z.object({
+  challengeId: z.string().uuid(),
+  confirmationCode: z.string().length(6, "认证字符长度应为6"),
+  acknowledgeIrreversible: z.literal(true),
+});
+
+const deleteChallenges = new Map<
+  string,
+  { unitId: number; code: string; expiresAt: number }
+>();
+
+const challengeCharacters =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*?";
+
+const generateChallengeCode = () =>
+  Array.from({ length: 6 })
+    .map(() => challengeCharacters[crypto.randomInt(0, challengeCharacters.length)])
+    .join("");
+
+export const registerUnitRoutes = async (app: FastifyInstance) => {
+  app.get("/api/units", async () => unitRepository.list());
+
+  app.post("/api/units", async (request, reply) => {
+    const parsedBody = createUnitSchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "单位参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
+    }
+
+    const duplicated = unitRepository
+      .list()
+      .some((unit) => unit.unitName === parsedBody.data.unitName);
+
+    if (duplicated) {
+      return reply.status(409).send({ message: "单位名称已存在" });
+    }
+
+    const createdUnit = unitRepository.create(parsedBody.data);
+    const currentContext = contextRepository.get();
+    if (!currentContext.currentUnitId) {
+      contextRepository.setCurrentUnitId(createdUnit.id);
+    }
+
+    return reply.status(201).send(createdUnit);
+  });
+
+  app.post("/api/units/:unitId/delete-challenge", async (request, reply) => {
+    const unitId = Number((request.params as { unitId: string }).unitId);
+    const unit = unitRepository.list().find((item) => item.id === unitId);
+
+    if (!unit) {
+      return reply.status(404).send({ message: "目标单位不存在" });
+    }
+
+    const challengeId = crypto.randomUUID();
+    const code = generateChallengeCode();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    deleteChallenges.set(challengeId, { unitId, code, expiresAt });
+
+    return {
+      challengeId,
+      confirmationCode: code,
+      expiresAt: new Date(expiresAt).toISOString(),
+    };
+  });
+
+  app.delete("/api/units/:unitId", async (request, reply) => {
+    const unitId = Number((request.params as { unitId: string }).unitId);
+    const parsedBody = deleteChallengeSchema.safeParse(request.body);
+
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "删除认证参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
+    }
+
+    const challenge = deleteChallenges.get(parsedBody.data.challengeId);
+    if (!challenge || challenge.unitId !== unitId) {
+      return reply.status(400).send({ message: "删除认证已失效，请重新生成认证字符" });
+    }
+
+    if (challenge.expiresAt < Date.now()) {
+      deleteChallenges.delete(parsedBody.data.challengeId);
+      return reply.status(400).send({ message: "删除认证已过期，请重新生成认证字符" });
+    }
+
+    if (challenge.code !== parsedBody.data.confirmationCode) {
+      return reply.status(400).send({ message: "认证字符不匹配" });
+    }
+
+    unitRepository.deleteById(unitId);
+    deleteChallenges.delete(parsedBody.data.challengeId);
+
+    const nextUnits = unitRepository.list();
+    if (contextRepository.get().currentUnitId === unitId) {
+      contextRepository.setCurrentUnitId(nextUnits[0]?.id ?? null);
+    }
+
+    return { success: true };
+  });
+};
+

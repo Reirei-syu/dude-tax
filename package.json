@@ -1,0 +1,17 @@
+{
+  "name": "salary-tax",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev --workspace @salary-tax/api\" \"npm run dev --workspace @salary-tax/desktop\"",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
+

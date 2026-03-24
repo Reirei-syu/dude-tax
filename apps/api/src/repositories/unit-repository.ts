@@ -1,0 +1,54 @@
+import type { CreateUnitPayload, Unit } from "@salary-tax/core";
+import { database } from "../db/database.js";
+
+const mapRowToUnit = (row: Record<string, unknown>): Unit => ({
+  id: Number(row.id),
+  unitName: String(row.unit_name),
+  remark: String(row.remark ?? ""),
+  isArchived: Number(row.is_archived) === 1,
+  createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at),
+});
+
+export const unitRepository = {
+  list(): Unit[] {
+    const rows = database
+      .prepare(
+        `
+          SELECT id, unit_name, remark, is_archived, created_at, updated_at
+          FROM units
+          ORDER BY created_at ASC
+        `,
+      )
+      .all() as Record<string, unknown>[];
+
+    return rows.map(mapRowToUnit);
+  },
+  create(payload: CreateUnitPayload): Unit {
+    const now = new Date().toISOString();
+    const result = database
+      .prepare(
+        `
+          INSERT INTO units (unit_name, remark, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run(payload.unitName.trim(), payload.remark?.trim() ?? "", now, now);
+
+    const row = database
+      .prepare(
+        `
+          SELECT id, unit_name, remark, is_archived, created_at, updated_at
+          FROM units
+          WHERE id = ?
+        `,
+      )
+      .get(result.lastInsertRowid) as Record<string, unknown>;
+
+    return mapRowToUnit(row);
+  },
+  deleteById(unitId: number) {
+    database.prepare("DELETE FROM units WHERE id = ?").run(unitId);
+  },
+};
+

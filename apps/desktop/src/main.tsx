@@ -1,0 +1,93 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
+import { AppLayout } from "./components/AppLayout";
+import { PlaceholderModulePage } from "./components/PlaceholderModulePage";
+import { AppContextProvider } from "./context/AppContextProvider";
+import { HomePage } from "./pages/HomePage";
+import { UnitManagementPage } from "./pages/UnitManagementPage";
+import "./styles.css";
+
+const router = createHashRouter([
+  {
+    path: "/",
+    element: <AppLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "units", element: <UnitManagementPage /> },
+      {
+        path: "employees",
+        element: (
+          <PlaceholderModulePage
+            title="员工信息"
+            description="后续里程碑将实现当前单位下的员工档案管理。"
+          />
+        ),
+      },
+      {
+        path: "entry",
+        element: (
+          <PlaceholderModulePage
+            title="月度数据录入"
+            description="后续里程碑将在当前单位/年份房间内提供 12 个月数据录入。"
+          />
+        ),
+      },
+      {
+        path: "import",
+        element: (
+          <PlaceholderModulePage
+            title="批量导入"
+            description="后续里程碑将提供模板下载、导入预览和冲突处理。"
+          />
+        ),
+      },
+      {
+        path: "calculation",
+        element: (
+          <PlaceholderModulePage
+            title="计算中心"
+            description="后续里程碑将实现当前单位/年份的重算入口与状态筛选。"
+          />
+        ),
+      },
+      {
+        path: "results",
+        element: (
+          <PlaceholderModulePage
+            title="结果中心"
+            description="后续里程碑将实现结算结果、测算结果与方案切换。"
+          />
+        ),
+      },
+      {
+        path: "history",
+        element: (
+          <PlaceholderModulePage
+            title="历史查询"
+            description="后续里程碑将提供历史年度结果只读查询与导出。"
+          />
+        ),
+      },
+      {
+        path: "maintenance",
+        element: (
+          <PlaceholderModulePage
+            title="系统维护"
+            description="后续里程碑将实现税率维护、提示说明、备份恢复与路径偏好。"
+          />
+        ),
+      },
+      { path: "*", element: <Navigate replace to="/" /> },
+    ],
+  },
+]);
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <AppContextProvider>
+      <RouterProvider router={router} />
+    </AppContextProvider>
+  </React.StrictMode>,
+);
+
