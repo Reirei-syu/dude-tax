@@ -4,7 +4,9 @@ import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { PlaceholderModulePage } from "./components/PlaceholderModulePage";
 import { AppContextProvider } from "./context/AppContextProvider";
+import { EmployeeManagementPage } from "./pages/EmployeeManagementPage";
 import { HomePage } from "./pages/HomePage";
+import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
 import { UnitManagementPage } from "./pages/UnitManagementPage";
 import "./styles.css";
 
@@ -15,24 +17,8 @@ const router = createHashRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: "units", element: <UnitManagementPage /> },
-      {
-        path: "employees",
-        element: (
-          <PlaceholderModulePage
-            title="员工信息"
-            description="后续里程碑将实现当前单位下的员工档案管理。"
-          />
-        ),
-      },
-      {
-        path: "entry",
-        element: (
-          <PlaceholderModulePage
-            title="月度数据录入"
-            description="后续里程碑将在当前单位/年份房间内提供 12 个月数据录入。"
-          />
-        ),
-      },
+      { path: "employees", element: <EmployeeManagementPage /> },
+      { path: "entry", element: <MonthRecordEntryPage /> },
       {
         path: "import",
         element: (
@@ -90,4 +76,3 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </AppContextProvider>
   </React.StrictMode>,
 );
-

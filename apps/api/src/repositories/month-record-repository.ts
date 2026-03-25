@@ -1,0 +1,203 @@
+import type {
+  EmployeeMonthRecord,
+  MonthRecordStatus,
+  UpsertEmployeeMonthRecordPayload,
+} from "@salary-tax/core";
+import { database } from "../db/database.js";
+
+const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord => ({
+  id: Number(row.id),
+  unitId: Number(row.unit_id),
+  employeeId: Number(row.employee_id),
+  taxYear: Number(row.tax_year),
+  taxMonth: Number(row.tax_month),
+  status: String(row.status) as MonthRecordStatus,
+  salaryIncome: Number(row.salary_income),
+  annualBonus: Number(row.annual_bonus),
+  pensionInsurance: Number(row.pension_insurance),
+  medicalInsurance: Number(row.medical_insurance),
+  occupationalAnnuity: Number(row.occupational_annuity),
+  housingFund: Number(row.housing_fund),
+  supplementaryHousingFund: Number(row.supplementary_housing_fund),
+  unemploymentInsurance: Number(row.unemployment_insurance),
+  workInjuryInsurance: Number(row.work_injury_insurance),
+  infantCareDeduction: Number(row.infant_care_deduction),
+  childEducationDeduction: Number(row.child_education_deduction),
+  continuingEducationDeduction: Number(row.continuing_education_deduction),
+  housingLoanInterestDeduction: Number(row.housing_loan_interest_deduction),
+  housingRentDeduction: Number(row.housing_rent_deduction),
+  elderCareDeduction: Number(row.elder_care_deduction),
+  otherDeduction: Number(row.other_deduction),
+  taxReductionExemption: Number(row.tax_reduction_exemption),
+  remark: String(row.remark ?? ""),
+  createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at),
+});
+
+const createDefaultMonthRecord = (
+  unitId: number,
+  employeeId: number,
+  taxYear: number,
+  taxMonth: number,
+): EmployeeMonthRecord => ({
+  id: null,
+  unitId,
+  employeeId,
+  taxYear,
+  taxMonth,
+  status: "incomplete",
+  salaryIncome: 0,
+  annualBonus: 0,
+  pensionInsurance: 0,
+  medicalInsurance: 0,
+  occupationalAnnuity: 0,
+  housingFund: 0,
+  supplementaryHousingFund: 0,
+  unemploymentInsurance: 0,
+  workInjuryInsurance: 0,
+  infantCareDeduction: 0,
+  childEducationDeduction: 0,
+  continuingEducationDeduction: 0,
+  housingLoanInterestDeduction: 0,
+  housingRentDeduction: 0,
+  elderCareDeduction: 0,
+  otherDeduction: 0,
+  taxReductionExemption: 0,
+  remark: "",
+  createdAt: null,
+  updatedAt: null,
+});
+
+const numericFields = [
+  "salaryIncome",
+  "annualBonus",
+  "pensionInsurance",
+  "medicalInsurance",
+  "occupationalAnnuity",
+  "housingFund",
+  "supplementaryHousingFund",
+  "unemploymentInsurance",
+  "workInjuryInsurance",
+  "infantCareDeduction",
+  "childEducationDeduction",
+  "continuingEducationDeduction",
+  "housingLoanInterestDeduction",
+  "housingRentDeduction",
+  "elderCareDeduction",
+  "otherDeduction",
+  "taxReductionExemption",
+] as const;
+
+export const monthRecordRepository = {
+  listByEmployeeAndYear(unitId: number, employeeId: number, taxYear: number): EmployeeMonthRecord[] {
+    const rows = database
+      .prepare(
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+          ORDER BY tax_month ASC
+        `,
+      )
+      .all(unitId, employeeId, taxYear) as Record<string, unknown>[];
+
+    const recordMap = new Map<number, EmployeeMonthRecord>();
+    rows.forEach((row) => {
+      const record = mapRowToMonthRecord(row);
+      recordMap.set(record.taxMonth, record);
+    });
+
+    return Array.from({ length: 12 }, (_, index) => {
+      const taxMonth = index + 1;
+      return recordMap.get(taxMonth) ?? createDefaultMonthRecord(unitId, employeeId, taxYear, taxMonth);
+    });
+  },
+  upsert(
+    unitId: number,
+    employeeId: number,
+    taxYear: number,
+    taxMonth: number,
+    payload: UpsertEmployeeMonthRecordPayload,
+  ): EmployeeMonthRecord {
+    const now = new Date().toISOString();
+    const values = numericFields.map((field) => payload[field]);
+
+    database
+      .prepare(
+        `
+          INSERT INTO employee_month_records (
+            unit_id,
+            employee_id,
+            tax_year,
+            tax_month,
+            status,
+            salary_income,
+            annual_bonus,
+            pension_insurance,
+            medical_insurance,
+            occupational_annuity,
+            housing_fund,
+            supplementary_housing_fund,
+            unemployment_insurance,
+            work_injury_insurance,
+            infant_care_deduction,
+            child_education_deduction,
+            continuing_education_deduction,
+            housing_loan_interest_deduction,
+            housing_rent_deduction,
+            elder_care_deduction,
+            other_deduction,
+            tax_reduction_exemption,
+            remark,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(unit_id, employee_id, tax_year, tax_month) DO UPDATE SET
+            status = excluded.status,
+            salary_income = excluded.salary_income,
+            annual_bonus = excluded.annual_bonus,
+            pension_insurance = excluded.pension_insurance,
+            medical_insurance = excluded.medical_insurance,
+            occupational_annuity = excluded.occupational_annuity,
+            housing_fund = excluded.housing_fund,
+            supplementary_housing_fund = excluded.supplementary_housing_fund,
+            unemployment_insurance = excluded.unemployment_insurance,
+            work_injury_insurance = excluded.work_injury_insurance,
+            infant_care_deduction = excluded.infant_care_deduction,
+            child_education_deduction = excluded.child_education_deduction,
+            continuing_education_deduction = excluded.continuing_education_deduction,
+            housing_loan_interest_deduction = excluded.housing_loan_interest_deduction,
+            housing_rent_deduction = excluded.housing_rent_deduction,
+            elder_care_deduction = excluded.elder_care_deduction,
+            other_deduction = excluded.other_deduction,
+            tax_reduction_exemption = excluded.tax_reduction_exemption,
+            remark = excluded.remark,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        unitId,
+        employeeId,
+        taxYear,
+        taxMonth,
+        payload.status,
+        ...values,
+        payload.remark?.trim() ?? "",
+        now,
+        now,
+      );
+
+    const row = database
+      .prepare(
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ? AND tax_month = ?
+        `,
+      )
+      .get(unitId, employeeId, taxYear, taxMonth) as Record<string, unknown>;
+
+    return mapRowToMonthRecord(row);
+  },
+};

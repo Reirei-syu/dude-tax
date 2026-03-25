@@ -1,8 +1,12 @@
 import type {
   AppContext,
+  CreateEmployeePayload,
   CreateUnitPayload,
   DeleteUnitChallenge,
+  Employee,
+  EmployeeMonthRecord,
   Unit,
+  UpsertEmployeeMonthRecordPayload,
 } from "@salary-tax/core";
 
 const API_BASE_URL = "http://127.0.0.1:3001";
@@ -57,5 +61,44 @@ export const apiClient = {
       }),
     });
   },
+  listEmployees(unitId: number) {
+    return request<Employee[]>(`/api/units/${unitId}/employees`);
+  },
+  createEmployee(unitId: number, payload: CreateEmployeePayload) {
+    return request<Employee>(`/api/units/${unitId}/employees`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateEmployee(employeeId: number, payload: CreateEmployeePayload) {
+    return request<Employee>(`/api/employees/${employeeId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteEmployee(employeeId: number) {
+    return request<{ success: boolean }>(`/api/employees/${employeeId}`, {
+      method: "DELETE",
+    });
+  },
+  listMonthRecords(unitId: number, taxYear: number, employeeId: number) {
+    return request<EmployeeMonthRecord[]>(
+      `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/month-records`,
+    );
+  },
+  upsertMonthRecord(
+    unitId: number,
+    taxYear: number,
+    employeeId: number,
+    taxMonth: number,
+    payload: UpsertEmployeeMonthRecordPayload,
+  ) {
+    return request<EmployeeMonthRecord>(
+      `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/month-records/${taxMonth}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
 };
-

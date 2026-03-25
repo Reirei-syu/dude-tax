@@ -246,6 +246,13 @@ input {
     border-color 0.2s ease;
 }
 
+.selected-item {
+  border-color: rgba(84, 142, 233, 0.7);
+  box-shadow:
+    0 14px 28px rgba(124, 157, 194, 0.16),
+    0 0 0 3px rgba(91, 157, 255, 0.16);
+}
+
 .reminder-item span {
   font-size: 28px;
   font-weight: 700;
@@ -358,6 +365,32 @@ input {
   grid-column: 1 / -1;
 }
 
+.month-entry-grid {
+  grid-template-columns: minmax(320px, 420px) 1fr;
+}
+
+.month-entry-toolbar {
+  margin-bottom: 18px;
+}
+
+.month-list {
+  max-height: 720px;
+  overflow: auto;
+}
+
+.month-card {
+  width: 100%;
+  cursor: pointer;
+}
+
+.subsection-block {
+  margin-top: 18px;
+}
+
+.subsection-block h3 {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 1280px) {
   .app-shell {
     grid-template-columns: 224px 1fr;
@@ -370,6 +403,10 @@ input {
   }
 
   .context-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .month-entry-grid {
     grid-template-columns: 1fr;
   }
 }
