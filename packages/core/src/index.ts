@@ -66,6 +66,7 @@ export type EmployeeMonthRecord = {
   supplementaryHousingFund: number;
   unemploymentInsurance: number;
   workInjuryInsurance: number;
+  withheldTax: number;
   infantCareDeduction: number;
   childEducationDeduction: number;
   continuingEducationDeduction: number;
@@ -90,6 +91,7 @@ export type UpsertEmployeeMonthRecordPayload = {
   supplementaryHousingFund: number;
   unemploymentInsurance: number;
   workInjuryInsurance: number;
+  withheldTax: number;
   infantCareDeduction: number;
   childEducationDeduction: number;
   continuingEducationDeduction: number;
@@ -100,3 +102,97 @@ export type UpsertEmployeeMonthRecordPayload = {
   taxReductionExemption: number;
   remark?: string;
 };
+
+export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
+
+export type EmployeeCalculationStatus = {
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  recordedMonthCount: number;
+  completedMonthCount: number;
+  preparationStatus: CalculationPreparationStatus;
+  lastCalculatedAt: string | null;
+};
+
+export type TaxCalculationScheme = "separate_bonus" | "combined_bonus";
+
+export type TaxSettlementDirection = "payable" | "refund" | "balanced";
+
+export type AnnualTaxSchemeResult = {
+  scheme: TaxCalculationScheme;
+  taxableComprehensiveIncome: number;
+  comprehensiveIncomeTax: number;
+  annualBonusTax: number;
+  grossTax: number;
+  taxReductionExemptionTotal: number;
+  finalTax: number;
+  comprehensiveBracketLevel: number | null;
+  bonusBracketLevel: number | null;
+};
+
+export type AnnualTaxCalculation = {
+  completedMonthCount: number;
+  salaryIncomeTotal: number;
+  annualBonusTotal: number;
+  insuranceAndHousingFundTotal: number;
+  specialAdditionalDeductionTotal: number;
+  otherDeductionTotal: number;
+  basicDeductionTotal: number;
+  taxReductionExemptionTotal: number;
+  selectedScheme: TaxCalculationScheme;
+  selectedTaxAmount: number;
+  annualTaxPayable: number;
+  annualTaxWithheld: number;
+  annualTaxSettlement: number;
+  settlementDirection: TaxSettlementDirection;
+  schemeResults: {
+    separateBonus: AnnualTaxSchemeResult;
+    combinedBonus: AnnualTaxSchemeResult;
+  };
+};
+
+export type EmployeeAnnualTaxResult = AnnualTaxCalculation & {
+  unitId: number;
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  taxYear: number;
+  calculatedAt: string;
+};
+
+export type UpdateAnnualResultSelectedSchemePayload = {
+  selectedScheme: TaxCalculationScheme;
+};
+
+export type AnnualTaxExportPreviewRow = {
+  unitId: number;
+  unitName: string;
+  taxYear: number;
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  completedMonthCount: number;
+  selectedScheme: TaxCalculationScheme;
+  selectedSchemeLabel: string;
+  salaryIncomeTotal: number;
+  annualBonusTotal: number;
+  insuranceAndHousingFundTotal: number;
+  specialAdditionalDeductionTotal: number;
+  otherDeductionTotal: number;
+  basicDeductionTotal: number;
+  taxReductionExemptionTotal: number;
+  annualTaxPayable: number;
+  annualTaxWithheld: number;
+  annualTaxSettlement: number;
+  settlementDirection: TaxSettlementDirection;
+  settlementDirectionLabel: string;
+  selectedTaxableComprehensiveIncome: number;
+  selectedComprehensiveIncomeTax: number;
+  selectedAnnualBonusTax: number;
+  selectedGrossTax: number;
+  selectedFinalTax: number;
+  calculatedAt: string;
+};
+
+export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";

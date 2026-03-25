@@ -1,11 +1,11 @@
 import {
   DEFAULT_BASIC_DEDUCTION_AMOUNT,
-} from "@salary-tax/config";
+} from "../../../../packages/config/src/index";
 import type {
   Employee,
   EmployeeMonthRecord,
   UpsertEmployeeMonthRecordPayload,
-} from "@salary-tax/core";
+} from "../../../../packages/core/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
@@ -21,6 +21,7 @@ const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
   supplementaryHousingFund: 0,
   unemploymentInsurance: 0,
   workInjuryInsurance: 0,
+  withheldTax: 0,
   infantCareDeduction: 0,
   childEducationDeduction: 0,
   continuingEducationDeduction: 0,
@@ -75,6 +76,7 @@ const toMonthRecordPayload = (
   supplementaryHousingFund: record?.supplementaryHousingFund ?? 0,
   unemploymentInsurance: record?.unemploymentInsurance ?? 0,
   workInjuryInsurance: record?.workInjuryInsurance ?? 0,
+  withheldTax: record?.withheldTax ?? 0,
   infantCareDeduction: record?.infantCareDeduction ?? 0,
   childEducationDeduction: record?.childEducationDeduction ?? 0,
   continuingEducationDeduction: record?.continuingEducationDeduction ?? 0,
@@ -266,7 +268,7 @@ export const MonthRecordEntryPage = () => {
                   <strong>{record.taxMonth} 月</strong>
                   <p>状态：{record.status === "completed" ? "已完成" : "未完成"}</p>
                   <p>
-                    工资：{record.salaryIncome.toFixed(2)} / 年终奖：{record.annualBonus.toFixed(2)}
+                    工资：{record.salaryIncome.toFixed(2)} / 预扣税：{record.withheldTax.toFixed(2)}
                   </p>
                 </div>
               </button>
@@ -326,6 +328,16 @@ export const MonthRecordEntryPage = () => {
                   type="number"
                   value={form.annualBonus}
                   onChange={(event) => updateNumericField("annualBonus", event.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span>已预扣税额</span>
+                <input
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={form.withheldTax}
+                  onChange={(event) => updateNumericField("withheldTax", event.target.value)}
                 />
               </label>
             </div>

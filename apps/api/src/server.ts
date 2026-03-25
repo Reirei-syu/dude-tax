@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { closeDatabase } from "./db/database.js";
+import { registerCalculationRoutes } from "./routes/calculations.js";
 import { registerContextRoutes } from "./routes/context.js";
 import { registerEmployeeRoutes } from "./routes/employees.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -14,6 +15,7 @@ await app.register(cors, {
 });
 
 await registerHealthRoutes(app);
+await registerCalculationRoutes(app);
 await registerContextRoutes(app);
 await registerEmployeeRoutes(app);
 await registerMonthRecordRoutes(app);

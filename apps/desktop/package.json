@@ -1,16 +1,18 @@
 {
-  "name": "@salary-tax/desktop",
+  "name": "@dude-tax/desktop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 tcp:3001 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron electron/main.cjs\"",
     "build": "vite build",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@salary-tax/config": "file:../../packages/config",
-    "@salary-tax/core": "file:../../packages/core",
+    "@dude-tax/config": "file:../../packages/config",
+    "@dude-tax/core": "file:../../packages/core",
+    "exceljs": "^4.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4"
@@ -23,6 +25,7 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^37.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.7",
     "wait-on": "^8.0.5"

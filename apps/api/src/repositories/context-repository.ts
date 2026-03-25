@@ -1,5 +1,5 @@
-import { DEFAULT_TAX_YEAR } from "@salary-tax/config";
-import type { AppContext } from "@salary-tax/core";
+import { DEFAULT_TAX_YEAR } from "../../../../packages/config/src/index.js";
+import type { AppContext } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 import { unitRepository } from "./unit-repository.js";
 
@@ -86,4 +86,3 @@ export const contextRepository = {
     setPreference(CURRENT_YEAR_KEY, String(taxYear));
   },
 };
-

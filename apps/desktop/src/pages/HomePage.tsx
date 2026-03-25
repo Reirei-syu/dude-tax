@@ -2,7 +2,7 @@ import {
   BONUS_TAX_BRACKETS,
   COMPREHENSIVE_TAX_BRACKETS,
   DEFAULT_BASIC_DEDUCTION_AMOUNT,
-} from "@salary-tax/config";
+} from "../../../../packages/config/src/index";
 import { Link } from "react-router-dom";
 import { useAppContext } from "../context/AppContextProvider";
 
@@ -160,4 +160,3 @@ export const HomePage = () => {
     </section>
   );
 };
-

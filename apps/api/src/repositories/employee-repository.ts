@@ -1,4 +1,8 @@
-import type { CreateEmployeePayload, Employee, UpdateEmployeePayload } from "@salary-tax/core";
+import type {
+  CreateEmployeePayload,
+  Employee,
+  UpdateEmployeePayload,
+} from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 
 const mapRowToEmployee = (row: Record<string, unknown>): Employee => ({
@@ -108,4 +112,3 @@ export const employeeRepository = {
     database.prepare("DELETE FROM employees WHERE id = ?").run(employeeId);
   },
 };
-

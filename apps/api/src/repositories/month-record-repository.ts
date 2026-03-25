@@ -2,7 +2,7 @@ import type {
   EmployeeMonthRecord,
   MonthRecordStatus,
   UpsertEmployeeMonthRecordPayload,
-} from "@salary-tax/core";
+} from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 
 const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord => ({
@@ -21,6 +21,7 @@ const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord 
   supplementaryHousingFund: Number(row.supplementary_housing_fund),
   unemploymentInsurance: Number(row.unemployment_insurance),
   workInjuryInsurance: Number(row.work_injury_insurance),
+  withheldTax: Number(row.withheld_tax ?? 0),
   infantCareDeduction: Number(row.infant_care_deduction),
   childEducationDeduction: Number(row.child_education_deduction),
   continuingEducationDeduction: Number(row.continuing_education_deduction),
@@ -55,6 +56,7 @@ const createDefaultMonthRecord = (
   supplementaryHousingFund: 0,
   unemploymentInsurance: 0,
   workInjuryInsurance: 0,
+  withheldTax: 0,
   infantCareDeduction: 0,
   childEducationDeduction: 0,
   continuingEducationDeduction: 0,
@@ -78,6 +80,7 @@ const numericFields = [
   "supplementaryHousingFund",
   "unemploymentInsurance",
   "workInjuryInsurance",
+  "withheldTax",
   "infantCareDeduction",
   "childEducationDeduction",
   "continuingEducationDeduction",
@@ -140,6 +143,7 @@ export const monthRecordRepository = {
             supplementary_housing_fund,
             unemployment_insurance,
             work_injury_insurance,
+            withheld_tax,
             infant_care_deduction,
             child_education_deduction,
             continuing_education_deduction,
@@ -152,7 +156,7 @@ export const monthRecordRepository = {
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(unit_id, employee_id, tax_year, tax_month) DO UPDATE SET
             status = excluded.status,
             salary_income = excluded.salary_income,
@@ -164,6 +168,7 @@ export const monthRecordRepository = {
             supplementary_housing_fund = excluded.supplementary_housing_fund,
             unemployment_insurance = excluded.unemployment_insurance,
             work_injury_insurance = excluded.work_injury_insurance,
+            withheld_tax = excluded.withheld_tax,
             infant_care_deduction = excluded.infant_care_deduction,
             child_education_deduction = excluded.child_education_deduction,
             continuing_education_deduction = excluded.continuing_education_deduction,
@@ -187,6 +192,24 @@ export const monthRecordRepository = {
         now,
         now,
       );
+
+    database
+      .prepare(
+        `
+          DELETE FROM annual_calculation_runs
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+        `,
+      )
+      .run(unitId, employeeId, taxYear);
+
+    database
+      .prepare(
+        `
+          DELETE FROM annual_tax_results
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+        `,
+      )
+      .run(unitId, employeeId, taxYear);
 
     const row = database
       .prepare(

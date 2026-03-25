@@ -1,4 +1,4 @@
-import type { CreateUnitPayload, Unit } from "@salary-tax/core";
+import type { CreateUnitPayload, Unit } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 
 const mapRowToUnit = (row: Record<string, unknown>): Unit => ({
@@ -23,6 +23,19 @@ export const unitRepository = {
       .all() as Record<string, unknown>[];
 
     return rows.map(mapRowToUnit);
+  },
+  getById(unitId: number): Unit | null {
+    const row = database
+      .prepare(
+        `
+          SELECT id, unit_name, remark, is_archived, created_at, updated_at
+          FROM units
+          WHERE id = ?
+        `,
+      )
+      .get(unitId) as Record<string, unknown> | undefined;
+
+    return row ? mapRowToUnit(row) : null;
   },
   create(payload: CreateUnitPayload): Unit {
     const now = new Date().toISOString();
@@ -51,4 +64,3 @@ export const unitRepository = {
     database.prepare("DELETE FROM units WHERE id = ?").run(unitId);
   },
 };
-

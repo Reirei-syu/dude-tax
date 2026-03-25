@@ -1,4 +1,4 @@
-import type { DeleteUnitChallenge } from "@salary-tax/core";
+import type { DeleteUnitChallenge } from "../../../../packages/core/src/index";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
@@ -200,4 +200,3 @@ export const UnitManagementPage = () => {
     </section>
   );
 };
-

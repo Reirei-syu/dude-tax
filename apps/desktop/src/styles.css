@@ -339,6 +339,12 @@ input {
   box-shadow: none;
 }
 
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .error-banner {
   margin-top: 18px;
   padding: 14px 16px;
@@ -391,6 +397,78 @@ input {
   margin-bottom: 14px;
 }
 
+.results-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.detail-summary-grid {
+  margin-top: 14px;
+}
+
+.selectable-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.selectable-row:hover {
+  background: rgba(239, 247, 255, 0.84);
+}
+
+.selectable-row.is-selected {
+  background: rgba(229, 240, 255, 0.96);
+}
+
+.table-action-button {
+  padding: 8px 12px;
+}
+
+.export-column-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.export-template-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.export-template-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+}
+
+.export-template-button.is-active {
+  border-color: rgba(84, 142, 233, 0.7);
+  box-shadow:
+    0 14px 28px rgba(124, 157, 194, 0.16),
+    0 0 0 3px rgba(91, 157, 255, 0.16);
+}
+
+.export-template-button small {
+  color: #6e84a1;
+}
+
+.export-column-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(202, 220, 241, 0.56);
+}
+
+.export-column-item input {
+  width: auto;
+}
+
 @media (max-width: 1280px) {
   .app-shell {
     grid-template-columns: 224px 1fr;
@@ -398,7 +476,8 @@ input {
 
   .summary-grid,
   .form-grid,
-  .tax-rule-columns {
+  .tax-rule-columns,
+  .results-summary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -407,6 +486,14 @@ input {
   }
 
   .month-entry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .export-column-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .export-template-panel {
     grid-template-columns: 1fr;
   }
 }

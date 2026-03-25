@@ -1,8 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
+import { AnnualResultsPage } from "./pages/AnnualResultsPage";
 import { AppLayout } from "./components/AppLayout";
 import { PlaceholderModulePage } from "./components/PlaceholderModulePage";
+import { CalculationCenterPage } from "./pages/CalculationCenterPage";
 import { AppContextProvider } from "./context/AppContextProvider";
 import { EmployeeManagementPage } from "./pages/EmployeeManagementPage";
 import { HomePage } from "./pages/HomePage";
@@ -28,23 +30,10 @@ const router = createHashRouter([
           />
         ),
       },
-      {
-        path: "calculation",
-        element: (
-          <PlaceholderModulePage
-            title="计算中心"
-            description="后续里程碑将实现当前单位/年份的重算入口与状态筛选。"
-          />
-        ),
-      },
+      { path: "calculation", element: <CalculationCenterPage /> },
       {
         path: "results",
-        element: (
-          <PlaceholderModulePage
-            title="结果中心"
-            description="后续里程碑将实现结算结果、测算结果与方案切换。"
-          />
-        ),
+        element: <AnnualResultsPage />,
       },
       {
         path: "history",

@@ -15,6 +15,7 @@ const monthRecordPayloadSchema = z.object({
   supplementaryHousingFund: z.number().min(0),
   unemploymentInsurance: z.number().min(0),
   workInjuryInsurance: z.number().min(0),
+  withheldTax: z.number().min(0),
   infantCareDeduction: z.number().min(0),
   childEducationDeduction: z.number().min(0),
   continuingEducationDeduction: z.number().min(0),

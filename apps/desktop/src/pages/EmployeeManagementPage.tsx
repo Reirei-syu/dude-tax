@@ -1,4 +1,4 @@
-import type { CreateEmployeePayload, Employee } from "@salary-tax/core";
+import type { CreateEmployeePayload, Employee } from "../../../../packages/core/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";

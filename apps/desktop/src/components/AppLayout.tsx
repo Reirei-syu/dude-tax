@@ -1,4 +1,4 @@
-import { MODULE_NAV_ITEMS, getSelectableYears } from "@salary-tax/config";
+import { MODULE_NAV_ITEMS, getSelectableYears } from "../../../../packages/config/src/index";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAppContext } from "../context/AppContextProvider";
 
@@ -86,4 +86,3 @@ export const AppLayout = () => {
     </div>
   );
 };
-

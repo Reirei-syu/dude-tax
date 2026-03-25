@@ -1,13 +1,17 @@
 import type {
+  AnnualTaxExportPreviewRow,
   AppContext,
+  EmployeeAnnualTaxResult,
+  EmployeeCalculationStatus,
   CreateEmployeePayload,
   CreateUnitPayload,
   DeleteUnitChallenge,
   Employee,
   EmployeeMonthRecord,
+  UpdateAnnualResultSelectedSchemePayload,
   Unit,
   UpsertEmployeeMonthRecordPayload,
-} from "@salary-tax/core";
+} from "../../../../packages/core/src/index";
 
 const API_BASE_URL = "http://127.0.0.1:3001";
 
@@ -95,6 +99,42 @@ export const apiClient = {
   ) {
     return request<EmployeeMonthRecord>(
       `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/month-records/${taxMonth}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+  listCalculationStatuses(unitId: number, taxYear: number) {
+    return request<EmployeeCalculationStatus[]>(
+      `/api/units/${unitId}/years/${taxYear}/calculation-statuses`,
+    );
+  },
+  recalculateStatuses(unitId: number, taxYear: number, employeeId?: number) {
+    return request<EmployeeCalculationStatus[]>(
+      `/api/units/${unitId}/years/${taxYear}/calculation-statuses/recalculate`,
+      {
+        method: "POST",
+        body: JSON.stringify(employeeId ? { employeeId } : {}),
+      },
+    );
+  },
+  listAnnualResults(unitId: number, taxYear: number) {
+    return request<EmployeeAnnualTaxResult[]>(`/api/units/${unitId}/years/${taxYear}/annual-results`);
+  },
+  listAnnualResultExportPreview(unitId: number, taxYear: number) {
+    return request<AnnualTaxExportPreviewRow[]>(
+      `/api/units/${unitId}/years/${taxYear}/annual-results/export-preview`,
+    );
+  },
+  updateAnnualResultSelectedScheme(
+    unitId: number,
+    taxYear: number,
+    employeeId: number,
+    payload: UpdateAnnualResultSelectedSchemePayload,
+  ) {
+    return request<EmployeeAnnualTaxResult>(
+      `/api/units/${unitId}/years/${taxYear}/annual-results/${employeeId}/selected-scheme`,
       {
         method: "PUT",
         body: JSON.stringify(payload),

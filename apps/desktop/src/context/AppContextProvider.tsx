@@ -1,4 +1,4 @@
-import type { AppContext } from "@salary-tax/core";
+import type { AppContext } from "../../../../packages/core/src/index";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 
@@ -69,4 +69,3 @@ export const useAppContext = () => {
 
   return value;
 };
-

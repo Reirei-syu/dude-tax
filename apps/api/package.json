@@ -1,16 +1,17 @@
 {
-  "name": "@salary-tax/api",
+  "name": "@dude-tax/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
-    "@salary-tax/config": "file:../../packages/config",
-    "@salary-tax/core": "file:../../packages/core",
+    "@dude-tax/config": "file:../../packages/config",
+    "@dude-tax/core": "file:../../packages/core",
     "better-sqlite3": "^12.4.1",
     "fastify": "^5.6.1",
     "zod": "^4.1.11"

@@ -6,14 +6,26 @@ import { fileURLToPath } from "node:url";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, "../../../../");
 const dataDir = path.join(repoRoot, "data");
-const databaseFile = path.join(dataDir, "salary-tax.db");
+const databaseFile = process.env.DUDE_TAX_DB_PATH
+  ? path.resolve(process.env.DUDE_TAX_DB_PATH)
+  : path.join(dataDir, "dude-tax.db");
 
-fs.mkdirSync(dataDir, { recursive: true });
+fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 
 export const database = new Database(databaseFile);
 
 database.pragma("journal_mode = WAL");
 database.pragma("foreign_keys = ON");
+
+const ensureColumnExists = (tableName: string, columnName: string, columnSql: string) => {
+  const columns = database
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all() as Array<{ name: string }>;
+
+  if (!columns.some((column) => column.name === columnName)) {
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnSql}`);
+  }
+};
 
 database.exec(`
   CREATE TABLE IF NOT EXISTS units (
@@ -62,6 +74,7 @@ database.exec(`
     supplementary_housing_fund REAL NOT NULL DEFAULT 0,
     unemployment_insurance REAL NOT NULL DEFAULT 0,
     work_injury_insurance REAL NOT NULL DEFAULT 0,
+    withheld_tax REAL NOT NULL DEFAULT 0,
     infant_care_deduction REAL NOT NULL DEFAULT 0,
     child_education_deduction REAL NOT NULL DEFAULT 0,
     continuing_education_deduction REAL NOT NULL DEFAULT 0,
@@ -77,7 +90,41 @@ database.exec(`
     FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
     UNIQUE(unit_id, employee_id, tax_year, tax_month)
   );
+
+  CREATE TABLE IF NOT EXISTS annual_calculation_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL,
+    last_status TEXT NOT NULL,
+    last_calculated_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    UNIQUE(unit_id, employee_id, tax_year)
+  );
+
+  CREATE TABLE IF NOT EXISTS annual_tax_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL,
+    selected_scheme TEXT NOT NULL,
+    selected_tax_amount REAL NOT NULL DEFAULT 0,
+    calculation_snapshot TEXT NOT NULL,
+    calculated_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    UNIQUE(unit_id, employee_id, tax_year)
+  );
 `);
+
+ensureColumnExists(
+  "employee_month_records",
+  "withheld_tax",
+  "withheld_tax REAL NOT NULL DEFAULT 0",
+);
 
 export const closeDatabase = () => {
   database.close();
