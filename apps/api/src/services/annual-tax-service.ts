@@ -4,6 +4,7 @@ import {
   type AnnualTaxCalculation,
   type EmployeeCalculationStatus,
   type EmployeeAnnualTaxResult,
+  type HistoryAnnualTaxQuery,
   type TaxSettlementDirection,
   type TaxCalculationScheme,
 } from "../../../../packages/core/src/index.js";
@@ -127,6 +128,9 @@ const recalculateReadyStatus = (unitId: number, taxYear: number, status: Employe
 };
 
 export const annualTaxService = {
+  searchHistory(filters: HistoryAnnualTaxQuery) {
+    return annualTaxResultRepository.searchHistory(filters);
+  },
   listResults(unitId: number, taxYear: number) {
     return annualTaxResultRepository.listByUnitAndYear(unitId, taxYear);
   },

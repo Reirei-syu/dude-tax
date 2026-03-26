@@ -16,7 +16,7 @@ export const MODULE_NAV_ITEMS = [
   { path: "/import", label: "批量导入", isPlaceholder: true },
   { path: "/calculation", label: "计算中心", isPlaceholder: false },
   { path: "/results", label: "结果中心", isPlaceholder: false },
-  { path: "/history", label: "历史查询", isPlaceholder: true },
+  { path: "/history", label: "历史查询", isPlaceholder: false },
   { path: "/maintenance", label: "系统维护", isPlaceholder: true },
 ] as const;
 

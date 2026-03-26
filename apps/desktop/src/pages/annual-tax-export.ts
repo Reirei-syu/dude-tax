@@ -27,13 +27,10 @@ export type AnnualTaxExportColumnKey =
   | "selectedFinalTax"
   | "calculatedAt";
 
-type AnnualTaxExportWorkbookValueType = "text" | "integer" | "currency" | "datetime";
-
 type AnnualTaxExportColumnDefinition = {
   key: AnnualTaxExportColumnKey;
   label: string;
   group: AnnualTaxExportColumnGroup;
-  workbookValueType: AnnualTaxExportWorkbookValueType;
   getValue: (row: AnnualTaxExportPreviewRow) => string;
   getWorkbookValue: (row: AnnualTaxExportPreviewRow) => string | number;
 };
@@ -70,76 +67,11 @@ const escapeCsvValue = (value: string) => {
   return `"${value.replace(/"/g, "\"\"")}"`;
 };
 
-const HEADER_FILL_BY_GROUP: Record<AnnualTaxExportColumnGroup, string> = {
-  基础信息: "FFDCEBFF",
-  收入项目: "FFFFEDD5",
-  扣除项目: "FFDCFCE7",
-  税额结果: "FFFEE2E2",
-};
-
-const SETTLEMENT_FONT_BY_DIRECTION = {
-  payable: "FFB91C1C",
-  refund: "FF047857",
-  balanced: "FF475569",
-} as const;
-
-const MIN_WORKBOOK_WIDTH_BY_TYPE: Record<AnnualTaxExportWorkbookValueType, number> = {
-  text: 12,
-  integer: 10,
-  currency: 14,
-  datetime: 20,
-};
-
-const WORKBOOK_NUMFMT_BY_TYPE: Partial<Record<AnnualTaxExportWorkbookValueType, string>> = {
-  integer: "0",
-  currency: "#,##0.00",
-};
-
-const getDisplayWidth = (value: string) =>
-  Array.from(value).reduce((total, character) => total + (/[\u0000-\u00ff]/.test(character) ? 1 : 2), 0);
-
-const getWorkbookColumnWidth = (
-  column: AnnualTaxExportColumnDefinition,
-  rows: AnnualTaxExportPreviewRow[],
-) => {
-  const contentWidth = rows.reduce(
-    (maxWidth, row) => Math.max(maxWidth, getDisplayWidth(column.getValue(row))),
-    getDisplayWidth(column.label),
-  );
-
-  return Math.min(
-    Math.max(MIN_WORKBOOK_WIDTH_BY_TYPE[column.workbookValueType], contentWidth + 4),
-    28,
-  );
-};
-
-const getWorkbookCellAlignment = (column: AnnualTaxExportColumnDefinition): Partial<ExcelJS.Alignment> => {
-  switch (column.workbookValueType) {
-    case "currency":
-      return { horizontal: "right", vertical: "middle" };
-    case "integer":
-    case "datetime":
-      return { horizontal: "center", vertical: "middle" };
-    default:
-      return { horizontal: "left", vertical: "middle", wrapText: true };
-  }
-};
-
-const applyCellBorder = (cell: ExcelJS.Cell) => {
-  cell.border = {
-    top: { style: "thin", color: { argb: "FFE2E8F0" } },
-    right: { style: "thin", color: { argb: "FFE2E8F0" } },
-    bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-    left: { style: "thin", color: { argb: "FFE2E8F0" } },
-  };
-};
-
 export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
   {
     key: "unitName",
     label: "单位名称",
     group: "基础信息",
-    workbookValueType: "text",
     getValue: (row) => row.unitName,
     getWorkbookValue: (row) => row.unitName,
   },
@@ -147,7 +79,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "taxYear",
     label: "年度",
     group: "基础信息",
-    workbookValueType: "integer",
     getValue: (row) => String(row.taxYear),
     getWorkbookValue: (row) => row.taxYear,
   },
@@ -155,7 +86,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "employeeCode",
     label: "员工工号",
     group: "基础信息",
-    workbookValueType: "text",
     getValue: (row) => row.employeeCode,
     getWorkbookValue: (row) => row.employeeCode,
   },
@@ -163,7 +93,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "employeeName",
     label: "员工姓名",
     group: "基础信息",
-    workbookValueType: "text",
     getValue: (row) => row.employeeName,
     getWorkbookValue: (row) => row.employeeName,
   },
@@ -171,7 +100,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "completedMonthCount",
     label: "完成月份",
     group: "基础信息",
-    workbookValueType: "integer",
     getValue: (row) => String(row.completedMonthCount),
     getWorkbookValue: (row) => row.completedMonthCount,
   },
@@ -179,7 +107,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "selectedSchemeLabel",
     label: "当前方案",
     group: "基础信息",
-    workbookValueType: "text",
     getValue: (row) => row.selectedSchemeLabel,
     getWorkbookValue: (row) => row.selectedSchemeLabel,
   },
@@ -187,7 +114,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "salaryIncomeTotal",
     label: "工资收入合计",
     group: "收入项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.salaryIncomeTotal),
     getWorkbookValue: (row) => row.salaryIncomeTotal,
   },
@@ -195,7 +121,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "annualBonusTotal",
     label: "年终奖合计",
     group: "收入项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.annualBonusTotal),
     getWorkbookValue: (row) => row.annualBonusTotal,
   },
@@ -203,7 +128,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "insuranceAndHousingFundTotal",
     label: "五险一金合计",
     group: "扣除项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.insuranceAndHousingFundTotal),
     getWorkbookValue: (row) => row.insuranceAndHousingFundTotal,
   },
@@ -211,7 +135,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "specialAdditionalDeductionTotal",
     label: "专项附加扣除合计",
     group: "扣除项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.specialAdditionalDeductionTotal),
     getWorkbookValue: (row) => row.specialAdditionalDeductionTotal,
   },
@@ -219,7 +142,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "otherDeductionTotal",
     label: "其他扣除合计",
     group: "扣除项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.otherDeductionTotal),
     getWorkbookValue: (row) => row.otherDeductionTotal,
   },
@@ -227,7 +149,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "basicDeductionTotal",
     label: "减除费用合计",
     group: "扣除项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.basicDeductionTotal),
     getWorkbookValue: (row) => row.basicDeductionTotal,
   },
@@ -235,7 +156,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "taxReductionExemptionTotal",
     label: "税额减免合计",
     group: "扣除项目",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.taxReductionExemptionTotal),
     getWorkbookValue: (row) => row.taxReductionExemptionTotal,
   },
@@ -243,7 +163,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "annualTaxPayable",
     label: "年度应纳税额",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.annualTaxPayable),
     getWorkbookValue: (row) => row.annualTaxPayable,
   },
@@ -251,7 +170,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "annualTaxWithheld",
     label: "已预扣税额",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.annualTaxWithheld),
     getWorkbookValue: (row) => row.annualTaxWithheld,
   },
@@ -259,7 +177,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "annualTaxSettlement",
     label: "应补/应退税额",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.annualTaxSettlement),
     getWorkbookValue: (row) => row.annualTaxSettlement,
   },
@@ -267,7 +184,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "settlementDirectionLabel",
     label: "结算方向",
     group: "税额结果",
-    workbookValueType: "text",
     getValue: (row) => row.settlementDirectionLabel,
     getWorkbookValue: (row) => row.settlementDirectionLabel,
   },
@@ -275,7 +191,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "selectedTaxableComprehensiveIncome",
     label: "当前综合应税额",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.selectedTaxableComprehensiveIncome),
     getWorkbookValue: (row) => row.selectedTaxableComprehensiveIncome,
   },
@@ -283,7 +198,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "selectedComprehensiveIncomeTax",
     label: "当前综合所得税",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.selectedComprehensiveIncomeTax),
     getWorkbookValue: (row) => row.selectedComprehensiveIncomeTax,
   },
@@ -291,7 +205,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "selectedAnnualBonusTax",
     label: "当前年终奖税额",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.selectedAnnualBonusTax),
     getWorkbookValue: (row) => row.selectedAnnualBonusTax,
   },
@@ -299,7 +212,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "selectedFinalTax",
     label: "当前税额合计",
     group: "税额结果",
-    workbookValueType: "currency",
     getValue: (row) => formatCsvNumber(row.selectedFinalTax),
     getWorkbookValue: (row) => row.selectedFinalTax,
   },
@@ -307,7 +219,6 @@ export const ANNUAL_TAX_EXPORT_COLUMNS: AnnualTaxExportColumnDefinition[] = [
     key: "calculatedAt",
     label: "计算时间",
     group: "基础信息",
-    workbookValueType: "datetime",
     getValue: (row) => formatExportDateTime(row.calculatedAt),
     getWorkbookValue: (row) => formatExportDateTime(row.calculatedAt),
   },
@@ -392,75 +303,6 @@ export const buildAnnualTaxExportWorkbook = (
   worksheet.addRow(selectedColumns.map((column) => column.label));
   rows.forEach((row) => {
     worksheet.addRow(selectedColumns.map((column) => column.getWorkbookValue(row)));
-  });
-
-  worksheet.properties.defaultRowHeight = 22;
-  worksheet.views = [{ state: "frozen", ySplit: 1 }];
-  worksheet.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: 1, column: selectedColumns.length },
-  };
-
-  const headerRow = worksheet.getRow(1);
-  headerRow.height = 26;
-  headerRow.eachCell((cell, columnNumber) => {
-    const column = selectedColumns[columnNumber - 1];
-    cell.font = {
-      bold: true,
-      color: { argb: "FF0F172A" },
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true,
-    };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: HEADER_FILL_BY_GROUP[column.group] },
-    };
-    applyCellBorder(cell);
-  });
-
-  selectedColumns.forEach((column, columnIndex) => {
-    const worksheetColumn = worksheet.getColumn(columnIndex + 1);
-    worksheetColumn.width = getWorkbookColumnWidth(column, rows);
-
-    const numFmt = WORKBOOK_NUMFMT_BY_TYPE[column.workbookValueType];
-    if (numFmt) {
-      worksheetColumn.numFmt = numFmt;
-    }
-  });
-
-  rows.forEach((row, rowIndex) => {
-    const worksheetRow = worksheet.getRow(rowIndex + 2);
-    worksheetRow.height = 22;
-    worksheetRow.eachCell((cell, columnNumber) => {
-      const column = selectedColumns[columnNumber - 1];
-      cell.alignment = getWorkbookCellAlignment(column);
-      applyCellBorder(cell);
-
-      if (rowIndex % 2 === 1) {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFF8FAFC" },
-        };
-      }
-
-      if (column.key === "annualTaxSettlement") {
-        cell.font = {
-          color: { argb: SETTLEMENT_FONT_BY_DIRECTION[row.settlementDirection] },
-        };
-      }
-
-      if (column.key === "settlementDirectionLabel") {
-        cell.font = {
-          bold: true,
-          color: { argb: SETTLEMENT_FONT_BY_DIRECTION[row.settlementDirection] },
-        };
-      }
-    });
   });
 
   return workbook;

@@ -8,6 +8,7 @@ import { CalculationCenterPage } from "./pages/CalculationCenterPage";
 import { AppContextProvider } from "./context/AppContextProvider";
 import { EmployeeManagementPage } from "./pages/EmployeeManagementPage";
 import { HomePage } from "./pages/HomePage";
+import { HistoryQueryPage } from "./pages/HistoryQueryPage";
 import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
 import { UnitManagementPage } from "./pages/UnitManagementPage";
 import "./styles.css";
@@ -37,12 +38,7 @@ const router = createHashRouter([
       },
       {
         path: "history",
-        element: (
-          <PlaceholderModulePage
-            title="历史查询"
-            description="后续里程碑将提供历史年度结果只读查询与导出。"
-          />
-        ),
+        element: <HistoryQueryPage />,
       },
       {
         path: "maintenance",

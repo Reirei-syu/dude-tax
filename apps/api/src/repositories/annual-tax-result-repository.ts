@@ -1,6 +1,8 @@
 import type {
   AnnualTaxCalculation,
   EmployeeAnnualTaxResult,
+  HistoryAnnualTaxQuery,
+  HistoryAnnualTaxResult,
   TaxSettlementDirection,
   TaxCalculationScheme,
 } from "../../../../packages/core/src/index.js";
@@ -34,6 +36,60 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
 };
 
 export const annualTaxResultRepository = {
+  searchHistory(filters: HistoryAnnualTaxQuery): HistoryAnnualTaxResult[] {
+    const conditions: string[] = [];
+    const params: Array<number | string> = [];
+
+    if (filters.unitId) {
+      conditions.push("result.unit_id = ?");
+      params.push(filters.unitId);
+    }
+
+    if (filters.taxYear) {
+      conditions.push("result.tax_year = ?");
+      params.push(filters.taxYear);
+    }
+
+    if (filters.employeeId) {
+      conditions.push("result.employee_id = ?");
+      params.push(filters.employeeId);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const rows = database
+      .prepare(
+        `
+          SELECT
+            result.unit_id,
+            result.employee_id,
+            result.tax_year,
+            result.selected_scheme,
+            result.selected_tax_amount,
+            result.calculation_snapshot,
+            result.calculated_at,
+            e.employee_code,
+            e.employee_name,
+            u.unit_name
+          FROM annual_tax_results result
+          INNER JOIN employees e
+            ON e.id = result.employee_id
+          INNER JOIN units u
+            ON u.id = result.unit_id
+          ${whereClause}
+          ORDER BY result.tax_year DESC, u.created_at ASC, e.created_at DESC
+        `,
+      )
+      .all(...params) as Record<string, unknown>[];
+
+    return rows
+      .map((row) => ({
+        ...mapRowToAnnualTaxResult(row),
+        unitName: String(row.unit_name),
+      }))
+      .filter((result) =>
+        filters.settlementDirection ? result.settlementDirection === filters.settlementDirection : true,
+      );
+  },
   getByEmployeeAndYear(unitId: number, employeeId: number, taxYear: number) {
     const row = database
       .prepare(
