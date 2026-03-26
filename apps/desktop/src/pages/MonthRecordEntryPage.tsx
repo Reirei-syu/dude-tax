@@ -9,6 +9,7 @@ import type {
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
 
 const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
   status: "incomplete",
@@ -102,6 +103,7 @@ export const MonthRecordEntryPage = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -112,6 +114,11 @@ export const MonthRecordEntryPage = () => {
     () => monthRecords.find((record) => record.taxMonth === selectedMonth) ?? null,
     [monthRecords, selectedMonth],
   );
+  const previousMonthRecord = useMemo(
+    () => monthRecords.find((record) => record.taxMonth === selectedMonth - 1) ?? null,
+    [monthRecords, selectedMonth],
+  );
+  const canCopyPreviousMonth = selectedMonth > 1 && hasMonthRecordContent(previousMonthRecord);
 
   const loadEmployees = async () => {
     if (!currentUnitId) {
@@ -123,6 +130,7 @@ export const MonthRecordEntryPage = () => {
     try {
       setLoading(true);
       setErrorMessage(null);
+      setNoticeMessage(null);
       const nextEmployees = await apiClient.listEmployees(currentUnitId);
       setEmployees(nextEmployees);
       setSelectedEmployeeId((currentEmployeeId) =>
@@ -147,6 +155,7 @@ export const MonthRecordEntryPage = () => {
     try {
       setLoading(true);
       setErrorMessage(null);
+      setNoticeMessage(null);
       const nextRecords = await apiClient.listMonthRecords(currentUnitId, currentTaxYear, employeeId);
       setMonthRecords(nextRecords);
       const nextSelectedMonth = nextRecords.some((record) => record.taxMonth === selectedMonth)
@@ -198,6 +207,7 @@ export const MonthRecordEntryPage = () => {
     try {
       setSubmitting(true);
       setErrorMessage(null);
+      setNoticeMessage(null);
       await apiClient.upsertMonthRecord(
         currentUnitId,
         currentTaxYear,
@@ -211,6 +221,17 @@ export const MonthRecordEntryPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const copyPreviousMonth = () => {
+    if (!previousMonthRecord || !canCopyPreviousMonth) {
+      setErrorMessage("上月没有可复制的数据");
+      return;
+    }
+
+    setErrorMessage(null);
+    setNoticeMessage(`已复制 ${selectedMonth - 1} 月数据到当前月份，尚未保存。`);
+    setForm(buildCopiedMonthRecordPayload(previousMonthRecord));
   };
 
   if (!currentUnitId || !currentTaxYear) {
@@ -390,6 +411,13 @@ export const MonthRecordEntryPage = () => {
             </label>
 
             <div className="button-row">
+              <button
+                className="ghost-button"
+                disabled={submitting || !canCopyPreviousMonth}
+                onClick={copyPreviousMonth}
+              >
+                复制上月
+              </button>
               <button className="primary-button" disabled={submitting} onClick={() => void saveMonthRecord()}>
                 保存当前月份
               </button>
@@ -407,6 +435,7 @@ export const MonthRecordEntryPage = () => {
         )}
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+        {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
       </article>
     </section>
   );

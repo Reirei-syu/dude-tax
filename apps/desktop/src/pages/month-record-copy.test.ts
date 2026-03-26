@@ -1,0 +1,84 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { EmployeeMonthRecord } from "../../../../packages/core/src/index";
+import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
+
+const createMonthRecord = (
+  overrides: Partial<EmployeeMonthRecord> = {},
+): EmployeeMonthRecord => ({
+  id: null,
+  unitId: 1,
+  employeeId: 1,
+  taxYear: 2026,
+  taxMonth: 1,
+  status: "incomplete",
+  salaryIncome: 0,
+  annualBonus: 0,
+  pensionInsurance: 0,
+  medicalInsurance: 0,
+  occupationalAnnuity: 0,
+  housingFund: 0,
+  supplementaryHousingFund: 0,
+  unemploymentInsurance: 0,
+  workInjuryInsurance: 0,
+  withheldTax: 0,
+  infantCareDeduction: 0,
+  childEducationDeduction: 0,
+  continuingEducationDeduction: 0,
+  housingLoanInterestDeduction: 0,
+  housingRentDeduction: 0,
+  elderCareDeduction: 0,
+  otherDeduction: 0,
+  taxReductionExemption: 0,
+  remark: "",
+  createdAt: null,
+  updatedAt: null,
+  ...overrides,
+});
+
+test("无内容月份不允许复制上月", () => {
+  assert.equal(hasMonthRecordContent(createMonthRecord()), false);
+});
+
+test("有内容月份允许复制上月", () => {
+  assert.equal(
+    hasMonthRecordContent(createMonthRecord({ salaryIncome: 12000, status: "completed" })),
+    true,
+  );
+});
+
+test("复制上月会完整复制当前可编辑字段", () => {
+  const payload = buildCopiedMonthRecordPayload(
+    createMonthRecord({
+      status: "completed",
+      salaryIncome: 12000,
+      annualBonus: 3000,
+      withheldTax: 500,
+      housingRentDeduction: 1500,
+      remark: "上月基础数据",
+    }),
+  );
+
+  assert.deepEqual(payload, {
+    status: "completed",
+    salaryIncome: 12000,
+    annualBonus: 3000,
+    pensionInsurance: 0,
+    medicalInsurance: 0,
+    occupationalAnnuity: 0,
+    housingFund: 0,
+    supplementaryHousingFund: 0,
+    unemploymentInsurance: 0,
+    workInjuryInsurance: 0,
+    withheldTax: 500,
+    infantCareDeduction: 0,
+    childEducationDeduction: 0,
+    continuingEducationDeduction: 0,
+    housingLoanInterestDeduction: 0,
+    housingRentDeduction: 1500,
+    elderCareDeduction: 0,
+    otherDeduction: 0,
+    taxReductionExemption: 0,
+    remark: "上月基础数据",
+  });
+});

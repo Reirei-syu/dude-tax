@@ -1,0 +1,58 @@
+import type { EmployeeMonthRecord, UpsertEmployeeMonthRecordPayload } from "../../../../packages/core/src/index";
+
+const hasPositiveValue = (value: number | null | undefined) => Boolean(value && value > 0);
+
+export const hasMonthRecordContent = (record: EmployeeMonthRecord | null) => {
+  if (!record) {
+    return false;
+  }
+
+  return (
+    record.id !== null ||
+    record.status === "completed" ||
+    hasPositiveValue(record.salaryIncome) ||
+    hasPositiveValue(record.annualBonus) ||
+    hasPositiveValue(record.pensionInsurance) ||
+    hasPositiveValue(record.medicalInsurance) ||
+    hasPositiveValue(record.occupationalAnnuity) ||
+    hasPositiveValue(record.housingFund) ||
+    hasPositiveValue(record.supplementaryHousingFund) ||
+    hasPositiveValue(record.unemploymentInsurance) ||
+    hasPositiveValue(record.workInjuryInsurance) ||
+    hasPositiveValue(record.withheldTax) ||
+    hasPositiveValue(record.infantCareDeduction) ||
+    hasPositiveValue(record.childEducationDeduction) ||
+    hasPositiveValue(record.continuingEducationDeduction) ||
+    hasPositiveValue(record.housingLoanInterestDeduction) ||
+    hasPositiveValue(record.housingRentDeduction) ||
+    hasPositiveValue(record.elderCareDeduction) ||
+    hasPositiveValue(record.otherDeduction) ||
+    hasPositiveValue(record.taxReductionExemption) ||
+    Boolean(record.remark)
+  );
+};
+
+export const buildCopiedMonthRecordPayload = (
+  sourceRecord: EmployeeMonthRecord,
+): UpsertEmployeeMonthRecordPayload => ({
+  status: sourceRecord.status,
+  salaryIncome: sourceRecord.salaryIncome,
+  annualBonus: sourceRecord.annualBonus,
+  pensionInsurance: sourceRecord.pensionInsurance,
+  medicalInsurance: sourceRecord.medicalInsurance,
+  occupationalAnnuity: sourceRecord.occupationalAnnuity,
+  housingFund: sourceRecord.housingFund,
+  supplementaryHousingFund: sourceRecord.supplementaryHousingFund,
+  unemploymentInsurance: sourceRecord.unemploymentInsurance,
+  workInjuryInsurance: sourceRecord.workInjuryInsurance,
+  withheldTax: sourceRecord.withheldTax,
+  infantCareDeduction: sourceRecord.infantCareDeduction,
+  childEducationDeduction: sourceRecord.childEducationDeduction,
+  continuingEducationDeduction: sourceRecord.continuingEducationDeduction,
+  housingLoanInterestDeduction: sourceRecord.housingLoanInterestDeduction,
+  housingRentDeduction: sourceRecord.housingRentDeduction,
+  elderCareDeduction: sourceRecord.elderCareDeduction,
+  otherDeduction: sourceRecord.otherDeduction,
+  taxReductionExemption: sourceRecord.taxReductionExemption,
+  remark: sourceRecord.remark,
+});
