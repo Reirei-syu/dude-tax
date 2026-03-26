@@ -9,6 +9,12 @@ import { getSelectableYears } from "../../../../packages/config/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import {
+  buildHistoryQueryExportCsv,
+  buildHistoryQueryExportFilename,
+  buildHistoryQueryExportWorkbookBuffer,
+  buildHistoryQueryExportWorkbookFilename,
+} from "./history-query-export";
 
 const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
   payable: "应补税",
@@ -27,6 +33,18 @@ const formatCurrency = (value: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+const buildHistoryQueryExportScopeLabel = (
+  unitName: string | undefined,
+  taxYear: number | undefined,
+  resultStatus: HistoryResultStatus | undefined,
+) => {
+  const unitPart = unitName ?? "全部单位";
+  const yearPart = taxYear ? `${taxYear}` : "全部年份";
+  const statusPart = historyResultStatusLabelMap[resultStatus ?? "current"];
+
+  return `${unitPart}_${yearPart}_${statusPart}`;
+};
 
 export const HistoryQueryPage = () => {
   const { context } = useAppContext();
@@ -116,6 +134,52 @@ export const HistoryQueryPage = () => {
     }),
     [results],
   );
+
+  const selectedUnitName =
+    context?.units.find((unit) => unit.id === filters.unitId)?.unitName ?? undefined;
+  const exportScopeLabel = buildHistoryQueryExportScopeLabel(
+    selectedUnitName,
+    filters.taxYear,
+    filters.resultStatus,
+  );
+
+  const downloadHistoryCsv = () => {
+    if (!results.length) {
+      return;
+    }
+
+    const csvContent = buildHistoryQueryExportCsv(results);
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = buildHistoryQueryExportFilename(exportScopeLabel);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const downloadHistoryWorkbook = async () => {
+    if (!results.length) {
+      return;
+    }
+
+    const workbookArray = await buildHistoryQueryExportWorkbookBuffer(results);
+    const blob = new Blob([workbookArray], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = buildHistoryQueryExportWorkbookFilename(exportScopeLabel);
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(downloadUrl);
+  };
 
   return (
     <section className="page-grid">
@@ -235,6 +299,23 @@ export const HistoryQueryPage = () => {
             <span>应补税</span>
             <strong>{summary.payable}</strong>
           </div>
+        </div>
+
+        <div className="button-row">
+          <button
+            className="primary-button"
+            disabled={!results.length || loading}
+            onClick={downloadHistoryCsv}
+          >
+            导出当前筛选 CSV
+          </button>
+          <button
+            className="primary-button"
+            disabled={!results.length || loading}
+            onClick={() => void downloadHistoryWorkbook()}
+          >
+            导出当前筛选 XLSX
+          </button>
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
