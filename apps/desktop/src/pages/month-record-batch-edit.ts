@@ -1,0 +1,60 @@
+import type {
+  EmployeeMonthRecord,
+  UpsertEmployeeMonthRecordPayload,
+} from "../../../../packages/core/src/index";
+
+export type MonthRecordDraftMap = Partial<Record<number, UpsertEmployeeMonthRecordPayload>>;
+
+export const toggleBatchMonthSelection = (
+  selectedMonths: number[],
+  taxMonth: number,
+): number[] => {
+  if (selectedMonths.includes(taxMonth)) {
+    return selectedMonths.filter((month) => month !== taxMonth);
+  }
+
+  return [...selectedMonths, taxMonth].sort((left, right) => left - right);
+};
+
+export const applyBatchEditDrafts = (
+  drafts: MonthRecordDraftMap,
+  targetMonths: number[],
+  payload: UpsertEmployeeMonthRecordPayload,
+): MonthRecordDraftMap => {
+  const nextDrafts = { ...drafts };
+
+  targetMonths.forEach((taxMonth) => {
+    nextDrafts[taxMonth] = { ...payload };
+  });
+
+  return nextDrafts;
+};
+
+export const clearBatchEditDrafts = (
+  drafts: MonthRecordDraftMap,
+  targetMonths: number[],
+): MonthRecordDraftMap => {
+  const nextDrafts = { ...drafts };
+
+  targetMonths.forEach((taxMonth) => {
+    delete nextDrafts[taxMonth];
+  });
+
+  return nextDrafts;
+};
+
+export const buildEffectiveMonthRecords = (
+  records: EmployeeMonthRecord[],
+  drafts: MonthRecordDraftMap,
+): EmployeeMonthRecord[] =>
+  records.map((record) => {
+    const draft = drafts[record.taxMonth];
+    if (!draft) {
+      return record;
+    }
+
+    return {
+      ...record,
+      ...draft,
+    };
+  });

@@ -9,6 +9,12 @@ import type {
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import {
+  applyBatchEditDrafts,
+  buildEffectiveMonthRecords,
+  clearBatchEditDrafts,
+  toggleBatchMonthSelection,
+} from "./month-record-batch-edit";
 import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
 import { buildMonthRecordSummary } from "./month-record-progress";
 import { buildMonthRecordYearView } from "./month-record-year-view";
@@ -99,6 +105,10 @@ export const MonthRecordEntryPage = () => {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [monthRecords, setMonthRecords] = useState<EmployeeMonthRecord[]>([]);
+  const [draftPayloadByMonth, setDraftPayloadByMonth] = useState<
+    Partial<Record<number, UpsertEmployeeMonthRecordPayload>>
+  >({});
+  const [selectedBatchMonths, setSelectedBatchMonths] = useState<number[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number>(1);
   const [form, setForm] = useState<UpsertEmployeeMonthRecordPayload>(emptyMonthRecordPayload);
@@ -107,22 +117,36 @@ export const MonthRecordEntryPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
+  const effectiveMonthRecords = useMemo(
+    () => buildEffectiveMonthRecords(monthRecords, draftPayloadByMonth),
+    [draftPayloadByMonth, monthRecords],
+  );
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
     [employees, selectedEmployeeId],
   );
 
   const selectedRecord = useMemo(
-    () => monthRecords.find((record) => record.taxMonth === selectedMonth) ?? null,
-    [monthRecords, selectedMonth],
+    () => effectiveMonthRecords.find((record) => record.taxMonth === selectedMonth) ?? null,
+    [effectiveMonthRecords, selectedMonth],
   );
   const previousMonthRecord = useMemo(
-    () => monthRecords.find((record) => record.taxMonth === selectedMonth - 1) ?? null,
-    [monthRecords, selectedMonth],
+    () => effectiveMonthRecords.find((record) => record.taxMonth === selectedMonth - 1) ?? null,
+    [effectiveMonthRecords, selectedMonth],
   );
   const canCopyPreviousMonth = selectedMonth > 1 && hasMonthRecordContent(previousMonthRecord);
-  const monthSummary = useMemo(() => buildMonthRecordSummary(monthRecords), [monthRecords]);
-  const yearView = useMemo(() => buildMonthRecordYearView(monthRecords), [monthRecords]);
+  const monthSummary = useMemo(
+    () => buildMonthRecordSummary(effectiveMonthRecords),
+    [effectiveMonthRecords],
+  );
+  const yearView = useMemo(
+    () => buildMonthRecordYearView(effectiveMonthRecords),
+    [effectiveMonthRecords],
+  );
+  const draftMonthCount = useMemo(
+    () => Object.keys(draftPayloadByMonth).length,
+    [draftPayloadByMonth],
+  );
 
   const loadEmployees = async () => {
     if (!currentUnitId) {
@@ -181,10 +205,14 @@ export const MonthRecordEntryPage = () => {
   useEffect(() => {
     if (!selectedEmployeeId) {
       setMonthRecords([]);
+      setDraftPayloadByMonth({});
+      setSelectedBatchMonths([]);
       setForm(emptyMonthRecordPayload);
       return;
     }
 
+    setDraftPayloadByMonth({});
+    setSelectedBatchMonths([]);
     void loadMonthRecords(selectedEmployeeId);
   }, [selectedEmployeeId, currentUnitId, currentTaxYear]);
 
@@ -219,6 +247,9 @@ export const MonthRecordEntryPage = () => {
         selectedMonth,
         form,
       );
+      setDraftPayloadByMonth((currentDrafts) =>
+        clearBatchEditDrafts(currentDrafts, [selectedMonth]),
+      );
       await loadMonthRecords(selectedEmployeeId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存月度记录失败");
@@ -236,6 +267,32 @@ export const MonthRecordEntryPage = () => {
     setErrorMessage(null);
     setNoticeMessage(`已复制 ${selectedMonth - 1} 月数据到当前月份，尚未保存。`);
     setForm(buildCopiedMonthRecordPayload(previousMonthRecord));
+  };
+
+  const applyBatchEdit = () => {
+    if (!selectedBatchMonths.length) {
+      setErrorMessage("请先选择需要批量编辑的月份");
+      return;
+    }
+
+    setErrorMessage(null);
+    setNoticeMessage(`已将当前表单应用到 ${selectedBatchMonths.join("、")} 月，尚未保存。`);
+    setDraftPayloadByMonth((currentDrafts) =>
+      applyBatchEditDrafts(currentDrafts, selectedBatchMonths, form),
+    );
+  };
+
+  const clearSelectedBatchDrafts = () => {
+    if (!selectedBatchMonths.length) {
+      setErrorMessage("请先选择需要清空草稿的月份");
+      return;
+    }
+
+    setErrorMessage(null);
+    setNoticeMessage(`已清空 ${selectedBatchMonths.join("、")} 月的本地草稿。`);
+    setDraftPayloadByMonth((currentDrafts) =>
+      clearBatchEditDrafts(currentDrafts, selectedBatchMonths),
+    );
   };
 
   if (!currentUnitId || !currentTaxYear) {
@@ -301,6 +358,54 @@ export const MonthRecordEntryPage = () => {
             <div className="summary-card">
               <span>完成度</span>
               <strong>{monthSummary.completionRate}%</strong>
+            </div>
+            <div className="summary-card">
+              <span>批量草稿月份</span>
+              <strong>{draftMonthCount}</strong>
+            </div>
+          </div>
+        ) : null}
+
+        {selectedEmployee ? (
+          <div className="batch-edit-panel">
+            <div className="section-header">
+              <div>
+                <h3>批量编辑</h3>
+                <p>勾选目标月份后，可将右侧当前表单内容批量应用为本地草稿，不会立即保存到数据库。</p>
+              </div>
+              <span className="tag tag-neutral">已选 {selectedBatchMonths.length} 个月</span>
+            </div>
+
+            <div className="batch-month-grid">
+              {effectiveMonthRecords.map((record) => {
+                const isSelected = selectedBatchMonths.includes(record.taxMonth);
+                return (
+                  <label
+                    className={isSelected ? "batch-month-item selected-item" : "batch-month-item"}
+                    key={record.taxMonth}
+                  >
+                    <input
+                      checked={isSelected}
+                      type="checkbox"
+                      onChange={() =>
+                        setSelectedBatchMonths((currentMonths) =>
+                          toggleBatchMonthSelection(currentMonths, record.taxMonth),
+                        )
+                      }
+                    />
+                    <span>{record.taxMonth} 月</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="button-row compact">
+              <button className="ghost-button" disabled={submitting} onClick={applyBatchEdit}>
+                批量应用当前表单
+              </button>
+              <button className="ghost-button" disabled={submitting} onClick={clearSelectedBatchDrafts}>
+                清空所选草稿
+              </button>
             </div>
           </div>
         ) : null}

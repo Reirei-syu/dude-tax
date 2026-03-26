@@ -505,6 +505,36 @@ textarea {
   margin-bottom: 18px;
 }
 
+.batch-edit-panel {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.batch-month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.batch-month-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+
+.batch-month-item input {
+  width: auto;
+}
+
 .month-list {
   max-height: 720px;
   overflow: auto;
@@ -711,6 +741,10 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .batch-month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .export-column-panel {
     grid-template-columns: 1fr;
   }
@@ -724,6 +758,12 @@ textarea {
   }
 
   .year-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .batch-month-grid {
     grid-template-columns: 1fr;
   }
 }
