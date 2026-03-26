@@ -20,6 +20,7 @@ import {
 } from "./history-query-export";
 import { buildHistoryQueryComparisonItems } from "./history-query-diff";
 import { buildHistoryQueryYearSummaries } from "./history-query-year-summary";
+import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
   payable: "应补税",
@@ -202,17 +203,12 @@ export const HistoryQueryPage = () => {
     }
 
     const csvContent = buildHistoryQueryExportCsv(results);
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: "text/csv;charset=utf-8;",
+    void saveFileWithDesktopFallback({
+      defaultPath: buildHistoryQueryExportFilename(exportScopeLabel),
+      filters: [{ name: "CSV 文件", extensions: ["csv"] }],
+      mimeType: "text/csv;charset=utf-8;",
+      content: `\uFEFF${csvContent}`,
     });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = buildHistoryQueryExportFilename(exportScopeLabel);
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
   };
 
   const downloadHistoryWorkbook = async () => {
@@ -221,17 +217,12 @@ export const HistoryQueryPage = () => {
     }
 
     const workbookArray = await buildHistoryQueryExportWorkbookBuffer(results);
-    const blob = new Blob([workbookArray], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    await saveFileWithDesktopFallback({
+      defaultPath: buildHistoryQueryExportWorkbookFilename(exportScopeLabel),
+      filters: [{ name: "Excel 文件", extensions: ["xlsx"] }],
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      content: workbookArray,
     });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = buildHistoryQueryExportWorkbookFilename(exportScopeLabel);
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
   };
 
   return (

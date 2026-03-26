@@ -22,6 +22,7 @@ import {
   type AnnualTaxExportColumnKey,
   type AnnualTaxExportTemplateId,
 } from "./annual-tax-export";
+import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
   separate_bonus: "年终奖单独计税",
@@ -179,17 +180,12 @@ export const AnnualResultsPage = () => {
     }
 
     const csvContent = buildAnnualTaxExportCsv(exportPreviewRows, selectedExportColumnKeys);
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: "text/csv;charset=utf-8;",
+    void saveFileWithDesktopFallback({
+      defaultPath: buildAnnualTaxExportFilename(currentUnit.unitName, currentTaxYear),
+      filters: [{ name: "CSV 文件", extensions: ["csv"] }],
+      mimeType: "text/csv;charset=utf-8;",
+      content: `\uFEFF${csvContent}`,
     });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = buildAnnualTaxExportFilename(currentUnit.unitName, currentTaxYear);
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
   };
 
   const downloadExportWorkbook = async () => {
@@ -206,17 +202,12 @@ export const AnnualResultsPage = () => {
       exportPreviewRows,
       selectedExportColumnKeys,
     );
-    const blob = new Blob([workbookArray], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    await saveFileWithDesktopFallback({
+      defaultPath: buildAnnualTaxExportWorkbookFilename(currentUnit.unitName, currentTaxYear),
+      filters: [{ name: "Excel 文件", extensions: ["xlsx"] }],
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      content: workbookArray,
     });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = buildAnnualTaxExportWorkbookFilename(currentUnit.unitName, currentTaxYear);
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
   };
 
   if (!currentUnitId || !currentTaxYear) {

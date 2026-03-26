@@ -1,4 +1,5 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const createWindow = () => {
@@ -22,6 +23,23 @@ const createWindow = () => {
 };
 
 app.whenReady().then(() => {
+  ipcMain.handle("salary-tax:save-file", async (_event, input) => {
+    const result = await dialog.showSaveDialog({
+      defaultPath: input.defaultPath,
+      filters: input.filters,
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+
+    await fs.writeFile(result.filePath, Buffer.from(input.base64Content, "base64"));
+    return {
+      canceled: false,
+      filePath: result.filePath,
+    };
+  });
+
   createWindow();
 
   app.on("activate", () => {
@@ -36,4 +54,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-
