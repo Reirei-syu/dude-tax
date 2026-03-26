@@ -51,15 +51,11 @@ const saveFileWithBrowserDownload = ({
 
 export const saveFileWithDesktopFallback = async (options: SaveFileOptions) => {
   if (window.salaryTaxDesktop?.saveFile) {
-    const result = await window.salaryTaxDesktop.saveFile({
+    return window.salaryTaxDesktop.saveFile({
       defaultPath: options.defaultPath,
       filters: options.filters,
       base64Content: encodeContentToBase64(options.content),
     });
-
-    if (!result.canceled) {
-      return result;
-    }
   }
 
   saveFileWithBrowserDownload(options);
