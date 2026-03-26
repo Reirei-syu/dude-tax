@@ -9,6 +9,7 @@ import { AppContextProvider } from "./context/AppContextProvider";
 import { EmployeeManagementPage } from "./pages/EmployeeManagementPage";
 import { HomePage } from "./pages/HomePage";
 import { HistoryQueryPage } from "./pages/HistoryQueryPage";
+import { MaintenancePage } from "./pages/MaintenancePage";
 import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
 import { UnitManagementPage } from "./pages/UnitManagementPage";
 import "./styles.css";
@@ -42,12 +43,7 @@ const router = createHashRouter([
       },
       {
         path: "maintenance",
-        element: (
-          <PlaceholderModulePage
-            title="系统维护"
-            description="后续里程碑将实现税率维护、提示说明、备份恢复与路径偏好。"
-          />
-        ),
+        element: <MaintenancePage />,
       },
       { path: "*", element: <Navigate replace to="/" /> },
     ],

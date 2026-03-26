@@ -17,7 +17,7 @@ export const MODULE_NAV_ITEMS = [
   { path: "/calculation", label: "计算中心", isPlaceholder: false },
   { path: "/results", label: "结果中心", isPlaceholder: false },
   { path: "/history", label: "历史查询", isPlaceholder: false },
-  { path: "/maintenance", label: "系统维护", isPlaceholder: true },
+  { path: "/maintenance", label: "系统维护", isPlaceholder: false },
 ] as const;
 
 export const DEFAULT_BASIC_DEDUCTION_AMOUNT = 5000;

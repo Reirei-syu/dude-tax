@@ -191,7 +191,8 @@ input {
 .quick-calc-card,
 .tax-rule-block,
 .empty-state,
-.delete-challenge-box {
+.delete-challenge-box,
+.maintenance-note-card {
   padding: 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.62);
