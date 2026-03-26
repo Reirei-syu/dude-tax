@@ -14,7 +14,6 @@ import {
   buildAnnualTaxExportCsv,
   buildAnnualTaxExportFilename,
   buildAnnualTaxExportWorkbookBuffer,
-  buildAnnualTaxExportWorkbook,
   buildAnnualTaxExportWorkbookFilename,
   DEFAULT_ANNUAL_TAX_EXPORT_COLUMN_KEYS,
   DEFAULT_ANNUAL_TAX_EXPORT_TEMPLATE_ID,
@@ -531,7 +530,7 @@ export const AnnualResultsPage = () => {
         <div className="section-header">
           <div>
             <h2>年度导出预览</h2>
-            <p>这里展示导出模板、字段分组和当前导出预览，支持按模板或自定义字段导出 CSV。</p>
+            <p>这里展示导出模板、字段分组和当前导出预览，支持按模板或自定义字段导出 CSV / XLSX。</p>
           </div>
           <span className="tag">
             {exportPreviewRows.length ? `共 ${exportPreviewRows.length} 行` : "暂无预览"}

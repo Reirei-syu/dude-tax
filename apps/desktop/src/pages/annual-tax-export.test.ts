@@ -147,10 +147,15 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
   ) => {
     worksheets: Array<{
       name: string;
+      views: Array<{ state?: string; ySplit?: number }>;
       getCell: (cell: string) => { value: string | number | null };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
     }>;
     getWorksheet: (name: string) => {
       getCell: (cell: string) => { value: string | number | null };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
+      views: Array<{ state?: string; ySplit?: number }>;
+      autoFilter?: { from: { row: number; column: number }; to: { row: number; column: number } };
     };
   };
 
@@ -166,6 +171,48 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("A2")?.value, "EMP-001");
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("B2")?.value, "张三");
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("C2")?.value, 3000);
+});
+
+test("XLSX 导出附带冻结表头、列宽与数值格式", () => {
+  const buildAnnualTaxExportWorkbook = Reflect.get(exportModule, "buildAnnualTaxExportWorkbook") as (
+    rows: AnnualTaxExportPreviewRow[],
+    selectedColumnKeys: string[],
+  ) => {
+    getWorksheet: (name: string) => {
+      getCell: (cell: string) => {
+        fill?: { fgColor?: { argb?: string } };
+        font?: { bold?: boolean; color?: { argb?: string } };
+      };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
+      views: Array<{ state?: string; ySplit?: number }>;
+      autoFilter?: { from: { row: number; column: number }; to: { row: number; column: number } };
+    };
+  };
+
+  const workbook = buildAnnualTaxExportWorkbook(
+    [
+      createExportRow({
+        settlementDirection: "refund",
+        settlementDirectionLabel: "应退税",
+        annualTaxSettlement: -5920,
+      }),
+    ],
+    ["employeeCode", "annualTaxSettlement", "settlementDirectionLabel"],
+  );
+  const worksheet = workbook.getWorksheet("个税结果");
+
+  assert.equal(worksheet.views[0]?.state, "frozen");
+  assert.equal(worksheet.views[0]?.ySplit, 1);
+  assert.deepEqual(worksheet.autoFilter, {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: 3 },
+  });
+  assert.equal(worksheet.getCell("A1")?.fill?.fgColor?.argb, "FFDCEBFF");
+  assert.equal(worksheet.getCell("B1")?.fill?.fgColor?.argb, "FFFEE2E2");
+  assert.equal(worksheet.getColumn(1)?.width !== undefined && worksheet.getColumn(1).width! >= 12, true);
+  assert.equal(worksheet.getColumn(2)?.numFmt, "#,##0.00");
+  assert.equal(worksheet.getCell("B2")?.font?.color?.argb, "FF047857");
+  assert.equal(worksheet.getCell("C2")?.font?.bold, true);
 });
 
 test("XLSX 导出文件名带单位与年度信息", () => {
