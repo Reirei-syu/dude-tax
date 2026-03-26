@@ -103,8 +103,11 @@ export const buildDefaultTaxPolicySettings = (): TaxPolicySettings => ({
   bonusTaxBrackets: BONUS_TAX_BRACKETS.map((bracket) => ({ ...bracket })),
 });
 
+export const buildTaxPolicySignature = (settings: TaxPolicySettingsInput | TaxPolicySettings) =>
+  JSON.stringify(normalizeTaxPolicySettings(settings));
+
 export const isSameTaxPolicySettings = (
   left: TaxPolicySettingsInput,
   right: TaxPolicySettingsInput,
 ) =>
-  JSON.stringify(normalizeTaxPolicySettings(left)) === JSON.stringify(normalizeTaxPolicySettings(right));
+  buildTaxPolicySignature(left) === buildTaxPolicySignature(right);

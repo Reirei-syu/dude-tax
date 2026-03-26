@@ -44,10 +44,10 @@
   - 后端已提供 `GET /api/tax-policy` 和 `PUT /api/tax-policy`
   - 当前税标使用 `app_preferences` 中的 `tax_policy_settings` 键持久化
   - 当前全局说明使用 `app_preferences` 中的 `tax_policy_maintenance_notes` 键持久化
-  - 保存税标后，会清空 `annual_tax_results` 与 `annual_calculation_runs`
+  - 保存税标后，会通过 `policy_signature` 逻辑失效旧税标结果，而不是直接删除
 - 具体未完成项：
   - 税标版本管理策略
-  - 更细粒度的结果失效 / 重算策略
+  - 更细粒度的结果失效 / 重算策略（按单位 / 年度）
   - 更友好的税标编辑体验与字段校验提示
   - 富文本说明维护
 - 完成标准：
@@ -115,6 +115,7 @@
   - 历史结果导出
   - 重算版本历史查询
   - 历史结果差异对比
+  - 失效结果浏览与筛选
   - 更丰富的跨年度浏览体验
   - 历史查询页摘要统计增强
 

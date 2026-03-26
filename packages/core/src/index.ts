@@ -105,6 +105,8 @@ export type UpsertEmployeeMonthRecordPayload = {
 
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
 
+export type ResultInvalidationReason = "tax_policy_changed";
+
 export type EmployeeCalculationStatus = {
   employeeId: number;
   employeeCode: string;
@@ -113,6 +115,8 @@ export type EmployeeCalculationStatus = {
   completedMonthCount: number;
   preparationStatus: CalculationPreparationStatus;
   lastCalculatedAt: string | null;
+  isInvalidated: boolean;
+  invalidatedReason: ResultInvalidationReason | null;
 };
 
 export type TaxCalculationScheme = "separate_bonus" | "combined_bonus";
@@ -265,6 +269,7 @@ export type HistoryAnnualTaxQuery = {
 export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";
 export {
   buildDefaultTaxPolicySettings,
+  buildTaxPolicySignature,
   isSameTaxPolicySettings,
   normalizeBonusTaxBrackets,
   normalizeComprehensiveTaxBrackets,

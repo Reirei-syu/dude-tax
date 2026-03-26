@@ -1,6 +1,7 @@
 import type {
   AnnualTaxExportPreviewRow,
   AnnualTaxSchemeResult,
+  EmployeeCalculationStatus,
   EmployeeAnnualTaxResult,
   TaxCalculationScheme,
 } from "../../../../packages/core/src/index";
@@ -52,6 +53,7 @@ export const AnnualResultsPage = () => {
 
   const [results, setResults] = useState<EmployeeAnnualTaxResult[]>([]);
   const [exportPreviewRows, setExportPreviewRows] = useState<AnnualTaxExportPreviewRow[]>([]);
+  const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [switchingScheme, setSwitchingScheme] = useState<TaxCalculationScheme | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -73,12 +75,14 @@ export const AnnualResultsPage = () => {
     try {
       setLoading(true);
       setErrorMessage(null);
-      const [nextResults, nextExportPreviewRows] = await Promise.all([
+      const [nextResults, nextExportPreviewRows, nextStatuses] = await Promise.all([
         apiClient.listAnnualResults(currentUnitId, currentTaxYear),
         apiClient.listAnnualResultExportPreview(currentUnitId, currentTaxYear),
+        apiClient.listCalculationStatuses(currentUnitId, currentTaxYear),
       ]);
       setResults(nextResults);
       setExportPreviewRows(nextExportPreviewRows);
+      setStatuses(nextStatuses);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载年度结果失败");
     } finally {
@@ -138,8 +142,9 @@ export const AnnualResultsPage = () => {
       separateBonus: results.filter((result) => result.selectedScheme === "separate_bonus").length,
       combinedBonus: results.filter((result) => result.selectedScheme === "combined_bonus").length,
       totalSelectedTax: results.reduce((sum, result) => sum + result.selectedTaxAmount, 0),
+      invalidated: statuses.filter((status) => status.isInvalidated).length,
     }),
-    [results],
+    [results, statuses],
   );
 
   const toggleExportColumn = (columnKey: AnnualTaxExportColumnKey) => {
@@ -255,6 +260,10 @@ export const AnnualResultsPage = () => {
             <span>选定方案税额合计</span>
             <strong>{formatCurrency(summary.totalSelectedTax)}</strong>
           </div>
+          <div className="summary-card">
+            <span>已失效结果</span>
+            <strong>{summary.invalidated}</strong>
+          </div>
         </div>
 
         <div className="button-row">
@@ -337,8 +346,12 @@ export const AnnualResultsPage = () => {
           </table>
         ) : (
           <div className="empty-state">
-            <strong>当前还没有年度结果。</strong>
-            <p>请先到计算中心执行重算，结果生成后会显示在这里。</p>
+            <strong>{summary.invalidated ? "当前结果已失效。" : "当前还没有年度结果。"}</strong>
+            <p>
+              {summary.invalidated
+                ? "当前税标已变更，旧结果已被判定为失效，请前往计算中心重新计算。"
+                : "请先到计算中心执行重算，结果生成后会显示在这里。"}
+            </p>
           </div>
         )}
       </article>

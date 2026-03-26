@@ -106,44 +106,62 @@ const buildExportPreviewRow = (
   };
 };
 
-const recalculateReadyStatus = (unitId: number, taxYear: number, status: EmployeeCalculationStatus) => {
+const recalculateReadyStatus = (
+  unitId: number,
+  taxYear: number,
+  status: EmployeeCalculationStatus,
+  currentSettings: ReturnType<typeof taxPolicyRepository.get>["currentSettings"],
+  currentPolicySignature: string,
+) => {
   const records = monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear);
-  const calculation = calculateEmployeeAnnualTax(
-    records,
-    taxPolicyRepository.get().currentSettings,
-  );
+  const calculation = calculateEmployeeAnnualTax(records, currentSettings);
   const existingResult = annualTaxResultRepository.getByEmployeeAndYear(
     unitId,
     status.employeeId,
     taxYear,
+    currentPolicySignature,
   );
   const nextCalculation = applySelectedScheme(
     calculation,
     existingResult?.selectedScheme ?? calculation.selectedScheme,
   );
 
-  annualTaxResultRepository.upsert(unitId, status.employeeId, taxYear, nextCalculation);
+  annualTaxResultRepository.upsert(
+    unitId,
+    status.employeeId,
+    taxYear,
+    nextCalculation,
+    currentPolicySignature,
+  );
   calculationRunRepository.markCalculated(
     unitId,
     status.employeeId,
     taxYear,
     status.preparationStatus,
+    currentPolicySignature,
   );
 };
 
 export const annualTaxService = {
   searchHistory(filters: HistoryAnnualTaxQuery) {
-    return annualTaxResultRepository.searchHistory(filters);
+    return annualTaxResultRepository.searchHistory(
+      filters,
+      taxPolicyRepository.getCurrentPolicySignature(),
+    );
   },
   listResults(unitId: number, taxYear: number) {
-    return annualTaxResultRepository.listByUnitAndYear(unitId, taxYear);
+    return annualTaxResultRepository.listByUnitAndYear(
+      unitId,
+      taxYear,
+      taxPolicyRepository.getCurrentPolicySignature(),
+    );
   },
   listExportPreview(unitId: number, taxYear: number) {
     const unit = unitRepository.getById(unitId);
     const unitName = unit?.unitName ?? "未知单位";
 
     return annualTaxResultRepository
-      .listByUnitAndYear(unitId, taxYear)
+      .listByUnitAndYear(unitId, taxYear, taxPolicyRepository.getCurrentPolicySignature())
       .map((result) => buildExportPreviewRow(unitName, result));
   },
   updateSelectedScheme(
@@ -152,7 +170,12 @@ export const annualTaxService = {
     taxYear: number,
     selectedScheme: TaxCalculationScheme,
   ) {
-    const result = annualTaxResultRepository.getByEmployeeAndYear(unitId, employeeId, taxYear);
+    const result = annualTaxResultRepository.getByEmployeeAndYear(
+      unitId,
+      employeeId,
+      taxYear,
+      taxPolicyRepository.getCurrentPolicySignature(),
+    );
     if (!result) {
       throw new AnnualTaxResultNotFoundError();
     }
@@ -167,10 +190,17 @@ export const annualTaxService = {
       nextCalculation,
     );
 
-    return annualTaxResultRepository.getByEmployeeAndYear(unitId, employeeId, taxYear);
+    return annualTaxResultRepository.getByEmployeeAndYear(
+      unitId,
+      employeeId,
+      taxYear,
+      taxPolicyRepository.getCurrentPolicySignature(),
+    );
   },
   recalculate(unitId: number, taxYear: number, employeeId?: number) {
-    const statuses = calculationRunRepository.listStatuses(unitId, taxYear);
+    const taxPolicy = taxPolicyRepository.get();
+    const currentPolicySignature = taxPolicyRepository.getCurrentPolicySignature();
+    const statuses = calculationRunRepository.listStatuses(unitId, taxYear, currentPolicySignature);
     const targetStatuses = employeeId
       ? statuses.filter((status) => status.employeeId === employeeId)
       : statuses;
@@ -182,9 +212,15 @@ export const annualTaxService = {
     targetStatuses
       .filter((status) => status.preparationStatus === "ready")
       .forEach((status) => {
-        recalculateReadyStatus(unitId, taxYear, status);
+        recalculateReadyStatus(
+          unitId,
+          taxYear,
+          status,
+          taxPolicy.currentSettings,
+          currentPolicySignature,
+        );
       });
 
-    return calculationRunRepository.listStatuses(unitId, taxYear);
+    return calculationRunRepository.listStatuses(unitId, taxYear, currentPolicySignature);
   },
 };

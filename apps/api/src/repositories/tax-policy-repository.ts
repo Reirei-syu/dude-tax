@@ -1,5 +1,6 @@
 import {
   buildDefaultTaxPolicySettings,
+  buildTaxPolicySignature,
   isSameTaxPolicySettings,
   normalizeTaxPolicySettings,
   type TaxPolicyResponse,
@@ -8,8 +9,6 @@ import {
   type TaxPolicyUpdatePayload,
 } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
-import { annualTaxResultRepository } from "./annual-tax-result-repository.js";
-import { calculationRunRepository } from "./calculation-run-repository.js";
 
 const TAX_POLICY_SETTINGS_KEY = "tax_policy_settings";
 const TAX_POLICY_MAINTENANCE_NOTES_KEY = "tax_policy_maintenance_notes";
@@ -74,6 +73,9 @@ export const taxPolicyRepository = {
   get(): TaxPolicyResponse {
     return buildResponse();
   },
+  getCurrentPolicySignature() {
+    return buildTaxPolicySignature(buildResponse().currentSettings);
+  },
   save(payload: TaxPolicyUpdatePayload): TaxPolicySaveResponse {
     const currentResponse = buildResponse();
     const nextSettings = normalizeTaxPolicySettings(payload);
@@ -100,11 +102,6 @@ export const taxPolicyRepository = {
         deletePreference(TAX_POLICY_MAINTENANCE_NOTES_KEY);
       } else {
         setPreference(TAX_POLICY_MAINTENANCE_NOTES_KEY, nextNotes);
-      }
-
-      if (settingsChanged) {
-        annualTaxResultRepository.deleteAll();
-        calculationRunRepository.deleteAll();
       }
     });
 

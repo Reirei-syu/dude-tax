@@ -9,6 +9,14 @@ const statusLabelMap: Record<EmployeeCalculationStatus["preparationStatus"], str
   ready: "可计算",
 };
 
+const getStatusLabel = (status: EmployeeCalculationStatus) => {
+  if (status.isInvalidated) {
+    return "需按新税标重算";
+  }
+
+  return statusLabelMap[status.preparationStatus];
+};
+
 export const CalculationCenterPage = () => {
   const { context } = useAppContext();
   const currentUnitId = context?.currentUnitId ?? null;
@@ -26,6 +34,7 @@ export const CalculationCenterPage = () => {
       notStarted: statuses.filter((status) => status.preparationStatus === "not_started").length,
       draft: statuses.filter((status) => status.preparationStatus === "draft").length,
       ready: statuses.filter((status) => status.preparationStatus === "ready").length,
+      invalidated: statuses.filter((status) => status.isInvalidated).length,
     };
   }, [statuses]);
   const hasReadyEmployees = summary.ready > 0;
@@ -106,6 +115,10 @@ export const CalculationCenterPage = () => {
             <span>可计算</span>
             <strong>{summary.ready}</strong>
           </div>
+          <div className="summary-card">
+            <span>已失效结果</span>
+            <strong>{summary.invalidated}</strong>
+          </div>
         </div>
 
         <div className="button-row">
@@ -128,7 +141,7 @@ export const CalculationCenterPage = () => {
         <div className="section-header">
           <div>
             <h2>员工计算准备状态</h2>
-            <p>只有“可计算”员工可执行重算；重算成功后请到结果中心查看年度结果。</p>
+            <p>只有“可计算”员工可执行重算；若税标已变更，会显示“需按新税标重算”。</p>
           </div>
           <span className="tag">{loading ? "加载中" : "已同步"}</span>
         </div>
@@ -155,7 +168,7 @@ export const CalculationCenterPage = () => {
                   </td>
                   <td>{status.recordedMonthCount}</td>
                   <td>{status.completedMonthCount}</td>
-                  <td>{statusLabelMap[status.preparationStatus]}</td>
+                  <td>{getStatusLabel(status)}</td>
                   <td>{status.lastCalculatedAt ?? "-"}</td>
                   <td>
                     <button

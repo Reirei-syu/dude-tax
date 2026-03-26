@@ -12,7 +12,9 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
   const snapshot = JSON.parse(String(row.calculation_snapshot)) as AnnualTaxCalculation;
   const annualTaxPayable = Number(snapshot.annualTaxPayable ?? snapshot.selectedTaxAmount ?? 0);
   const annualTaxWithheld = Number(snapshot.annualTaxWithheld ?? 0);
-  const annualTaxSettlement = Number(snapshot.annualTaxSettlement ?? annualTaxPayable - annualTaxWithheld);
+  const annualTaxSettlement = Number(
+    snapshot.annualTaxSettlement ?? annualTaxPayable - annualTaxWithheld,
+  );
   const settlementDirection = String(
     snapshot.settlementDirection ??
       (annualTaxSettlement > 0 ? "payable" : annualTaxSettlement < 0 ? "refund" : "balanced"),
@@ -36,9 +38,12 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
 };
 
 export const annualTaxResultRepository = {
-  searchHistory(filters: HistoryAnnualTaxQuery): HistoryAnnualTaxResult[] {
-    const conditions: string[] = [];
-    const params: Array<number | string> = [];
+  searchHistory(
+    filters: HistoryAnnualTaxQuery,
+    currentPolicySignature: string,
+  ): HistoryAnnualTaxResult[] {
+    const conditions: string[] = ["result.policy_signature = ?"];
+    const params: Array<number | string> = [currentPolicySignature];
 
     if (filters.unitId) {
       conditions.push("result.unit_id = ?");
@@ -55,7 +60,6 @@ export const annualTaxResultRepository = {
       params.push(filters.employeeId);
     }
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const rows = database
       .prepare(
         `
@@ -75,7 +79,7 @@ export const annualTaxResultRepository = {
             ON e.id = result.employee_id
           INNER JOIN units u
             ON u.id = result.unit_id
-          ${whereClause}
+          WHERE ${conditions.join(" AND ")}
           ORDER BY result.tax_year DESC, u.created_at ASC, e.created_at DESC
         `,
       )
@@ -90,7 +94,12 @@ export const annualTaxResultRepository = {
         filters.settlementDirection ? result.settlementDirection === filters.settlementDirection : true,
       );
   },
-  getByEmployeeAndYear(unitId: number, employeeId: number, taxYear: number) {
+  getByEmployeeAndYear(
+    unitId: number,
+    employeeId: number,
+    taxYear: number,
+    currentPolicySignature?: string,
+  ) {
     const row = database
       .prepare(
         `
@@ -108,13 +117,22 @@ export const annualTaxResultRepository = {
           INNER JOIN employees e
             ON e.id = result.employee_id
           WHERE result.unit_id = ? AND result.employee_id = ? AND result.tax_year = ?
+            ${currentPolicySignature ? "AND result.policy_signature = ?" : ""}
         `,
       )
-      .get(unitId, employeeId, taxYear) as Record<string, unknown> | undefined;
+      .get(
+        ...(currentPolicySignature
+          ? [unitId, employeeId, taxYear, currentPolicySignature]
+          : [unitId, employeeId, taxYear]),
+      ) as Record<string, unknown> | undefined;
 
     return row ? mapRowToAnnualTaxResult(row) : null;
   },
-  listByUnitAndYear(unitId: number, taxYear: number): EmployeeAnnualTaxResult[] {
+  listByUnitAndYear(
+    unitId: number,
+    taxYear: number,
+    currentPolicySignature?: string,
+  ): EmployeeAnnualTaxResult[] {
     const rows = database
       .prepare(
         `
@@ -132,14 +150,25 @@ export const annualTaxResultRepository = {
           INNER JOIN employees e
             ON e.id = result.employee_id
           WHERE result.unit_id = ? AND result.tax_year = ?
+            ${currentPolicySignature ? "AND result.policy_signature = ?" : ""}
           ORDER BY e.created_at DESC
         `,
       )
-      .all(unitId, taxYear) as Record<string, unknown>[];
+      .all(
+        ...(currentPolicySignature
+          ? [unitId, taxYear, currentPolicySignature]
+          : [unitId, taxYear]),
+      ) as Record<string, unknown>[];
 
     return rows.map(mapRowToAnnualTaxResult);
   },
-  upsert(unitId: number, employeeId: number, taxYear: number, calculation: AnnualTaxCalculation) {
+  upsert(
+    unitId: number,
+    employeeId: number,
+    taxYear: number,
+    calculation: AnnualTaxCalculation,
+    policySignature: string,
+  ) {
     const now = new Date().toISOString();
 
     database
@@ -151,14 +180,16 @@ export const annualTaxResultRepository = {
             tax_year,
             selected_scheme,
             selected_tax_amount,
+            policy_signature,
             calculation_snapshot,
             calculated_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(unit_id, employee_id, tax_year) DO UPDATE SET
             selected_scheme = excluded.selected_scheme,
             selected_tax_amount = excluded.selected_tax_amount,
+            policy_signature = excluded.policy_signature,
             calculation_snapshot = excluded.calculation_snapshot,
             calculated_at = excluded.calculated_at,
             updated_at = excluded.updated_at
@@ -170,6 +201,7 @@ export const annualTaxResultRepository = {
         taxYear,
         calculation.selectedScheme,
         calculation.selectedTaxAmount,
+        policySignature,
         JSON.stringify(calculation),
         now,
         now,

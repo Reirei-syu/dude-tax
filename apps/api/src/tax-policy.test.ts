@@ -172,6 +172,8 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
   const statuses = statusesResponse.json() as Array<Record<string, unknown>>;
   assert.equal(statuses.length, 1);
   assert.equal(typeof statuses[0]?.lastCalculatedAt, "string");
+  assert.equal(statuses[0]?.isInvalidated, false);
+  assert.equal(statuses[0]?.invalidatedReason, null);
 
   await app.close();
 });
@@ -264,7 +266,16 @@ test("保存税标后会清空年度结果与重算记录", async () => {
   const statuses = statusesResponse.json() as Array<Record<string, unknown>>;
   assert.equal(statuses.length, 1);
   assert.equal(statuses[0]?.preparationStatus, "ready");
-  assert.equal(statuses[0]?.lastCalculatedAt, null);
+  assert.equal(typeof statuses[0]?.lastCalculatedAt, "string");
+  assert.equal(statuses[0]?.isInvalidated, true);
+  assert.equal(statuses[0]?.invalidatedReason, "tax_policy_changed");
+
+  const historyResponse = await app.inject({
+    method: "GET",
+    url: `/api/history-results?unitId=${unit.id}&taxYear=2026`,
+  });
+  assert.equal(historyResponse.statusCode, 200);
+  assert.equal((historyResponse.json() as unknown[]).length, 0);
 
   await app.close();
 });

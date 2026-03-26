@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
+import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 import {
   annualTaxService,
   AnnualTaxResultNotFoundError,
@@ -60,7 +61,11 @@ export const registerCalculationRoutes = async (app: FastifyInstance) => {
       return reply.status(404).send({ message: "目标单位不存在" });
     }
 
-    return calculationRunRepository.listStatuses(unitId, taxYear);
+    return calculationRunRepository.listStatuses(
+      unitId,
+      taxYear,
+      taxPolicyRepository.getCurrentPolicySignature(),
+    );
   });
 
   app.get("/api/units/:unitId/years/:taxYear/annual-results", async (request, reply) => {

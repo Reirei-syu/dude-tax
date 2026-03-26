@@ -71,10 +71,12 @@ export const HomePage = () => {
     () => [
       {
         title: "待重算",
-        description: "点击前往计算中心查看尚未重算的已完备员工。",
+        description: "点击前往计算中心查看尚未重算或已因税标变更失效的员工。",
         path: "/calculation",
         count: statuses.filter(
-          (status) => status.preparationStatus === "ready" && !status.lastCalculatedAt,
+          (status) =>
+            status.preparationStatus === "ready" &&
+            (!status.lastCalculatedAt || status.isInvalidated),
         ).length,
       },
       {
@@ -125,6 +127,7 @@ export const HomePage = () => {
     }
 
     const suggestions: WorkSuggestion[] = [];
+    const invalidatedCount = statuses.filter((status) => status.isInvalidated).length;
 
     if (incompleteMonthCount > 0) {
       suggestions.push({
@@ -138,7 +141,10 @@ export const HomePage = () => {
     if (pendingRecalculateCount > 0) {
       suggestions.push({
         title: "执行年度重算",
-        description: `当前有 ${pendingRecalculateCount} 名员工已具备条件但尚未重算，建议尽快生成最新年度结果。`,
+        description:
+          invalidatedCount > 0
+            ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名是因税标变更导致结果失效。`
+            : `当前有 ${pendingRecalculateCount} 名员工已具备条件但尚未重算，建议尽快生成最新年度结果。`,
         path: "/calculation",
         actionLabel: "前往计算中心",
       });
@@ -167,6 +173,7 @@ export const HomePage = () => {
     employeeCount,
     incompleteMonthCount,
     pendingRecalculateCount,
+    statuses,
   ]);
 
   return (

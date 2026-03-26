@@ -221,7 +221,7 @@ export const HistoryQueryPage = () => {
         <div className="section-header">
           <div>
             <h2>历史结果列表</h2>
-            <p>当前只读展示最新年度结果快照，不含重算版本历史。</p>
+            <p>当前只展示与现行税标口径一致的有效结果，不含失效快照和重算版本历史。</p>
           </div>
           <span className="tag">{results.length ? `命中 ${results.length} 条` : "暂无结果"}</span>
         </div>

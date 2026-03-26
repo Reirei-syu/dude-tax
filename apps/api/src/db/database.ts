@@ -2,6 +2,12 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildDefaultTaxPolicySettings,
+  buildTaxPolicySignature,
+  normalizeTaxPolicySettings,
+  type TaxPolicySettingsInput,
+} from "../../../../packages/core/src/index.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, "../../../../");
@@ -97,6 +103,7 @@ database.exec(`
     employee_id INTEGER NOT NULL,
     tax_year INTEGER NOT NULL,
     last_status TEXT NOT NULL,
+    policy_signature TEXT NOT NULL DEFAULT '',
     last_calculated_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
@@ -111,6 +118,7 @@ database.exec(`
     tax_year INTEGER NOT NULL,
     selected_scheme TEXT NOT NULL,
     selected_tax_amount REAL NOT NULL DEFAULT 0,
+    policy_signature TEXT NOT NULL DEFAULT '',
     calculation_snapshot TEXT NOT NULL,
     calculated_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -125,6 +133,46 @@ ensureColumnExists(
   "withheld_tax",
   "withheld_tax REAL NOT NULL DEFAULT 0",
 );
+
+ensureColumnExists(
+  "annual_calculation_runs",
+  "policy_signature",
+  "policy_signature TEXT NOT NULL DEFAULT ''",
+);
+
+ensureColumnExists(
+  "annual_tax_results",
+  "policy_signature",
+  "policy_signature TEXT NOT NULL DEFAULT ''",
+);
+
+const getCurrentPolicySignature = () => {
+  const storedValue = database
+    .prepare("SELECT value FROM app_preferences WHERE key = ?")
+    .get("tax_policy_settings") as { value: string } | undefined;
+
+  if (!storedValue?.value) {
+    return buildTaxPolicySignature(buildDefaultTaxPolicySettings());
+  }
+
+  try {
+    return buildTaxPolicySignature(
+      normalizeTaxPolicySettings(JSON.parse(storedValue.value) as TaxPolicySettingsInput),
+    );
+  } catch {
+    return buildTaxPolicySignature(buildDefaultTaxPolicySettings());
+  }
+};
+
+const backfillPolicySignature = (tableName: "annual_calculation_runs" | "annual_tax_results") => {
+  const currentPolicySignature = getCurrentPolicySignature();
+  database
+    .prepare(`UPDATE ${tableName} SET policy_signature = ? WHERE policy_signature = ''`)
+    .run(currentPolicySignature);
+};
+
+backfillPolicySignature("annual_calculation_runs");
+backfillPolicySignature("annual_tax_results");
 
 export const closeDatabase = () => {
   database.close();
