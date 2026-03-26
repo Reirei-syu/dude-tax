@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
 import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
+import { buildMonthRecordSummary, getMonthProgressStatus } from "./month-record-progress";
 
 const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
   status: "incomplete",
@@ -119,6 +120,7 @@ export const MonthRecordEntryPage = () => {
     [monthRecords, selectedMonth],
   );
   const canCopyPreviousMonth = selectedMonth > 1 && hasMonthRecordContent(previousMonthRecord);
+  const monthSummary = useMemo(() => buildMonthRecordSummary(monthRecords), [monthRecords]);
 
   const loadEmployees = async () => {
     if (!currentUnitId) {
@@ -276,24 +278,66 @@ export const MonthRecordEntryPage = () => {
           </label>
         </div>
 
+        {selectedEmployee ? (
+          <div className="summary-grid detail-summary-grid">
+            <div className="summary-card">
+              <span>已完成月份</span>
+              <strong>{monthSummary.completed}</strong>
+            </div>
+            <div className="summary-card">
+              <span>待补录月份</span>
+              <strong>{monthSummary.draft}</strong>
+            </div>
+            <div className="summary-card">
+              <span>未开始月份</span>
+              <strong>{monthSummary.notStarted}</strong>
+            </div>
+            <div className="summary-card">
+              <span>已录入月份</span>
+              <strong>{monthSummary.recorded}</strong>
+            </div>
+            <div className="summary-card">
+              <span>完成度</span>
+              <strong>{monthSummary.completionRate}%</strong>
+            </div>
+          </div>
+        ) : null}
+
         <div className="unit-list month-list">
           {monthRecords.length ? (
-            monthRecords.map((record) => (
-              <button
-                className={selectedMonth === record.taxMonth ? "unit-item month-card selected-item" : "unit-item month-card"}
-                key={record.taxMonth}
-                onClick={() => setSelectedMonth(record.taxMonth)}
-                type="button"
-              >
-                <div>
-                  <strong>{record.taxMonth} 月</strong>
-                  <p>状态：{record.status === "completed" ? "已完成" : "未完成"}</p>
-                  <p>
-                    工资：{record.salaryIncome.toFixed(2)} / 预扣税：{record.withheldTax.toFixed(2)}
-                  </p>
-                </div>
-              </button>
-            ))
+            monthRecords.map((record) => {
+              const progressStatus = getMonthProgressStatus(record);
+              const progressLabel =
+                progressStatus === "completed"
+                  ? "已完成"
+                  : progressStatus === "draft"
+                    ? "待补录"
+                    : "未开始";
+              const progressClassName =
+                progressStatus === "completed"
+                  ? "tag"
+                  : progressStatus === "draft"
+                    ? "tag tag-warning"
+                    : "tag tag-neutral";
+
+              return (
+                <button
+                  className={selectedMonth === record.taxMonth ? "unit-item month-card selected-item" : "unit-item month-card"}
+                  key={record.taxMonth}
+                  onClick={() => setSelectedMonth(record.taxMonth)}
+                  type="button"
+                >
+                  <div>
+                    <strong>{record.taxMonth} 月</strong>
+                    <p>状态：{progressLabel}</p>
+                    <p>
+                      工资：{record.salaryIncome.toFixed(2)} / 预扣税：{record.withheldTax.toFixed(2)}
+                    </p>
+                  </div>
+                  <span className={progressClassName}>{progressLabel}</span>
+                </button>
+              );
+            })
           ) : (
             <div className="empty-state">当前单位下没有员工，无法录入月度数据。</div>
           )}

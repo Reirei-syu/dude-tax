@@ -234,6 +234,11 @@ textarea {
   color: #9a6313;
 }
 
+.tag-neutral {
+  background: rgba(244, 247, 252, 0.95);
+  color: #667085;
+}
+
 .reminder-list,
 .unit-list {
   display: flex;
