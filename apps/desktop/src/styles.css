@@ -247,6 +247,58 @@ input {
     border-color 0.2s ease;
 }
 
+.work-suggestion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.work-suggestion-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 180px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(238, 246, 255, 0.82) 100%);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.work-suggestion-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(124, 157, 194, 0.16),
+    0 0 0 3px rgba(91, 157, 255, 0.18);
+  border-color: rgba(112, 169, 255, 0.5);
+}
+
+.work-suggestion-card strong {
+  display: block;
+  font-size: 18px;
+  color: #1b4878;
+}
+
+.work-suggestion-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(227, 240, 255, 0.8);
+  color: #2a5d9f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .selected-item {
   border-color: rgba(84, 142, 233, 0.7);
   box-shadow:
@@ -495,6 +547,10 @@ input {
   }
 
   .export-template-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .work-suggestion-grid {
     grid-template-columns: 1fr;
   }
 }
