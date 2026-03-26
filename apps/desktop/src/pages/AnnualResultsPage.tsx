@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnnualTaxExportPreviewRow,
   AnnualTaxSchemeResult,
   EmployeeCalculationStatus,
@@ -340,7 +340,7 @@ export const AnnualResultsPage = () => {
             <strong>{summary.invalidated ? "当前结果已失效。" : "当前还没有年度结果。"}</strong>
             <p>
               {summary.invalidated
-                ? "当前税标已变更，旧结果已被判定为失效，请前往计算中心重新计算。"
+                ? "当前税率已变更，旧结果已被判定为失效，请前往计算中心重新计算。"
                 : "请先到计算中心执行重算，结果生成后会显示在这里。"}
             </p>
           </div>
@@ -644,3 +644,4 @@ export const AnnualResultsPage = () => {
     </section>
   );
 };
+

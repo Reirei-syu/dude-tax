@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import test from "node:test";
 import type { EmployeeMonthRecord, TaxPolicySettings } from "./index.js";
 import * as coreModule from "./index.js";
@@ -147,7 +147,7 @@ test("存在已预扣税额时应计算应退税结果", () => {
   assert.equal(result.settlementDirection, "refund");
 });
 
-test("支持传入自定义税标并影响年度计算结果", () => {
+test("支持传入自定义税率并影响年度计算结果", () => {
   const calculateEmployeeAnnualTax = getCalculator();
 
   const result = calculateEmployeeAnnualTax(
@@ -263,3 +263,4 @@ test("支持传入自定义税标并影响年度计算结果", () => {
   assert.equal(result.selectedTaxAmount, 120);
   assert.equal(result.annualTaxPayable, 120);
 });
+

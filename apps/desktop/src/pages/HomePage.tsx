@@ -1,4 +1,4 @@
-import {
+﻿import {
   buildDefaultTaxPolicySettings,
   type EmployeeCalculationStatus,
   type TaxPolicyResponse,
@@ -35,7 +35,7 @@ export const HomePage = () => {
         const nextTaxPolicy = await apiClient.getTaxPolicy();
         setTaxPolicy(nextTaxPolicy);
       } catch (error) {
-        setTaxPolicyErrorMessage(error instanceof Error ? error.message : "加载税标失败");
+        setTaxPolicyErrorMessage(error instanceof Error ? error.message : "加载税率失败");
       } finally {
         setTaxPolicyLoading(false);
       }
@@ -71,7 +71,7 @@ export const HomePage = () => {
     () => [
       {
         title: "待重算",
-        description: "点击前往计算中心查看尚未重算或已因税标变更失效的员工。",
+        description: "点击前往计算中心查看尚未重算或已因税率变更失效的员工。",
         path: "/calculation",
         count: statuses.filter(
           (status) =>
@@ -143,7 +143,7 @@ export const HomePage = () => {
         title: "执行年度重算",
         description:
           invalidatedCount > 0
-            ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名是因税标变更导致结果失效。`
+            ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名是因税率变更导致结果失效。`
             : `当前有 ${pendingRecalculateCount} 名员工已具备条件但尚未重算，建议尽快生成最新年度结果。`,
         path: "/calculation",
         actionLabel: "前往计算中心",
@@ -160,8 +160,8 @@ export const HomePage = () => {
     }
 
     suggestions.push({
-      title: "检查税标口径",
-      description: "如需复核当前税标或确认维护边界，可进入系统维护页查看默认口径。",
+      title: "检查税率口径",
+      description: "如需复核当前税率或确认维护边界，可进入系统维护页查看默认口径。",
       path: "/maintenance",
       actionLabel: "前往系统维护",
     });
@@ -199,7 +199,7 @@ export const HomePage = () => {
             <strong>{context?.currentTaxYear ?? "-"}</strong>
           </div>
           <div className="summary-card">
-            <span>全局税标</span>
+            <span>全局税率</span>
             <strong>{taxPolicy?.isCustomized ? "已自定义" : "默认版本"}</strong>
           </div>
         </div>
@@ -255,7 +255,7 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h2>当前税率表</h2>
-            <p>首页税率表已改为读取当前生效税标，和后续计算核心保持同源。</p>
+            <p>首页税率表已改为读取当前生效税率，和后续计算核心保持同源。</p>
           </div>
         </div>
 
@@ -325,10 +325,11 @@ export const HomePage = () => {
           </div>
         </div>
         <div className="quick-calc-card">
-          <p>后续将提供不落库的即时录入与速算结果页面，使用当前全局税标。</p>
+          <p>后续将提供不落库的即时录入与速算结果页面，使用当前全局税率。</p>
           <span className="tag">规划中</span>
         </div>
       </article>
     </section>
   );
 };
+

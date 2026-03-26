@@ -1,4 +1,4 @@
-import type { EmployeeCalculationStatus } from "../../../../packages/core/src/index";
+﻿import type { EmployeeCalculationStatus } from "../../../../packages/core/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
@@ -11,7 +11,7 @@ const statusLabelMap: Record<EmployeeCalculationStatus["preparationStatus"], str
 
 const getStatusLabel = (status: EmployeeCalculationStatus) => {
   if (status.isInvalidated) {
-    return "需按新税标重算";
+    return "需按新税率重算";
   }
 
   return statusLabelMap[status.preparationStatus];
@@ -141,7 +141,7 @@ export const CalculationCenterPage = () => {
         <div className="section-header">
           <div>
             <h2>员工计算准备状态</h2>
-            <p>只有“可计算”员工可执行重算；若税标已变更，会显示“需按新税标重算”。</p>
+            <p>只有“可计算”员工可执行重算；若税率已变更，会显示“需按新税率重算”。</p>
           </div>
           <span className="tag">{loading ? "加载中" : "已同步"}</span>
         </div>
@@ -194,3 +194,4 @@ export const CalculationCenterPage = () => {
     </section>
   );
 };
+

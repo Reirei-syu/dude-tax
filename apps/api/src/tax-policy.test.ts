@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { after, before, beforeEach, test } from "node:test";
@@ -66,7 +66,7 @@ after(async () => {
   fs.rmSync(testDatabasePath, { force: true });
 });
 
-test("读取税标接口返回当前配置与默认配置", async () => {
+test("读取税率接口返回当前配置与默认配置", async () => {
   const [{}, { registerTaxPolicyRoutes }] = await modulesPromise;
 
   const app = Fastify({ logger: false });
@@ -109,7 +109,7 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
   await registerTaxPolicyRoutes(app);
 
   const unit = unitRepository.create({
-    unitName: "税标说明测试单位",
+    unitName: "税率说明测试单位",
     remark: "",
   });
   const employee = employeeRepository.create(unit.id, {
@@ -147,14 +147,14 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
     url: "/api/tax-policy",
     payload: {
       ...(currentPolicy.currentSettings as Record<string, unknown>),
-      maintenanceNotes: "当前说明已更新，但税标口径未发生变化。",
+      maintenanceNotes: "当前说明已更新，但税率口径未发生变化。",
     },
   });
 
   assert.equal(saveResponse.statusCode, 200);
   const saveBody = saveResponse.json() as Record<string, unknown>;
   assert.equal(saveBody.invalidatedResults, false);
-  assert.equal(saveBody.currentNotes, "当前说明已更新，但税标口径未发生变化。");
+  assert.equal(saveBody.currentNotes, "当前说明已更新，但税率口径未发生变化。");
   assert.equal(saveBody.notesCustomized, true);
 
   const resultsResponse = await app.inject({
@@ -178,7 +178,7 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
   await app.close();
 });
 
-test("保存税标后会使旧税标结果逻辑失效", async () => {
+test("保存税率后会使旧税率结果逻辑失效", async () => {
   const [
     { registerCalculationRoutes },
     { registerTaxPolicyRoutes },
@@ -192,12 +192,12 @@ test("保存税标后会使旧税标结果逻辑失效", async () => {
   await registerTaxPolicyRoutes(app);
 
   const unit = unitRepository.create({
-    unitName: "税标维护测试单位",
+    unitName: "税率维护测试单位",
     remark: "",
   });
   const employee = employeeRepository.create(unit.id, {
     employeeCode: "EMP-TAX-001",
-    employeeName: "税标测试员工",
+    employeeName: "税率测试员工",
     idNumber: "110101199001019999",
     hireDate: null,
     leaveDate: null,
@@ -296,3 +296,43 @@ test("保存税标后会使旧税标结果逻辑失效", async () => {
 
   await app.close();
 });
+
+test("税率超过 100 时接口返回参数校验错误", async () => {
+  const [{}, { registerTaxPolicyRoutes }] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerTaxPolicyRoutes(app);
+
+  const response = await app.inject({
+    method: "PUT",
+    url: "/api/tax-policy",
+    payload: {
+      basicDeductionAmount: 5_000,
+      comprehensiveTaxBrackets: [
+        { level: 1, maxAnnualIncome: 36_000, rate: 120, quickDeduction: 0 },
+        { level: 2, maxAnnualIncome: 144_000, rate: 10, quickDeduction: 2520 },
+        { level: 3, maxAnnualIncome: 300_000, rate: 20, quickDeduction: 16920 },
+        { level: 4, maxAnnualIncome: 420_000, rate: 25, quickDeduction: 31920 },
+        { level: 5, maxAnnualIncome: 660_000, rate: 30, quickDeduction: 52920 },
+        { level: 6, maxAnnualIncome: 960_000, rate: 35, quickDeduction: 85920 },
+        { level: 7, maxAnnualIncome: null, rate: 45, quickDeduction: 181920 },
+      ],
+      bonusTaxBrackets: [
+        { level: 1, maxAverageMonthlyIncome: 3_000, rate: 3, quickDeduction: 0 },
+        { level: 2, maxAverageMonthlyIncome: 12_000, rate: 10, quickDeduction: 210 },
+        { level: 3, maxAverageMonthlyIncome: 25_000, rate: 20, quickDeduction: 1410 },
+        { level: 4, maxAverageMonthlyIncome: 35_000, rate: 25, quickDeduction: 2660 },
+        { level: 5, maxAverageMonthlyIncome: 55_000, rate: 30, quickDeduction: 4410 },
+        { level: 6, maxAverageMonthlyIncome: 80_000, rate: 35, quickDeduction: 7160 },
+        { level: 7, maxAverageMonthlyIncome: null, rate: 45, quickDeduction: 15160 },
+      ],
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  const body = response.json() as Record<string, unknown>;
+  assert.equal(body.message, "税率参数不合法");
+
+  await app.close();
+});
+

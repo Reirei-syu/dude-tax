@@ -1,4 +1,4 @@
-import {
+﻿import {
   buildDefaultTaxPolicySettings,
   type BonusTaxBracket,
   type ComprehensiveTaxBracket,
@@ -8,16 +8,17 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { validateTaxPolicyDraft } from "./tax-policy-validation";
 
 const maintenanceScopeItems = [
-  "当前版本支持编辑并保存全局税标，保存后会自动使年度结果与重算记录失效。",
-  "保存后的税标会同步作用于首页展示、系统维护页面和后续年度计算逻辑。",
-  "当前仍不包含税标版本管理、富文本说明维护和变更审计。",
+  "当前版本支持编辑并保存全局税率，保存后会自动使年度结果与重算记录失效。",
+  "保存后的税率会同步作用于首页展示、系统维护页面和后续年度计算逻辑。",
+  "当前仍不包含税率版本管理、富文本说明维护和变更审计。",
 ];
 
 const maintenanceRoadmapItems = [
   "说明维护：全局提示说明与口径备注。",
-  "税标版本管理：支持保留和切换历史版本。",
+  "税率版本管理：支持保留和切换历史版本。",
   "更精细的结果联动：按年度或按单位范围失效，而不是全量清空结果。",
 ];
 
@@ -66,7 +67,7 @@ export const MaintenancePage = () => {
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
       setDraftNotes(nextTaxPolicy.currentNotes);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "加载税标失败");
+      setErrorMessage(error instanceof Error ? error.message : "加载税率失败");
       setTaxPolicy(null);
       setDraftSettings(cloneTaxPolicySettings(buildDefaultTaxPolicySettings()));
       setDraftNotes("");
@@ -92,6 +93,32 @@ export const MaintenancePage = () => {
 
   const currentSettings =
     draftSettings ?? taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
+  const validationIssues = useMemo(
+    () => validateTaxPolicyDraft(currentSettings, draftNotes),
+    [currentSettings, draftNotes],
+  );
+  const basicIssue = validationIssues.find((issue) => issue.section === "basic") ?? null;
+  const notesIssue = validationIssues.find((issue) => issue.section === "notes") ?? null;
+  const comprehensiveIssues = validationIssues.filter((issue) => issue.section === "comprehensive");
+  const bonusIssues = validationIssues.filter((issue) => issue.section === "bonus");
+  const invalidComprehensiveRows = useMemo(
+    () =>
+      new Set(
+        comprehensiveIssues
+          .map((issue) => issue.rowIndex)
+          .filter((rowIndex): rowIndex is number => rowIndex !== undefined),
+      ),
+    [comprehensiveIssues],
+  );
+  const invalidBonusRows = useMemo(
+    () =>
+      new Set(
+        bonusIssues
+          .map((issue) => issue.rowIndex)
+          .filter((rowIndex): rowIndex is number => rowIndex !== undefined),
+      ),
+    [bonusIssues],
+  );
 
   const resetToSavedSettings = () => {
     if (!taxPolicy) {
@@ -128,11 +155,11 @@ export const MaintenancePage = () => {
       setDraftNotes(nextTaxPolicy.currentNotes);
       setSuccessMessage(
         nextTaxPolicy.invalidatedResults
-          ? "说明与税标已保存；由于税标已变更，年度结果与重算记录已失效，请前往计算中心重新计算。"
-          : "说明已保存；当前税标未变更，年度结果保持有效。",
+          ? "说明与税率已保存；由于税率已变更，年度结果与重算记录已失效，请前往计算中心重新计算。"
+          : "说明已保存；当前税率未变更，年度结果保持有效。",
       );
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "保存税标失败");
+      setErrorMessage(error instanceof Error ? error.message : "保存税率失败");
     } finally {
       setSaving(false);
     }
@@ -144,7 +171,7 @@ export const MaintenancePage = () => {
         <div className="section-header">
           <div>
             <h1>系统维护</h1>
-            <p>当前可编辑并保存全局税标；保存后将清空年度结果与重算记录，保证后续计算口径一致。</p>
+            <p>当前可编辑并保存全局税率；保存后将清空年度结果与重算记录，保证后续计算口径一致。</p>
           </div>
           <span className="tag">{loading ? "加载中" : saving ? "保存中" : "可编辑"}</span>
         </div>
@@ -159,19 +186,34 @@ export const MaintenancePage = () => {
             <strong>{context?.currentTaxYear ?? "-"}</strong>
           </div>
           <div className="summary-card">
-            <span>当前税标版本</span>
+            <span>当前税率版本</span>
             <strong>{taxPolicy?.isCustomized ? "已自定义" : "默认版本"}</strong>
           </div>
           <div className="summary-card">
             <span>编辑状态</span>
             <strong>{hasUnsavedChanges ? "有未保存修改" : "已同步"}</strong>
           </div>
+          <div className="summary-card">
+            <span>校验状态</span>
+            <strong>{validationIssues.length ? `待修正 ${validationIssues.length} 项` : "已通过"}</strong>
+          </div>
         </div>
 
         <div className="maintenance-warning-card">
           <strong>保存影响</strong>
-          <p>税标保存成功后，将自动清空当前所有年度结果和重算记录，请在保存后重新执行年度重算。</p>
+          <p>税率保存成功后，将自动清空当前所有年度结果和重算记录，请在保存后重新执行年度重算。</p>
         </div>
+
+        {validationIssues.length ? (
+          <div className="validation-card">
+            <strong>请先修正以下校验问题</strong>
+            <ul className="validation-list">
+              {validationIssues.map((issue) => (
+                <li key={`${issue.section}-${issue.rowIndex ?? "global"}-${issue.message}`}>{issue.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {successMessage ? <div className="success-banner">{successMessage}</div> : null}
@@ -188,6 +230,7 @@ export const MaintenancePage = () => {
         <label className="form-field">
           <span>基本减除费用（元 / 月）</span>
           <input
+            className={basicIssue ? "input-invalid" : undefined}
             min={0}
             type="number"
             value={currentSettings.basicDeductionAmount}
@@ -203,13 +246,14 @@ export const MaintenancePage = () => {
             }
           />
         </label>
+        {basicIssue ? <p className="field-hint field-error">{basicIssue.message}</p> : null}
       </article>
 
       <article className="glass-card page-section">
         <div className="section-header">
           <div>
             <h2>全局说明</h2>
-            <p>用于维护当前税标口径、适用范围或内部提示说明，按全局统一生效。</p>
+            <p>用于维护当前税率口径、适用范围或内部提示说明，按全局统一生效。</p>
           </div>
           <span className="tag">{taxPolicy?.notesCustomized ? "已自定义说明" : "默认空白"}</span>
         </div>
@@ -217,14 +261,16 @@ export const MaintenancePage = () => {
         <label className="form-field">
           <span>提示说明</span>
           <textarea
-            className="maintenance-textarea"
+            className={notesIssue ? "maintenance-textarea input-invalid" : "maintenance-textarea"}
             maxLength={2000}
-            placeholder="例如：当前税标适用于 2026 年工资薪金年度计算；保存税标后需重新执行年度重算。"
+            placeholder="例如：当前税率适用于 2026 年工资薪金年度计算；保存税率后需重新执行年度重算。"
             value={draftNotes}
             onChange={(event) => setDraftNotes(event.target.value)}
           />
         </label>
-        <p className="field-hint">当前已输入 {draftNotes.length} / 2000 字。</p>
+        <p className={notesIssue ? "field-hint field-error" : "field-hint"}>
+          {notesIssue ? `${notesIssue.message}；` : ""}当前已输入 {draftNotes.length} / 2000 字。
+        </p>
       </article>
 
       <article className="glass-card page-section">
@@ -250,7 +296,7 @@ export const MaintenancePage = () => {
               const isLast = index === currentSettings.comprehensiveTaxBrackets.length - 1;
 
               return (
-                <tr key={bracket.level}>
+                <tr className={invalidComprehensiveRows.has(index) ? "table-row-invalid" : undefined} key={bracket.level}>
                   <td>{bracket.level}</td>
                   <td>{bracket.rangeText}</td>
                   <td>
@@ -315,6 +361,13 @@ export const MaintenancePage = () => {
             })}
           </tbody>
         </table>
+        {comprehensiveIssues.length ? (
+          <ul className="validation-list compact-validation-list">
+            {comprehensiveIssues.map((issue) => (
+              <li key={`comprehensive-${issue.rowIndex ?? "global"}-${issue.message}`}>{issue.message}</li>
+            ))}
+          </ul>
+        ) : null}
       </article>
 
       <article className="glass-card page-section">
@@ -340,7 +393,7 @@ export const MaintenancePage = () => {
               const isLast = index === currentSettings.bonusTaxBrackets.length - 1;
 
               return (
-                <tr key={bracket.level}>
+                <tr className={invalidBonusRows.has(index) ? "table-row-invalid" : undefined} key={bracket.level}>
                   <td>{bracket.level}</td>
                   <td>{bracket.rangeText}</td>
                   <td>
@@ -405,13 +458,20 @@ export const MaintenancePage = () => {
             })}
           </tbody>
         </table>
+        {bonusIssues.length ? (
+          <ul className="validation-list compact-validation-list">
+            {bonusIssues.map((issue) => (
+              <li key={`bonus-${issue.rowIndex ?? "global"}-${issue.message}`}>{issue.message}</li>
+            ))}
+          </ul>
+        ) : null}
       </article>
 
       <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>维护范围</h2>
-            <p>当前已开放税标编辑；说明维护、版本管理和更细粒度失效策略仍在后续计划中。</p>
+            <p>当前已开放税率编辑；说明维护、版本管理和更细粒度失效策略仍在后续计划中。</p>
           </div>
         </div>
 
@@ -432,23 +492,24 @@ export const MaintenancePage = () => {
 
         <div className="button-row">
           <button className="ghost-button" disabled={loading || saving} onClick={() => void loadTaxPolicy()}>
-            刷新税标
+            刷新税率
           </button>
           <button className="ghost-button" disabled={loading || saving} onClick={resetToSavedSettings}>
             恢复已保存
           </button>
           <button className="ghost-button" disabled={loading || saving} onClick={resetToDefaultSettings}>
-            恢复默认税标
+            恢复默认税率
           </button>
           <button
             className="primary-button"
-            disabled={loading || saving || !draftSettings}
+            disabled={loading || saving || !draftSettings || validationIssues.length > 0}
             onClick={() => void saveTaxPolicy()}
           >
-            保存税标
+            保存税率
           </button>
         </div>
       </article>
     </section>
   );
 };
+

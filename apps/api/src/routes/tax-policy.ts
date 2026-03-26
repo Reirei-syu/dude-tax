@@ -1,18 +1,18 @@
-import type { FastifyInstance } from "fastify";
+﻿import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 
 const comprehensiveBracketSchema = z.object({
   level: z.number().int().positive(),
   maxAnnualIncome: z.number().int().positive().nullable(),
-  rate: z.number().min(0),
+  rate: z.number().min(0).max(100),
   quickDeduction: z.number().min(0),
 });
 
 const bonusBracketSchema = z.object({
   level: z.number().int().positive(),
   maxAverageMonthlyIncome: z.number().int().positive().nullable(),
-  rate: z.number().min(0),
+  rate: z.number().min(0).max(100),
   quickDeduction: z.number().min(0),
 });
 
@@ -112,7 +112,7 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
 
     if (!parsedBody.success) {
       return reply.status(400).send({
-        message: "税标参数不合法",
+        message: "税率参数不合法",
         issues: parsedBody.error.flatten(),
       });
     }
@@ -120,3 +120,4 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
     return taxPolicyRepository.save(parsedBody.data);
   });
 };
+

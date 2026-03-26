@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnnualTaxCalculation,
   Employee,
   HistoryAnnualTaxQuery,
@@ -579,7 +579,7 @@ export const HistoryQueryPage = () => {
         <div className="section-header">
           <div>
             <h2>差异对比</h2>
-            <p>对已失效快照按当前税标现场重算，并展示旧快照与当前结果的关键差异。</p>
+            <p>对已失效快照按当前税率现场重算，并展示旧快照与当前结果的关键差异。</p>
           </div>
           <span className="tag">
             {comparisonLoading
@@ -637,10 +637,11 @@ export const HistoryQueryPage = () => {
         ) : (
           <div className="empty-state">
             <strong>当前没有可对比的失效快照。</strong>
-            <p>只有在“已失效”结果下，系统才会按当前税标现场重算并展示新旧差异。</p>
+            <p>只有在“已失效”结果下，系统才会按当前税率现场重算并展示新旧差异。</p>
           </div>
         )}
       </article>
     </section>
   );
 };
+

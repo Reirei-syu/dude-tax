@@ -149,6 +149,11 @@ textarea {
   color: #18324d;
 }
 
+.input-invalid {
+  border-color: rgba(206, 76, 114, 0.9);
+  background: rgba(255, 246, 249, 0.96);
+}
+
 textarea {
   resize: vertical;
   min-height: 160px;
@@ -484,6 +489,19 @@ textarea {
   background: rgba(232, 255, 240, 0.92);
 }
 
+.validation-card {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(245, 202, 145, 0.85);
+  background: rgba(255, 247, 234, 0.92);
+}
+
+.validation-card strong {
+  display: block;
+  color: #8a5d14;
+}
+
 .checkbox-row {
   display: flex;
   gap: 10px;
@@ -732,6 +750,24 @@ textarea {
 .field-hint {
   color: #6e84a1;
   font-size: 13px;
+}
+
+.field-error {
+  color: #a52b4a;
+}
+
+.table-row-invalid td {
+  background: rgba(255, 245, 248, 0.72);
+}
+
+.validation-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #7a6430;
+}
+
+.compact-validation-list {
+  margin-top: 14px;
 }
 
 .draft-diff-banner {
