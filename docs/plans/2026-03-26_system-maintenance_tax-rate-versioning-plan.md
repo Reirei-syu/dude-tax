@@ -28,6 +28,8 @@
   - `updated_at`
 - `policy_signature` 唯一，用于避免重复保存同一版本。
 - `settings_json + maintenance_notes` 共同构成一个完整税率版本快照。
+- 当前实现约束：
+  - 若仅修改说明而税率配置不变，则更新当前活动版本说明，不创建新版本。
 
 ### 3.2 当前版本指针
 - 仍保留 `app_preferences`，但不再存完整税率 JSON。
@@ -58,6 +60,7 @@
   - 不再覆盖当前配置
   - 而是生成新版本，写入 `tax_policy_versions`
   - 若与当前活动版本完全一致，则 no-op
+  - 若税率配置未变化、仅说明变化，则更新当前活动版本说明
   - 新版本保存后自动切为活动版本
 - 新增：
   - `taxPolicyRepository.activateVersion(versionId)`

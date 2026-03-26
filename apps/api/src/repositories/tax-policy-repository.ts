@@ -5,13 +5,13 @@ import {
   normalizeTaxPolicySettings,
   type TaxPolicyResponse,
   type TaxPolicySaveResponse,
+  type TaxPolicyVersionSummary,
   type TaxPolicySettingsInput,
   type TaxPolicyUpdatePayload,
 } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 
-const TAX_POLICY_SETTINGS_KEY = "tax_policy_settings";
-const TAX_POLICY_MAINTENANCE_NOTES_KEY = "tax_policy_maintenance_notes";
+const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
 const DEFAULT_TAX_POLICY_MAINTENANCE_NOTES = "";
 
 const getPreference = (key: string): string | null => {
@@ -34,38 +34,151 @@ const setPreference = (key: string, value: string) => {
     .run(key, value);
 };
 
-const deletePreference = (key: string) => {
-  database.prepare("DELETE FROM app_preferences WHERE key = ?").run(key);
+type TaxPolicyVersionRow = {
+  id: number;
+  version_name: string;
+  policy_signature: string;
+  settings_json: string;
+  maintenance_notes: string;
+  is_active: number;
+  created_at: string;
+  activated_at: string | null;
+  updated_at: string;
 };
 
-const getStoredSettings = () => {
-  const storedValue = getPreference(TAX_POLICY_SETTINGS_KEY);
-  if (!storedValue) {
-    return null;
+const getVersionRows = (): TaxPolicyVersionRow[] =>
+  database
+    .prepare(
+      `
+        SELECT
+          id,
+          version_name,
+          policy_signature,
+          settings_json,
+          maintenance_notes,
+          is_active,
+          created_at,
+          activated_at,
+          updated_at
+        FROM tax_policy_versions
+        ORDER BY created_at DESC, id DESC
+      `,
+    )
+    .all() as TaxPolicyVersionRow[];
+
+const parseSettingsJson = (settingsJson: string) =>
+  normalizeTaxPolicySettings(JSON.parse(settingsJson) as TaxPolicySettingsInput);
+
+const getActiveVersionRow = (): TaxPolicyVersionRow | null => {
+  const preferredActiveId = Number(getPreference(ACTIVE_TAX_POLICY_VERSION_ID_KEY) ?? 0);
+
+  if (preferredActiveId > 0) {
+    const preferredRow = database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE id = ?
+        `,
+      )
+      .get(preferredActiveId) as TaxPolicyVersionRow | undefined;
+
+    if (preferredRow) {
+      return preferredRow;
+    }
   }
 
-  try {
-    return normalizeTaxPolicySettings(JSON.parse(storedValue) as TaxPolicySettingsInput);
-  } catch {
-    deletePreference(TAX_POLICY_SETTINGS_KEY);
-    return null;
-  }
+  const activeRow = database
+    .prepare(
+      `
+        SELECT
+          id,
+          version_name,
+          policy_signature,
+          settings_json,
+          maintenance_notes,
+          is_active,
+          created_at,
+          activated_at,
+          updated_at
+        FROM tax_policy_versions
+        WHERE is_active = 1
+        ORDER BY activated_at DESC, created_at DESC, id DESC
+        LIMIT 1
+      `,
+    )
+    .get() as TaxPolicyVersionRow | undefined;
+
+  return activeRow ?? null;
 };
 
-const getStoredMaintenanceNotes = () => getPreference(TAX_POLICY_MAINTENANCE_NOTES_KEY);
+const mapVersionSummary = (row: TaxPolicyVersionRow): TaxPolicyVersionSummary => ({
+  id: row.id,
+  versionName: row.version_name,
+  policySignature: row.policy_signature,
+  isActive: Boolean(row.is_active),
+  createdAt: row.created_at,
+  activatedAt: row.activated_at,
+});
+
+const buildVersionName = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `税率版本 ${year}-${month}-${day} ${hours}:${minutes}`;
+};
+
+const activateVersionRecord = (versionId: number) => {
+  const now = new Date().toISOString();
+
+  const activateTransaction = database.transaction(() => {
+    database.prepare("UPDATE tax_policy_versions SET is_active = 0").run();
+    database
+      .prepare(
+        `
+          UPDATE tax_policy_versions
+          SET is_active = 1,
+              activated_at = ?,
+              updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(now, now, versionId);
+    setPreference(ACTIVE_TAX_POLICY_VERSION_ID_KEY, String(versionId));
+  });
+
+  activateTransaction();
+};
 
 const buildResponse = (): TaxPolicyResponse => {
   const defaultSettings = buildDefaultTaxPolicySettings();
-  const storedSettings = getStoredSettings();
-  const storedMaintenanceNotes = getStoredMaintenanceNotes();
+  const activeVersion = getActiveVersionRow();
+  const versionRows = getVersionRows();
+  const activeSettings = activeVersion ? parseSettingsJson(activeVersion.settings_json) : defaultSettings;
+  const currentNotes = activeVersion?.maintenance_notes ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
 
   return {
-    currentSettings: storedSettings ?? defaultSettings,
+    currentSettings: activeSettings,
     defaultSettings,
-    isCustomized: Boolean(storedSettings),
-    currentNotes: storedMaintenanceNotes ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
+    isCustomized: !isSameTaxPolicySettings(activeSettings, defaultSettings),
+    currentVersionId: activeVersion?.id ?? 0,
+    currentVersionName: activeVersion?.version_name ?? "默认税率版本",
+    versions: versionRows.map(mapVersionSummary),
+    currentNotes,
     defaultNotes: DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
-    notesCustomized: Boolean(storedMaintenanceNotes),
+    notesCustomized: currentNotes !== DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
   };
 };
 
@@ -76,6 +189,46 @@ export const taxPolicyRepository = {
   getCurrentPolicySignature() {
     return buildTaxPolicySignature(buildResponse().currentSettings);
   },
+  activateVersion(versionId: number): TaxPolicySaveResponse | null {
+    const targetRow = database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE id = ?
+        `,
+      )
+      .get(versionId) as TaxPolicyVersionRow | undefined;
+
+    if (!targetRow) {
+      return null;
+    }
+
+    const currentResponse = buildResponse();
+    if (currentResponse.currentVersionId === versionId) {
+      return {
+        ...currentResponse,
+        invalidatedResults: false,
+      };
+    }
+
+    activateVersionRecord(versionId);
+
+    return {
+      ...buildResponse(),
+      invalidatedResults:
+        buildTaxPolicySignature(currentResponse.currentSettings) !== targetRow.policy_signature,
+    };
+  },
   save(payload: TaxPolicyUpdatePayload): TaxPolicySaveResponse {
     const currentResponse = buildResponse();
     const nextSettings = normalizeTaxPolicySettings(payload);
@@ -83,6 +236,7 @@ export const taxPolicyRepository = {
     const defaultSettings = buildDefaultTaxPolicySettings();
     const settingsChanged = !isSameTaxPolicySettings(currentResponse.currentSettings, nextSettings);
     const notesChanged = currentResponse.currentNotes !== nextNotes;
+    const nextPolicySignature = buildTaxPolicySignature(nextSettings);
 
     if (!settingsChanged && !notesChanged) {
       return {
@@ -91,18 +245,101 @@ export const taxPolicyRepository = {
       };
     }
 
-    const saveTransaction = database.transaction(() => {
-      if (isSameTaxPolicySettings(defaultSettings, nextSettings)) {
-        deletePreference(TAX_POLICY_SETTINGS_KEY);
-      } else {
-        setPreference(TAX_POLICY_SETTINGS_KEY, JSON.stringify(nextSettings));
-      }
+    const activeVersion = getActiveVersionRow();
 
-      if (nextNotes === DEFAULT_TAX_POLICY_MAINTENANCE_NOTES) {
-        deletePreference(TAX_POLICY_MAINTENANCE_NOTES_KEY);
-      } else {
-        setPreference(TAX_POLICY_MAINTENANCE_NOTES_KEY, nextNotes);
-      }
+    if (!settingsChanged && notesChanged && activeVersion) {
+      database
+        .prepare(
+          `
+            UPDATE tax_policy_versions
+            SET maintenance_notes = ?,
+                updated_at = ?
+            WHERE id = ?
+          `,
+        )
+        .run(nextNotes, new Date().toISOString(), activeVersion.id);
+
+      return {
+        ...buildResponse(),
+        invalidatedResults: false,
+      };
+    }
+
+    const existingVersion = database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE policy_signature = ?
+        `,
+      )
+      .get(nextPolicySignature) as TaxPolicyVersionRow | undefined;
+
+    if (existingVersion) {
+      const reuseTransaction = database.transaction(() => {
+        if (existingVersion.maintenance_notes !== nextNotes) {
+          database
+            .prepare(
+              `
+                UPDATE tax_policy_versions
+                SET maintenance_notes = ?,
+                    updated_at = ?
+                WHERE id = ?
+              `,
+            )
+            .run(nextNotes, new Date().toISOString(), existingVersion.id);
+        }
+
+        activateVersionRecord(existingVersion.id);
+      });
+
+      reuseTransaction();
+
+      return {
+        ...buildResponse(),
+        invalidatedResults: settingsChanged,
+      };
+    }
+
+    const saveTransaction = database.transaction(() => {
+      const now = new Date();
+      const insertResult = database
+        .prepare(
+          `
+            INSERT INTO tax_policy_versions (
+              version_name,
+              policy_signature,
+              settings_json,
+              maintenance_notes,
+              is_active,
+              created_at,
+              activated_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, 0, ?, NULL, ?)
+          `,
+        )
+        .run(
+          isSameTaxPolicySettings(defaultSettings, nextSettings)
+            ? "默认税率版本"
+            : buildVersionName(now),
+          nextPolicySignature,
+          JSON.stringify(nextSettings),
+          nextNotes,
+          now.toISOString(),
+          now.toISOString(),
+        );
+
+      activateVersionRecord(Number(insertResult.lastInsertRowid));
     });
 
     saveTransaction();

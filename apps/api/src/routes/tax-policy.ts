@@ -107,6 +107,21 @@ const taxPolicySchema = z
 export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
   app.get("/api/tax-policy", async () => taxPolicyRepository.get());
 
+  app.post("/api/tax-policy/versions/:versionId/activate", async (request, reply) => {
+    const versionId = Number((request.params as { versionId: string }).versionId);
+
+    if (!Number.isInteger(versionId) || versionId <= 0) {
+      return reply.status(400).send({ message: "税率版本参数不合法" });
+    }
+
+    const response = taxPolicyRepository.activateVersion(versionId);
+    if (!response) {
+      return reply.status(404).send({ message: "目标税率版本不存在" });
+    }
+
+    return response;
+  });
+
   app.put("/api/tax-policy", async (request, reply) => {
     const parsedBody = taxPolicySchema.safeParse(request.body ?? {});
 

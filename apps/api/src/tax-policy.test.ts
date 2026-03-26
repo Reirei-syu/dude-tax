@@ -83,6 +83,9 @@ test("读取税率接口返回当前配置与默认配置", async () => {
   assert.equal(body.isCustomized, false);
   assert.equal(body.currentNotes, "");
   assert.equal(body.notesCustomized, false);
+  assert.equal(typeof body.currentVersionId, "number");
+  assert.equal(typeof body.currentVersionName, "string");
+  assert.equal((body.versions as unknown[]).length, 1);
   assert.equal(
     (body.currentSettings as Record<string, unknown>).basicDeductionAmount,
     5_000,
@@ -156,6 +159,7 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
   assert.equal(saveBody.invalidatedResults, false);
   assert.equal(saveBody.currentNotes, "当前说明已更新，但税率口径未发生变化。");
   assert.equal(saveBody.notesCustomized, true);
+  assert.equal((saveBody.versions as unknown[]).length, 1);
 
   const resultsResponse = await app.inject({
     method: "GET",
@@ -220,6 +224,13 @@ test("保存税率后会使旧税率结果逻辑失效", async () => {
 
   assert.equal(recalculateResponse.statusCode, 200);
 
+  const initialPolicyResponse = await app.inject({
+    method: "GET",
+    url: "/api/tax-policy",
+  });
+  const initialPolicy = initialPolicyResponse.json() as Record<string, unknown>;
+  const initialVersionId = Number(initialPolicy.currentVersionId);
+
   const saveResponse = await app.inject({
     method: "PUT",
     url: "/api/tax-policy",
@@ -250,6 +261,7 @@ test("保存税率后会使旧税率结果逻辑失效", async () => {
   const saveBody = saveResponse.json() as Record<string, unknown>;
   assert.equal(saveBody.invalidatedResults, true);
   assert.equal(saveBody.isCustomized, true);
+  assert.equal((saveBody.versions as unknown[]).length, 2);
 
   const resultsResponse = await app.inject({
     method: "GET",
@@ -293,6 +305,34 @@ test("保存税率后会使旧税率结果逻辑失效", async () => {
   });
   assert.equal(allHistoryResponse.statusCode, 200);
   assert.equal((allHistoryResponse.json() as unknown[]).length, 1);
+
+  const activateResponse = await app.inject({
+    method: "POST",
+    url: `/api/tax-policy/versions/${initialVersionId}/activate`,
+  });
+
+  assert.equal(activateResponse.statusCode, 200);
+  const activateBody = activateResponse.json() as Record<string, unknown>;
+  assert.equal(activateBody.invalidatedResults, true);
+  assert.equal(
+    (activateBody.currentSettings as Record<string, unknown>).basicDeductionAmount,
+    5_000,
+  );
+
+  const restoredResultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/annual-results`,
+  });
+  assert.equal(restoredResultsResponse.statusCode, 200);
+  assert.equal((restoredResultsResponse.json() as unknown[]).length, 1);
+
+  const restoredStatusesResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses`,
+  });
+  const restoredStatuses = restoredStatusesResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(restoredStatuses[0]?.isInvalidated, false);
+  assert.equal(restoredStatuses[0]?.invalidatedReason, null);
 
   await app.close();
 });

@@ -49,6 +49,11 @@ export const apiClient = {
       body: JSON.stringify(payload),
     });
   },
+  activateTaxPolicyVersion(versionId: number) {
+    return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}/activate`, {
+      method: "POST",
+    });
+  },
   updateContext(payload: Partial<Pick<AppContext, "currentUnitId" | "currentTaxYear">>) {
     return request<AppContext>("/api/context", {
       method: "PUT",

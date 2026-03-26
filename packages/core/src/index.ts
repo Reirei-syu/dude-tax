@@ -166,10 +166,22 @@ export type TaxPolicyMaintenanceNotes = {
   notesCustomized: boolean;
 };
 
+export type TaxPolicyVersionSummary = {
+  id: number;
+  versionName: string;
+  policySignature: string;
+  isActive: boolean;
+  createdAt: string;
+  activatedAt: string | null;
+};
+
 export type TaxPolicyResponse = {
   currentSettings: TaxPolicySettings;
   defaultSettings: TaxPolicySettings;
   isCustomized: boolean;
+  currentVersionId: number;
+  currentVersionName: string;
+  versions: TaxPolicyVersionSummary[];
 } & TaxPolicyMaintenanceNotes;
 
 export type TaxPolicySaveResponse = TaxPolicyResponse & {

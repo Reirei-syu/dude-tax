@@ -165,6 +165,27 @@ export const MaintenancePage = () => {
     }
   };
 
+  const activateTaxPolicyVersion = async (versionId: number) => {
+    try {
+      setSaving(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      const nextTaxPolicy = await apiClient.activateTaxPolicyVersion(versionId);
+      setTaxPolicy(nextTaxPolicy);
+      setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
+      setDraftNotes(nextTaxPolicy.currentNotes);
+      setSuccessMessage(
+        nextTaxPolicy.invalidatedResults
+          ? `已切换到历史税率版本「${nextTaxPolicy.currentVersionName}」；当前有效结果已按该版本重新判定，请前往计算中心确认是否需要重算。`
+          : `已切换到税率版本「${nextTaxPolicy.currentVersionName}」。`,
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "切换税率版本失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="page-grid">
       <article className="glass-card page-section placeholder-card">
@@ -187,7 +208,7 @@ export const MaintenancePage = () => {
           </div>
           <div className="summary-card">
             <span>当前税率版本</span>
-            <strong>{taxPolicy?.isCustomized ? "已自定义" : "默认版本"}</strong>
+            <strong>{taxPolicy?.currentVersionName ?? "默认税率版本"}</strong>
           </div>
           <div className="summary-card">
             <span>编辑状态</span>
@@ -196,6 +217,10 @@ export const MaintenancePage = () => {
           <div className="summary-card">
             <span>校验状态</span>
             <strong>{validationIssues.length ? `待修正 ${validationIssues.length} 项` : "已通过"}</strong>
+          </div>
+          <div className="summary-card">
+            <span>税率版本数</span>
+            <strong>{taxPolicy?.versions.length ?? 0}</strong>
           </div>
         </div>
 
@@ -465,6 +490,49 @@ export const MaintenancePage = () => {
             ))}
           </ul>
         ) : null}
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>税率版本列表</h2>
+            <p>当前支持保留历史税率版本并回切激活；切换版本时会重新判定哪些年度结果仍然有效。</p>
+          </div>
+          <span className="tag">{taxPolicy?.versions.length ?? 0} 个版本</span>
+        </div>
+
+        {hasUnsavedChanges ? (
+          <div className="maintenance-warning-card">
+            <strong>版本切换限制</strong>
+            <p>当前有未保存修改。请先保存、恢复已保存或恢复默认后，再切换历史税率版本。</p>
+          </div>
+        ) : null}
+
+        <div className="reminder-list">
+          {taxPolicy?.versions.map((version) => (
+            <div className="maintenance-note-card" key={version.id}>
+              <div className="section-header compact-section-header">
+                <div>
+                  <strong>{version.versionName}</strong>
+                  <p>创建时间：{version.createdAt}</p>
+                  <p>最近启用：{version.activatedAt ?? "未启用"}</p>
+                </div>
+                <span className={version.isActive ? "tag" : "tag tag-neutral"}>
+                  {version.isActive ? "当前生效" : "历史版本"}
+                </span>
+              </div>
+              <div className="button-row compact">
+                <button
+                  className="ghost-button"
+                  disabled={loading || saving || version.isActive || hasUnsavedChanges}
+                  onClick={() => void activateTaxPolicyVersion(version.id)}
+                >
+                  激活此版本
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </article>
 
       <article className="glass-card page-section placeholder-card">

@@ -42,14 +42,15 @@
   - 前端已提供可编辑页面，可查看、编辑并保存全局税率
   - 前端已支持维护全局说明文本
   - 后端已提供 `GET /api/tax-policy` 和 `PUT /api/tax-policy`
-  - 当前税率使用 `app_preferences` 中的 `tax_policy_settings` 键持久化
-  - 当前全局说明使用 `app_preferences` 中的 `tax_policy_maintenance_notes` 键持久化
+  - 当前税率版本使用 `tax_policy_versions` 表持久化
+  - 当前活动版本使用 `app_preferences.active_tax_policy_version_id` 指针维护
   - 保存税率后，会通过 `policy_signature` 逻辑失效旧税率结果，而不是直接删除
   - 已支持前端税率草稿校验、字段高亮提示和保存前禁用校验
+  - 已支持查看税率版本列表并激活历史版本
 - 本阶段已完成项：
   - [已完成] 更友好的税率编辑体验与字段校验提示
+  - [已完成] 税率版本管理策略
 - 具体未完成项：
-  - 税率版本管理策略
   - 更细粒度的结果失效 / 重算策略（按单位 / 年度）
   - 富文本说明维护
 - 完成标准：
