@@ -1,20 +1,24 @@
 import type {
+  AnnualTaxCalculation,
   Employee,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
   HistoryResultStatus,
+  TaxCalculationScheme,
   TaxSettlementDirection,
 } from "../../../../packages/core/src/index";
 import { getSelectableYears } from "../../../../packages/config/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { calculateEmployeeAnnualTax } from "../../../../packages/core/src/index";
 import {
   buildHistoryQueryExportCsv,
   buildHistoryQueryExportFilename,
   buildHistoryQueryExportWorkbookBuffer,
   buildHistoryQueryExportWorkbookFilename,
 } from "./history-query-export";
+import { buildHistoryQueryComparisonItems } from "./history-query-diff";
 
 const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
   payable: "应补税",
@@ -26,6 +30,11 @@ const historyResultStatusLabelMap: Record<HistoryResultStatus, string> = {
   current: "当前有效",
   invalidated: "已失效",
   all: "全部结果",
+};
+
+const schemeLabelMap: Record<TaxCalculationScheme, string> = {
+  separate_bonus: "年终奖单独计税",
+  combined_bonus: "并入综合所得",
 };
 
 const formatCurrency = (value: number) =>
@@ -54,6 +63,9 @@ export const HistoryQueryPage = () => {
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<AnnualTaxCalculation | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonErrorMessage, setComparisonErrorMessage] = useState<string | null>(null);
   const [filters, setFilters] = useState<HistoryAnnualTaxQuery>({
     unitId: context?.currentUnitId ?? undefined,
     taxYear: context?.currentTaxYear ?? undefined,
@@ -112,6 +124,38 @@ export const HistoryQueryPage = () => {
       (result) => `${result.unitId}-${result.employeeId}-${result.taxYear}` === selectedResultId,
     ) ?? results[0] ?? null;
 
+  useEffect(() => {
+    const loadComparison = async () => {
+      if (!selectedResult?.isInvalidated) {
+        setComparisonResult(null);
+        setComparisonErrorMessage(null);
+        return;
+      }
+
+      try {
+        setComparisonLoading(true);
+        setComparisonErrorMessage(null);
+        const [records, taxPolicy] = await Promise.all([
+          apiClient.listMonthRecords(
+            selectedResult.unitId,
+            selectedResult.taxYear,
+            selectedResult.employeeId,
+          ),
+          apiClient.getTaxPolicy(),
+        ]);
+        const nextComparison = calculateEmployeeAnnualTax(records, taxPolicy.currentSettings);
+        setComparisonResult(nextComparison);
+      } catch (error) {
+        setComparisonResult(null);
+        setComparisonErrorMessage(error instanceof Error ? error.message : "计算对比结果失败");
+      } finally {
+        setComparisonLoading(false);
+      }
+    };
+
+    void loadComparison();
+  }, [selectedResult]);
+
   const updateFilter = <T extends keyof HistoryAnnualTaxQuery>(
     key: T,
     value: HistoryAnnualTaxQuery[T],
@@ -134,6 +178,10 @@ export const HistoryQueryPage = () => {
     }),
     [results],
   );
+  const comparisonItems =
+    selectedResult && comparisonResult && selectedResult.isInvalidated
+      ? buildHistoryQueryComparisonItems(selectedResult, comparisonResult)
+      : [];
 
   const selectedUnitName =
     context?.units.find((unit) => unit.id === filters.unitId)?.unitName ?? undefined;
@@ -452,6 +500,73 @@ export const HistoryQueryPage = () => {
           <div className="empty-state">
             <strong>请先选择一条历史结果。</strong>
             <p>左侧列表点击任意结果后，可在这里查看只读详情。</p>
+          </div>
+        )}
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>差异对比</h2>
+            <p>对已失效快照按当前税标现场重算，并展示旧快照与当前结果的关键差异。</p>
+          </div>
+          <span className="tag">
+            {comparisonLoading
+              ? "对比中"
+              : selectedResult?.isInvalidated
+                ? "已对比"
+                : "无需对比"}
+          </span>
+        </div>
+
+        {comparisonErrorMessage ? <div className="error-banner">{comparisonErrorMessage}</div> : null}
+
+        {selectedResult?.isInvalidated && comparisonResult ? (
+          <>
+            <div className="summary-grid results-summary-grid">
+              <div className="summary-card">
+                <span>旧快照方案</span>
+                <strong>{schemeLabelMap[selectedResult.selectedScheme]}</strong>
+              </div>
+              <div className="summary-card">
+                <span>当前重算方案</span>
+                <strong>{schemeLabelMap[comparisonResult.selectedScheme]}</strong>
+              </div>
+              <div className="summary-card">
+                <span>旧快照税额</span>
+                <strong>{formatCurrency(selectedResult.annualTaxPayable)}</strong>
+              </div>
+              <div className="summary-card">
+                <span>当前重算税额</span>
+                <strong>{formatCurrency(comparisonResult.annualTaxPayable)}</strong>
+              </div>
+            </div>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>旧快照</th>
+                  <th>当前重算</th>
+                  <th>差异</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonItems.map((item) => (
+                  <tr key={item.label}>
+                    <td>{item.label}</td>
+                    <td>{item.snapshotValue}</td>
+                    <td>{item.currentValue}</td>
+                    <td>{item.deltaValue}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <div className="empty-state">
+            <strong>当前没有可对比的失效快照。</strong>
+            <p>只有在“已失效”结果下，系统才会按当前税标现场重算并展示新旧差异。</p>
           </div>
         )}
       </article>
