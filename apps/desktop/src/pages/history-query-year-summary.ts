@@ -1,0 +1,40 @@
+import type { HistoryAnnualTaxResult } from "../../../../packages/core/src/index";
+
+export type HistoryQueryYearSummary = {
+  taxYear: number;
+  total: number;
+  current: number;
+  invalidated: number;
+  payable: number;
+  refund: number;
+  balanced: number;
+};
+
+export const buildHistoryQueryYearSummaries = (
+  results: HistoryAnnualTaxResult[],
+): HistoryQueryYearSummary[] => {
+  const yearMap = new Map<number, HistoryQueryYearSummary>();
+
+  results.forEach((result) => {
+    const currentSummary = yearMap.get(result.taxYear) ?? {
+      taxYear: result.taxYear,
+      total: 0,
+      current: 0,
+      invalidated: 0,
+      payable: 0,
+      refund: 0,
+      balanced: 0,
+    };
+
+    currentSummary.total += 1;
+    currentSummary.current += result.isInvalidated ? 0 : 1;
+    currentSummary.invalidated += result.isInvalidated ? 1 : 0;
+    currentSummary.payable += result.settlementDirection === "payable" ? 1 : 0;
+    currentSummary.refund += result.settlementDirection === "refund" ? 1 : 0;
+    currentSummary.balanced += result.settlementDirection === "balanced" ? 1 : 0;
+
+    yearMap.set(result.taxYear, currentSummary);
+  });
+
+  return Array.from(yearMap.values()).sort((left, right) => right.taxYear - left.taxYear);
+};

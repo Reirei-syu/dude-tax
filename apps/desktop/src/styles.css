@@ -265,6 +265,54 @@ textarea {
   gap: 12px;
 }
 
+.year-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.year-summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.year-summary-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(124, 157, 194, 0.16),
+    0 0 0 3px rgba(91, 157, 255, 0.18);
+  border-color: rgba(112, 169, 255, 0.5);
+}
+
+.year-summary-card.is-active {
+  border-color: rgba(84, 142, 233, 0.7);
+  box-shadow:
+    0 14px 28px rgba(124, 157, 194, 0.16),
+    0 0 0 3px rgba(91, 157, 255, 0.16);
+}
+
+.year-summary-card strong {
+  font-size: 18px;
+  color: #1b4878;
+}
+
+.year-summary-card span {
+  color: #5f7796;
+}
+
 .work-suggestion-card {
   display: flex;
   flex-direction: column;
@@ -601,6 +649,10 @@ textarea {
   }
 
   .work-suggestion-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .year-summary-grid {
     grid-template-columns: 1fr;
   }
 }
