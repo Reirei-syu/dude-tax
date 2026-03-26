@@ -8,6 +8,7 @@ import {
   applyBatchEditDrafts,
   buildEffectiveMonthRecords,
   clearBatchEditDrafts,
+  getBatchSaveTargetMonths,
   toggleBatchMonthSelection,
 } from "./month-record-batch-edit";
 
@@ -117,4 +118,16 @@ test("有效月份记录会合并本地草稿用于整年视图和切月展示",
   assert.equal(effectiveRecords[1]?.status, "completed");
   assert.equal(effectiveRecords[1]?.remark, "批量填充");
   assert.equal(effectiveRecords[1]?.taxMonth, 2);
+});
+
+test("批量保存目标月份只包含已选且存在草稿的月份", () => {
+  const targetMonths = getBatchSaveTargetMonths(
+    [4, 2, 6],
+    {
+      2: createPayload({ salaryIncome: 2000 }),
+      6: createPayload({ salaryIncome: 6000 }),
+    },
+  );
+
+  assert.deepEqual(targetMonths, [2, 6]);
 });

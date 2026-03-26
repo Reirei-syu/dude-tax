@@ -43,6 +43,14 @@ export const clearBatchEditDrafts = (
   return nextDrafts;
 };
 
+export const getBatchSaveTargetMonths = (
+  selectedMonths: number[],
+  drafts: MonthRecordDraftMap,
+): number[] =>
+  selectedMonths
+    .filter((taxMonth) => Boolean(drafts[taxMonth]))
+    .sort((left, right) => left - right);
+
 export const buildEffectiveMonthRecords = (
   records: EmployeeMonthRecord[],
   drafts: MonthRecordDraftMap,

@@ -13,6 +13,7 @@ import {
   applyBatchEditDrafts,
   buildEffectiveMonthRecords,
   clearBatchEditDrafts,
+  getBatchSaveTargetMonths,
   toggleBatchMonthSelection,
 } from "./month-record-batch-edit";
 import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
@@ -295,6 +296,73 @@ export const MonthRecordEntryPage = () => {
     );
   };
 
+  const saveSelectedBatchDrafts = async () => {
+    if (!currentUnitId || !currentTaxYear || !selectedEmployeeId) {
+      setErrorMessage("请先选择单位、年份和员工");
+      return;
+    }
+
+    const targetMonths = getBatchSaveTargetMonths(selectedBatchMonths, draftPayloadByMonth);
+    if (!targetMonths.length) {
+      setErrorMessage("所选月份没有可保存的草稿");
+      return;
+    }
+
+    const savedMonths: number[] = [];
+    const failedMonths: number[] = [];
+    let lastErrorMessage = "";
+
+    try {
+      setSubmitting(true);
+      setErrorMessage(null);
+      setNoticeMessage(null);
+
+      for (const taxMonth of targetMonths) {
+        const draftPayload = draftPayloadByMonth[taxMonth];
+        if (!draftPayload) {
+          continue;
+        }
+
+        try {
+          await apiClient.upsertMonthRecord(
+            currentUnitId,
+            currentTaxYear,
+            selectedEmployeeId,
+            taxMonth,
+            draftPayload,
+          );
+          savedMonths.push(taxMonth);
+        } catch (error) {
+          failedMonths.push(taxMonth);
+          lastErrorMessage = error instanceof Error ? error.message : "批量保存失败";
+        }
+      }
+
+      if (savedMonths.length) {
+        setDraftPayloadByMonth((currentDrafts) =>
+          clearBatchEditDrafts(currentDrafts, savedMonths),
+        );
+        await loadMonthRecords(selectedEmployeeId);
+      }
+
+      setSelectedBatchMonths(failedMonths);
+
+      if (failedMonths.length) {
+        if (savedMonths.length) {
+          setNoticeMessage(`已保存 ${savedMonths.join("、")} 月草稿。`);
+        }
+        setErrorMessage(
+          `以下月份保存失败：${failedMonths.join("、")} 月。${lastErrorMessage}`,
+        );
+        return;
+      }
+
+      setNoticeMessage(`已保存 ${savedMonths.join("、")} 月草稿。`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (!currentUnitId || !currentTaxYear) {
     return (
       <section className="page-grid">
@@ -402,6 +470,9 @@ export const MonthRecordEntryPage = () => {
             <div className="button-row compact">
               <button className="ghost-button" disabled={submitting} onClick={applyBatchEdit}>
                 批量应用当前表单
+              </button>
+              <button className="primary-button" disabled={submitting} onClick={() => void saveSelectedBatchDrafts()}>
+                批量保存所选草稿
               </button>
               <button className="ghost-button" disabled={submitting} onClick={clearSelectedBatchDrafts}>
                 清空所选草稿
