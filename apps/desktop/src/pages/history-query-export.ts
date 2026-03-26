@@ -186,6 +186,34 @@ const applyWorksheetPresentation = (
   });
 };
 
+const buildHistoryQueryExportInfoRows = (rows: HistoryQueryExportRow[]) => {
+  const years = Array.from(new Set(rows.map((row) => row.taxYear))).sort((left, right) => right - left);
+  const statuses = Array.from(new Set(rows.map((row) => row.resultStatusLabel)));
+  const unitNames = Array.from(new Set(rows.map((row) => row.unitName)));
+
+  return [
+    ["说明项", "内容"],
+    ["导出单位", unitNames.length ? unitNames.join("、") : "当前结果为空"],
+    ["导出年份", years.length ? years.join("、") : "-"],
+    ["结果条数", String(rows.length)],
+    ["结果状态", statuses.length ? statuses.join("、") : "-"],
+  ];
+};
+
+const applyInfoWorksheetPresentation = (worksheet: ExcelJS.Worksheet) => {
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.getColumn(1).width = 18;
+  worksheet.getColumn(2).width = 72;
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF2F75DD" },
+  };
+};
+
 export const buildHistoryQueryExportCsv = (rows: HistoryAnnualTaxResult[]) => {
   const exportRows = rows.map(mapHistoryResultToExportRow);
   const csvLines = [columns.map((column) => column.label).join(",")];
@@ -200,6 +228,7 @@ export const buildHistoryQueryExportCsv = (rows: HistoryAnnualTaxResult[]) => {
 export const buildHistoryQueryExportWorkbook = (rows: HistoryAnnualTaxResult[]) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("历史结果");
+  const infoWorksheet = workbook.addWorksheet("导出说明");
   const exportRows = rows.map(mapHistoryResultToExportRow);
 
   worksheet.addRow(columns.map((column) => column.label));
@@ -207,6 +236,9 @@ export const buildHistoryQueryExportWorkbook = (rows: HistoryAnnualTaxResult[]) 
     worksheet.addRow(columns.map((column) => column.getWorkbookValue(row)));
   });
   applyWorksheetPresentation(worksheet, exportRows, columns);
+
+  buildHistoryQueryExportInfoRows(exportRows).forEach((row) => infoWorksheet.addRow(row));
+  applyInfoWorksheetPresentation(infoWorksheet);
 
   return workbook;
 };

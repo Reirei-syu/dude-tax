@@ -112,12 +112,16 @@ test("历史查询 XLSX 导出工作表为历史结果", () => {
 
   const workbook = buildHistoryQueryExportWorkbook([createHistoryResult()]);
   assert.equal(workbook.worksheets[0]?.name, "历史结果");
+  assert.equal(workbook.worksheets[1]?.name, "导出说明");
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("A1")?.value, "单位名称");
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("E1")?.value, "结果状态");
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("E2")?.value, "当前有效");
   assert.equal(workbook.getWorksheet("历史结果")?.views?.[0]?.state, "frozen");
   assert.equal(workbook.getWorksheet("历史结果")?.views?.[0]?.ySplit, 1);
   assert.ok((workbook.getWorksheet("历史结果")?.getColumn(1)?.width ?? 0) >= 12);
+  assert.equal(workbook.getWorksheet("导出说明")?.getCell("A1")?.value, "说明项");
+  assert.equal(workbook.getWorksheet("导出说明")?.getCell("B2")?.value, "测试单位");
+  assert.equal(workbook.getWorksheet("导出说明")?.views?.[0]?.state, "frozen");
 });
 
 test("历史查询导出文件名带作用域信息", () => {

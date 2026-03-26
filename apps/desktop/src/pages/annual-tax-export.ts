@@ -310,6 +310,36 @@ const applyWorksheetPresentation = (
   });
 };
 
+const buildAnnualTaxExportInfoRows = (
+  rows: AnnualTaxExportPreviewRow[],
+  selectedColumns: AnnualTaxExportColumnDefinition[],
+) => {
+  const firstRow = rows[0];
+
+  return [
+    ["说明项", "内容"],
+    ["导出范围", firstRow ? `${firstRow.unitName} / ${firstRow.taxYear} 年度` : "当前结果为空"],
+    ["结果条数", String(rows.length)],
+    ["导出字段数", String(selectedColumns.length)],
+    ["导出字段", selectedColumns.map((column) => column.label).join("、")],
+    ["生成时间字段", "计算时间列采用 Excel 友好时间格式"],
+  ];
+};
+
+const applyInfoWorksheetPresentation = (worksheet: ExcelJS.Worksheet) => {
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.getColumn(1).width = 18;
+  worksheet.getColumn(2).width = 72;
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF1B4878" },
+  };
+};
+
 export const buildAnnualTaxExportCsv = (
   rows: AnnualTaxExportPreviewRow[],
   selectedColumnKeys?: AnnualTaxExportColumnKey[],
@@ -332,12 +362,16 @@ export const buildAnnualTaxExportWorkbook = (
   const selectedColumns = resolveSelectedColumns(selectedColumnKeys);
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("个税结果");
+  const infoWorksheet = workbook.addWorksheet("导出说明");
 
   worksheet.addRow(selectedColumns.map((column) => column.label));
   rows.forEach((row) => {
     worksheet.addRow(selectedColumns.map((column) => column.getWorkbookValue(row)));
   });
   applyWorksheetPresentation(worksheet, rows, selectedColumns);
+
+  buildAnnualTaxExportInfoRows(rows, selectedColumns).forEach((row) => infoWorksheet.addRow(row));
+  applyInfoWorksheetPresentation(infoWorksheet);
 
   return workbook;
 };
