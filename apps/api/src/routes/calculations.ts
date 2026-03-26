@@ -17,7 +17,40 @@ const updateSelectedSchemeSchema = z.object({
   selectedScheme: z.enum(["separate_bonus", "combined_bonus"]),
 });
 
+const historyQuerySchema = z.object({
+  unitId: z.coerce.number().int().positive().optional(),
+  taxYear: z.coerce.number().int().min(2000).max(2100).optional(),
+  employeeId: z.coerce.number().int().positive().optional(),
+  settlementDirection: z.enum(["payable", "refund", "balanced"]).optional(),
+});
+
 export const registerCalculationRoutes = async (app: FastifyInstance) => {
+  app.get("/api/history-results", async (request, reply) => {
+    const parsedQuery = historyQuerySchema.safeParse(request.query ?? {});
+    if (!parsedQuery.success) {
+      return reply.status(400).send({
+        message: "历史查询参数不合法",
+        issues: parsedQuery.error.flatten(),
+      });
+    }
+
+    if (parsedQuery.data.unitId) {
+      const unitExists = unitRepository.list().some((unit) => unit.id === parsedQuery.data.unitId);
+      if (!unitExists) {
+        return reply.status(404).send({ message: "目标单位不存在" });
+      }
+    }
+
+    if (parsedQuery.data.employeeId) {
+      const employee = employeeRepository.getById(parsedQuery.data.employeeId);
+      if (!employee) {
+        return reply.status(404).send({ message: "目标员工不存在" });
+      }
+    }
+
+    return annualTaxService.searchHistory(parsedQuery.data);
+  });
+
   app.get("/api/units/:unitId/years/:taxYear/calculation-statuses", async (request, reply) => {
     const unitId = Number((request.params as { unitId: string }).unitId);
     const taxYear = Number((request.params as { taxYear: string }).taxYear);

@@ -195,4 +195,15 @@ export type AnnualTaxExportPreviewRow = {
   calculatedAt: string;
 };
 
+export type HistoryAnnualTaxResult = EmployeeAnnualTaxResult & {
+  unitName: string;
+};
+
+export type HistoryAnnualTaxQuery = {
+  unitId?: number;
+  taxYear?: number;
+  employeeId?: number;
+  settlementDirection?: TaxSettlementDirection;
+};
+
 export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";

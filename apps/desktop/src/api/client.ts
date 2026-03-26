@@ -8,6 +8,8 @@ import type {
   DeleteUnitChallenge,
   Employee,
   EmployeeMonthRecord,
+  HistoryAnnualTaxQuery,
+  HistoryAnnualTaxResult,
   UpdateAnnualResultSelectedSchemePayload,
   Unit,
   UpsertEmployeeMonthRecordPayload,
@@ -126,6 +128,24 @@ export const apiClient = {
     return request<AnnualTaxExportPreviewRow[]>(
       `/api/units/${unitId}/years/${taxYear}/annual-results/export-preview`,
     );
+  },
+  searchHistoryResults(query: HistoryAnnualTaxQuery) {
+    const searchParams = new URLSearchParams();
+    if (query.unitId) {
+      searchParams.set("unitId", String(query.unitId));
+    }
+    if (query.taxYear) {
+      searchParams.set("taxYear", String(query.taxYear));
+    }
+    if (query.employeeId) {
+      searchParams.set("employeeId", String(query.employeeId));
+    }
+    if (query.settlementDirection) {
+      searchParams.set("settlementDirection", query.settlementDirection);
+    }
+
+    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<HistoryAnnualTaxResult[]>(`/api/history-results${suffix}`);
   },
   updateAnnualResultSelectedScheme(
     unitId: number,
