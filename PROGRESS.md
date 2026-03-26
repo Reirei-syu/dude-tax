@@ -7,6 +7,7 @@
 - **方案文档**：
   - `/docs/plans/2026-03-26_system-maintenance_editable-tax-policy-plan.md`
   - `/docs/plans/2026-03-26_result-invalidation_refinement_plan.md`
+  - `/docs/plans/2026-03-26_system-maintenance_tax-rate-versioning-plan.md`
 - **已完成模块**：
   - 项目基础文档：`AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
   - 工程骨架：npm workspaces、`apps/api`、`apps/desktop`、`packages/core`、`packages/config`
@@ -77,6 +78,7 @@
   - 月度数据录入新增批量保存能力，支持将所选本地草稿逐月写入数据库并保留失败月份草稿
   - 月度数据录入新增数据差异提示，支持识别本地草稿与已保存记录之间的差异月份和变更字段
   - 统一项目内旧术语为“税率”，并为系统维护补充税率草稿校验、字段高亮提示和保存前禁用校验
+  - 为“系统维护 -> 税率版本管理策略”补充高风险方案文档，沉淀版本表、活动指针和激活流程设计
   - 将“完成工作后必须给出下一步建议；项目初步完成时要说明并给出优化建议”写入项目规则
   - 将“用户要求下一步时，先对照 `PENDING_GOALS.md` 标记已完成目标并推进未完成目标”写入项目执行约束
   - 完成类型检查、前端构建验证、API 注入式烟雾验证
@@ -141,7 +143,7 @@
   - 当前仓库无远程仓库，且本地已只保留 `master`；后续如需协作，需先补远程与分支规范
   - 当前税率失效策略已从“全量清空”升级为基于 `policy_signature` 的逻辑失效
 - **下一步开发计划**：
-  - 按 `PENDING_GOALS.md` 继续推进系统维护模块，优先补齐税率版本管理策略
+  - 按 `PENDING_GOALS.md` 继续推进系统维护模块，待确认后实施税率版本管理策略
   - 后续再推进更细粒度的结果失效 / 重算策略，以及历史查询中的重算版本历史查询
   - 更复杂的预扣预缴、补发补扣与跨年口径继续放在后续阶段
 
