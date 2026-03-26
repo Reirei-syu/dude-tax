@@ -11,6 +11,7 @@ import {
 import { annualTaxResultRepository } from "../repositories/annual-tax-result-repository.js";
 import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
+import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 
 export class EmployeeCalculationNotReadyError extends Error {
@@ -107,7 +108,10 @@ const buildExportPreviewRow = (
 
 const recalculateReadyStatus = (unitId: number, taxYear: number, status: EmployeeCalculationStatus) => {
   const records = monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear);
-  const calculation = calculateEmployeeAnnualTax(records);
+  const calculation = calculateEmployeeAnnualTax(
+    records,
+    taxPolicyRepository.get().currentSettings,
+  );
   const existingResult = annualTaxResultRepository.getByEmployeeAndYear(
     unitId,
     status.employeeId,

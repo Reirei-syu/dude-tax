@@ -100,4 +100,7 @@ export const calculationRunRepository = {
       )
       .run(unitId, employeeId, taxYear);
   },
+  deleteAll() {
+    database.prepare("DELETE FROM annual_calculation_runs").run();
+  },
 };

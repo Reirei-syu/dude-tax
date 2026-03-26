@@ -6,6 +6,7 @@ import { registerContextRoutes } from "./routes/context.js";
 import { registerEmployeeRoutes } from "./routes/employees.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMonthRecordRoutes } from "./routes/month-records.js";
+import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
 import { registerUnitRoutes } from "./routes/units.js";
 
 const app = Fastify({ logger: false });
@@ -19,6 +20,7 @@ await registerCalculationRoutes(app);
 await registerContextRoutes(app);
 await registerEmployeeRoutes(app);
 await registerMonthRecordRoutes(app);
+await registerTaxPolicyRoutes(app);
 await registerUnitRoutes(app);
 
 const start = async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { EmployeeMonthRecord } from "./index.js";
+import type { EmployeeMonthRecord, TaxPolicySettings } from "./index.js";
 import * as coreModule from "./index.js";
 
 const createMonthRecord = (
@@ -40,7 +40,10 @@ const createMonthRecord = (
 const getCalculator = () => {
   const calculator = Reflect.get(coreModule, "calculateEmployeeAnnualTax");
   assert.equal(typeof calculator, "function");
-  return calculator as (records: EmployeeMonthRecord[]) => Record<string, unknown>;
+  return calculator as (
+    records: EmployeeMonthRecord[],
+    taxPolicy?: TaxPolicySettings,
+  ) => Record<string, unknown>;
 };
 
 test("导出年度个税计算函数", () => {
@@ -142,4 +145,121 @@ test("存在已预扣税额时应计算应退税结果", () => {
   assert.equal(result.annualTaxWithheld, 300);
   assert.equal(result.annualTaxSettlement, -150);
   assert.equal(result.settlementDirection, "refund");
+});
+
+test("支持传入自定义税标并影响年度计算结果", () => {
+  const calculateEmployeeAnnualTax = getCalculator();
+
+  const result = calculateEmployeeAnnualTax(
+    [createMonthRecord(1, { salaryIncome: 10_000 })],
+    {
+      basicDeductionAmount: 6_000,
+      comprehensiveTaxBrackets: [
+        {
+          level: 1,
+          rangeText: "不超过 36,000 元",
+          maxAnnualIncome: 36_000,
+          rate: 3,
+          quickDeduction: 0,
+        },
+        {
+          level: 2,
+          rangeText: "36,000 - 144,000 元",
+          maxAnnualIncome: 144_000,
+          rate: 10,
+          quickDeduction: 2520,
+        },
+        {
+          level: 3,
+          rangeText: "144,000 - 300,000 元",
+          maxAnnualIncome: 300_000,
+          rate: 20,
+          quickDeduction: 16920,
+        },
+        {
+          level: 4,
+          rangeText: "300,000 - 420,000 元",
+          maxAnnualIncome: 420_000,
+          rate: 25,
+          quickDeduction: 31920,
+        },
+        {
+          level: 5,
+          rangeText: "420,000 - 660,000 元",
+          maxAnnualIncome: 660_000,
+          rate: 30,
+          quickDeduction: 52920,
+        },
+        {
+          level: 6,
+          rangeText: "660,000 - 960,000 元",
+          maxAnnualIncome: 960_000,
+          rate: 35,
+          quickDeduction: 85920,
+        },
+        {
+          level: 7,
+          rangeText: "超过 960,000 元",
+          maxAnnualIncome: null,
+          rate: 45,
+          quickDeduction: 181920,
+        },
+      ],
+      bonusTaxBrackets: [
+        {
+          level: 1,
+          rangeText: "不超过 3,000 元",
+          maxAverageMonthlyIncome: 3_000,
+          rate: 3,
+          quickDeduction: 0,
+        },
+        {
+          level: 2,
+          rangeText: "3,000 - 12,000 元",
+          maxAverageMonthlyIncome: 12_000,
+          rate: 10,
+          quickDeduction: 210,
+        },
+        {
+          level: 3,
+          rangeText: "12,000 - 25,000 元",
+          maxAverageMonthlyIncome: 25_000,
+          rate: 20,
+          quickDeduction: 1410,
+        },
+        {
+          level: 4,
+          rangeText: "25,000 - 35,000 元",
+          maxAverageMonthlyIncome: 35_000,
+          rate: 25,
+          quickDeduction: 2660,
+        },
+        {
+          level: 5,
+          rangeText: "35,000 - 55,000 元",
+          maxAverageMonthlyIncome: 55_000,
+          rate: 30,
+          quickDeduction: 4410,
+        },
+        {
+          level: 6,
+          rangeText: "55,000 - 80,000 元",
+          maxAverageMonthlyIncome: 80_000,
+          rate: 35,
+          quickDeduction: 7160,
+        },
+        {
+          level: 7,
+          rangeText: "超过 80,000 元",
+          maxAverageMonthlyIncome: null,
+          rate: 45,
+          quickDeduction: 15160,
+        },
+      ],
+    },
+  );
+
+  assert.equal(result.basicDeductionTotal, 6_000);
+  assert.equal(result.selectedTaxAmount, 120);
+  assert.equal(result.annualTaxPayable, 120);
 });

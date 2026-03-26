@@ -214,4 +214,7 @@ export const annualTaxResultRepository = {
       )
       .run(unitId, employeeId, taxYear);
   },
+  deleteAll() {
+    database.prepare("DELETE FROM annual_tax_results").run();
+  },
 };

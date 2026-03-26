@@ -1,15 +1,12 @@
-import {
-  BONUS_TAX_BRACKETS,
-  COMPREHENSIVE_TAX_BRACKETS,
-  DEFAULT_BASIC_DEDUCTION_AMOUNT,
-} from "@dude-tax/config";
 import type {
   AnnualTaxCalculation,
   AnnualTaxSchemeResult,
   EmployeeMonthRecord,
+  TaxPolicySettings,
   TaxSettlementDirection,
   TaxCalculationScheme,
 } from "./index.js";
+import { buildDefaultTaxPolicySettings } from "./tax-policy.js";
 
 const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -44,17 +41,18 @@ const getSpecialAdditionalDeductionTotal = (record: EmployeeMonthRecord) =>
   record.housingRentDeduction +
   record.elderCareDeduction;
 
-const pickComprehensiveBracket = (annualTaxableIncome: number) =>
-  COMPREHENSIVE_TAX_BRACKETS.find(
+const pickComprehensiveBracket = (annualTaxableIncome: number, taxPolicy: TaxPolicySettings) =>
+  taxPolicy.comprehensiveTaxBrackets.find(
     (bracket) => bracket.maxAnnualIncome === null || annualTaxableIncome <= bracket.maxAnnualIncome,
-  ) ?? COMPREHENSIVE_TAX_BRACKETS[COMPREHENSIVE_TAX_BRACKETS.length - 1];
+  ) ??
+  taxPolicy.comprehensiveTaxBrackets[taxPolicy.comprehensiveTaxBrackets.length - 1];
 
-const pickBonusBracket = (averageMonthlyBonus: number) =>
-  BONUS_TAX_BRACKETS.find(
+const pickBonusBracket = (averageMonthlyBonus: number, taxPolicy: TaxPolicySettings) =>
+  taxPolicy.bonusTaxBrackets.find(
     (bracket) =>
       bracket.maxAverageMonthlyIncome === null ||
       averageMonthlyBonus <= bracket.maxAverageMonthlyIncome,
-  ) ?? BONUS_TAX_BRACKETS[BONUS_TAX_BRACKETS.length - 1];
+  ) ?? taxPolicy.bonusTaxBrackets[taxPolicy.bonusTaxBrackets.length - 1];
 
 const buildSchemeResult = (
   scheme: TaxCalculationScheme,
@@ -62,9 +60,12 @@ const buildSchemeResult = (
   annualBonusTax: number,
   taxReductionExemptionTotal: number,
   bonusBracketLevel: number | null,
+  taxPolicy: TaxPolicySettings,
 ): AnnualTaxSchemeResult => {
   const comprehensiveBracket =
-    taxableComprehensiveIncome > 0 ? pickComprehensiveBracket(taxableComprehensiveIncome) : null;
+    taxableComprehensiveIncome > 0
+      ? pickComprehensiveBracket(taxableComprehensiveIncome, taxPolicy)
+      : null;
   const comprehensiveIncomeTax = comprehensiveBracket
     ? roundCurrency(
         taxableComprehensiveIncome * (comprehensiveBracket.rate / 100) -
@@ -92,10 +93,10 @@ const buildSeparateBonusScheme = (
   salaryOnlyTaxableIncome: number,
   annualBonusTotal: number,
   taxReductionExemptionTotal: number,
+  taxPolicy: TaxPolicySettings,
 ): AnnualTaxSchemeResult => {
   const averageMonthlyBonus = annualBonusTotal / 12;
-  const bonusBracket =
-    annualBonusTotal > 0 ? pickBonusBracket(averageMonthlyBonus) : null;
+  const bonusBracket = annualBonusTotal > 0 ? pickBonusBracket(averageMonthlyBonus, taxPolicy) : null;
   const annualBonusTax = bonusBracket
     ? roundCurrency(annualBonusTotal * (bonusBracket.rate / 100) - bonusBracket.quickDeduction)
     : 0;
@@ -106,6 +107,7 @@ const buildSeparateBonusScheme = (
     annualBonusTax,
     taxReductionExemptionTotal,
     bonusBracket?.level ?? null,
+    taxPolicy,
   );
   return schemeResult;
 };
@@ -113,12 +115,21 @@ const buildSeparateBonusScheme = (
 const buildCombinedBonusScheme = (
   combinedTaxableIncome: number,
   taxReductionExemptionTotal: number,
+  taxPolicy: TaxPolicySettings,
 ): AnnualTaxSchemeResult => ({
-  ...buildSchemeResult("combined_bonus", combinedTaxableIncome, 0, taxReductionExemptionTotal, null),
+  ...buildSchemeResult(
+    "combined_bonus",
+    combinedTaxableIncome,
+    0,
+    taxReductionExemptionTotal,
+    null,
+    taxPolicy,
+  ),
 });
 
 export const calculateEmployeeAnnualTax = (
   records: EmployeeMonthRecord[],
+  taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
 ): AnnualTaxCalculation => {
   const completedRecords = records.filter((record) => record.status === "completed");
   if (!completedRecords.length) {
@@ -147,7 +158,9 @@ export const calculateEmployeeAnnualTax = (
   const annualTaxWithheld = roundCurrency(
     completedRecords.reduce((sum, record) => sum + record.withheldTax, 0),
   );
-  const basicDeductionTotal = roundCurrency(DEFAULT_BASIC_DEDUCTION_AMOUNT * completedMonthCount);
+  const basicDeductionTotal = roundCurrency(
+    taxPolicy.basicDeductionAmount * completedMonthCount,
+  );
   const deductibleTotal = roundCurrency(
     insuranceAndHousingFundTotal +
       specialAdditionalDeductionTotal +
@@ -166,10 +179,12 @@ export const calculateEmployeeAnnualTax = (
     salaryOnlyTaxableIncome,
     annualBonusTotal,
     taxReductionExemptionTotal,
+    taxPolicy,
   );
   const combinedBonus = buildCombinedBonusScheme(
     combinedTaxableIncome,
     taxReductionExemptionTotal,
+    taxPolicy,
   );
 
   const selectedScheme =

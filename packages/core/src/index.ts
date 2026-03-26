@@ -119,6 +119,52 @@ export type TaxCalculationScheme = "separate_bonus" | "combined_bonus";
 
 export type TaxSettlementDirection = "payable" | "refund" | "balanced";
 
+export type ComprehensiveTaxBracket = {
+  level: number;
+  rangeText: string;
+  maxAnnualIncome: number | null;
+  rate: number;
+  quickDeduction: number;
+};
+
+export type BonusTaxBracket = {
+  level: number;
+  rangeText: string;
+  maxAverageMonthlyIncome: number | null;
+  rate: number;
+  quickDeduction: number;
+};
+
+export type ComprehensiveTaxBracketInput = Omit<ComprehensiveTaxBracket, "rangeText"> & {
+  rangeText?: string;
+};
+
+export type BonusTaxBracketInput = Omit<BonusTaxBracket, "rangeText"> & {
+  rangeText?: string;
+};
+
+export type TaxPolicySettingsInput = {
+  basicDeductionAmount: number;
+  comprehensiveTaxBrackets: ComprehensiveTaxBracketInput[];
+  bonusTaxBrackets: BonusTaxBracketInput[];
+};
+
+export type TaxPolicySettings = {
+  basicDeductionAmount: number;
+  comprehensiveTaxBrackets: ComprehensiveTaxBracket[];
+  bonusTaxBrackets: BonusTaxBracket[];
+};
+
+export type TaxPolicyResponse = {
+  currentSettings: TaxPolicySettings;
+  defaultSettings: TaxPolicySettings;
+  isCustomized: boolean;
+};
+
+export type TaxPolicySaveResponse = TaxPolicyResponse & {
+  invalidatedResults: boolean;
+};
+
 export type AnnualTaxSchemeResult = {
   scheme: TaxCalculationScheme;
   taxableComprehensiveIncome: number;
@@ -207,3 +253,10 @@ export type HistoryAnnualTaxQuery = {
 };
 
 export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";
+export {
+  buildDefaultTaxPolicySettings,
+  isSameTaxPolicySettings,
+  normalizeBonusTaxBrackets,
+  normalizeComprehensiveTaxBrackets,
+  normalizeTaxPolicySettings,
+} from "./tax-policy.js";

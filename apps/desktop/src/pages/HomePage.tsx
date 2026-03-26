@@ -1,9 +1,8 @@
 import {
-  BONUS_TAX_BRACKETS,
-  COMPREHENSIVE_TAX_BRACKETS,
-  DEFAULT_BASIC_DEDUCTION_AMOUNT,
-} from "../../../../packages/config/src/index";
-import type { EmployeeCalculationStatus } from "../../../../packages/core/src/index";
+  buildDefaultTaxPolicySettings,
+  type EmployeeCalculationStatus,
+  type TaxPolicyResponse,
+} from "../../../../packages/core/src/index";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
@@ -24,6 +23,26 @@ export const HomePage = () => {
   const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
   const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderErrorMessage, setReminderErrorMessage] = useState<string | null>(null);
+  const [taxPolicy, setTaxPolicy] = useState<TaxPolicyResponse | null>(null);
+  const [taxPolicyLoading, setTaxPolicyLoading] = useState(false);
+  const [taxPolicyErrorMessage, setTaxPolicyErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadTaxPolicy = async () => {
+      try {
+        setTaxPolicyLoading(true);
+        setTaxPolicyErrorMessage(null);
+        const nextTaxPolicy = await apiClient.getTaxPolicy();
+        setTaxPolicy(nextTaxPolicy);
+      } catch (error) {
+        setTaxPolicyErrorMessage(error instanceof Error ? error.message : "加载税标失败");
+      } finally {
+        setTaxPolicyLoading(false);
+      }
+    };
+
+    void loadTaxPolicy();
+  }, []);
 
   useEffect(() => {
     const loadReminderStatuses = async () => {
@@ -80,6 +99,7 @@ export const HomePage = () => {
   const employeeCount = statuses.length;
   const pendingRecalculateCount = reminderItems[0]?.count ?? 0;
   const incompleteMonthCount = reminderItems[1]?.count ?? 0;
+  const currentTaxPolicy = taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
 
   const workSuggestions = useMemo<WorkSuggestion[]>(() => {
     if (!currentUnitId || !currentTaxYear) {
@@ -157,7 +177,9 @@ export const HomePage = () => {
             <h1>首页</h1>
             <p>这是当前单位和年份的工作总控台。</p>
           </div>
-          <span className="tag">{loading || reminderLoading ? "加载中" : "工作提醒已联动"}</span>
+          <span className="tag">
+            {loading || reminderLoading || taxPolicyLoading ? "加载中" : "工作提醒已联动"}
+          </span>
         </div>
 
         <div className="summary-grid">
@@ -171,12 +193,13 @@ export const HomePage = () => {
           </div>
           <div className="summary-card">
             <span>全局税标</span>
-            <strong>{context?.currentTaxYear ?? "-"} 年默认版本</strong>
+            <strong>{taxPolicy?.isCustomized ? "已自定义" : "默认版本"}</strong>
           </div>
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {reminderErrorMessage ? <div className="error-banner">{reminderErrorMessage}</div> : null}
+        {taxPolicyErrorMessage ? <div className="error-banner">{taxPolicyErrorMessage}</div> : null}
       </article>
 
       <article className="glass-card page-section">
@@ -225,13 +248,15 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h2>当前税率表</h2>
-            <p>首页税率表与后续计算核心保持同源。</p>
+            <p>首页税率表已改为读取当前生效税标，和后续计算核心保持同源。</p>
           </div>
         </div>
 
         <div className="tax-rule-block">
           <div className="tax-rule-title">减除费用</div>
-          <div className="tax-rule-value">{DEFAULT_BASIC_DEDUCTION_AMOUNT.toLocaleString()} 元 / 月</div>
+          <div className="tax-rule-value">
+            {currentTaxPolicy.basicDeductionAmount.toLocaleString()} 元 / 月
+          </div>
         </div>
 
         <div className="tax-rule-columns">
@@ -247,7 +272,7 @@ export const HomePage = () => {
                 </tr>
               </thead>
               <tbody>
-                {COMPREHENSIVE_TAX_BRACKETS.map((bracket) => (
+                {currentTaxPolicy.comprehensiveTaxBrackets.map((bracket) => (
                   <tr key={bracket.level}>
                     <td>{bracket.level}</td>
                     <td>{bracket.rangeText}</td>
@@ -271,7 +296,7 @@ export const HomePage = () => {
                 </tr>
               </thead>
               <tbody>
-                {BONUS_TAX_BRACKETS.map((bracket) => (
+                {currentTaxPolicy.bonusTaxBrackets.map((bracket) => (
                   <tr key={bracket.level}>
                     <td>{bracket.level}</td>
                     <td>{bracket.rangeText}</td>

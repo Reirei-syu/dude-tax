@@ -10,6 +10,9 @@ import type {
   EmployeeMonthRecord,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
+  TaxPolicyResponse,
+  TaxPolicySaveResponse,
+  TaxPolicySettingsInput,
   UpdateAnnualResultSelectedSchemePayload,
   Unit,
   UpsertEmployeeMonthRecordPayload,
@@ -36,6 +39,15 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const apiClient = {
   getContext() {
     return request<AppContext>("/api/context");
+  },
+  getTaxPolicy() {
+    return request<TaxPolicyResponse>("/api/tax-policy");
+  },
+  updateTaxPolicy(payload: TaxPolicySettingsInput) {
+    return request<TaxPolicySaveResponse>("/api/tax-policy", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
   updateContext(payload: Partial<Pick<AppContext, "currentUnitId" | "currentTaxYear">>) {
     return request<AppContext>("/api/context", {
