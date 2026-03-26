@@ -23,6 +23,7 @@ const historyQuerySchema = z.object({
   taxYear: z.coerce.number().int().min(2000).max(2100).optional(),
   employeeId: z.coerce.number().int().positive().optional(),
   settlementDirection: z.enum(["payable", "refund", "balanced"]).optional(),
+  resultStatus: z.enum(["current", "invalidated", "all"]).optional(),
 });
 
 export const registerCalculationRoutes = async (app: FastifyInstance) => {

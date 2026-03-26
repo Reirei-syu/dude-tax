@@ -2,6 +2,7 @@ import type {
   Employee,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
+  HistoryResultStatus,
   TaxSettlementDirection,
 } from "../../../../packages/core/src/index";
 import { getSelectableYears } from "../../../../packages/config/src/index";
@@ -13,6 +14,12 @@ const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
   payable: "应补税",
   refund: "应退税",
   balanced: "已平",
+};
+
+const historyResultStatusLabelMap: Record<HistoryResultStatus, string> = {
+  current: "当前有效",
+  invalidated: "已失效",
+  all: "全部结果",
 };
 
 const formatCurrency = (value: number) =>
@@ -101,6 +108,8 @@ export const HistoryQueryPage = () => {
   const summary = useMemo(
     () => ({
       total: results.length,
+      current: results.filter((result) => !result.isInvalidated).length,
+      invalidated: results.filter((result) => result.isInvalidated).length,
       payable: results.filter((result) => result.settlementDirection === "payable").length,
       refund: results.filter((result) => result.settlementDirection === "refund").length,
       balanced: results.filter((result) => result.settlementDirection === "balanced").length,
@@ -193,6 +202,20 @@ export const HistoryQueryPage = () => {
               <option value="balanced">已平</option>
             </select>
           </label>
+
+          <label className="form-field">
+            <span>结果状态</span>
+            <select
+              value={filters.resultStatus ?? "current"}
+              onChange={(event) =>
+                updateFilter("resultStatus", event.target.value as HistoryResultStatus)
+              }
+            >
+              <option value="current">当前有效</option>
+              <option value="invalidated">已失效</option>
+              <option value="all">全部结果</option>
+            </select>
+          </label>
         </div>
 
         <div className="summary-grid results-summary-grid detail-summary-grid">
@@ -201,16 +224,16 @@ export const HistoryQueryPage = () => {
             <strong>{summary.total}</strong>
           </div>
           <div className="summary-card">
+            <span>当前有效</span>
+            <strong>{summary.current}</strong>
+          </div>
+          <div className="summary-card">
+            <span>已失效</span>
+            <strong>{summary.invalidated}</strong>
+          </div>
+          <div className="summary-card">
             <span>应补税</span>
             <strong>{summary.payable}</strong>
-          </div>
-          <div className="summary-card">
-            <span>应退税</span>
-            <strong>{summary.refund}</strong>
-          </div>
-          <div className="summary-card">
-            <span>已平</span>
-            <strong>{summary.balanced}</strong>
           </div>
         </div>
 
@@ -221,7 +244,7 @@ export const HistoryQueryPage = () => {
         <div className="section-header">
           <div>
             <h2>历史结果列表</h2>
-            <p>当前只展示与现行税标口径一致的有效结果，不含失效快照和重算版本历史。</p>
+            <p>支持切换查看当前有效结果、已失效快照或全部结果；当前仍不含重算版本历史。</p>
           </div>
           <span className="tag">{results.length ? `命中 ${results.length} 条` : "暂无结果"}</span>
         </div>
@@ -232,6 +255,7 @@ export const HistoryQueryPage = () => {
               <tr>
                 <th>单位 / 年份</th>
                 <th>员工</th>
+                <th>结果状态</th>
                 <th>当前方案</th>
                 <th>应纳税额</th>
                 <th>应补/应退</th>
@@ -257,6 +281,13 @@ export const HistoryQueryPage = () => {
                       <br />
                       <small>{result.employeeCode}</small>
                     </td>
+                    <td>
+                      {result.isInvalidated ? (
+                        <span className="tag tag-warning">已失效</span>
+                      ) : (
+                        <span className="tag">当前有效</span>
+                      )}
+                    </td>
                     <td>{result.selectedScheme === "separate_bonus" ? "年终奖单独计税" : "并入综合所得"}</td>
                     <td>{formatCurrency(result.annualTaxPayable)}</td>
                     <td>{formatCurrency(result.annualTaxSettlement)}</td>
@@ -269,7 +300,9 @@ export const HistoryQueryPage = () => {
         ) : (
           <div className="empty-state">
             <strong>没有符合条件的历史结果。</strong>
-            <p>请调整筛选条件，或先到计算中心生成年度结果。</p>
+            <p>
+              请调整筛选条件；如果当前有效结果为空，也可以切换到“已失效”或“全部结果”查看保留的历史快照。
+            </p>
           </div>
         )}
       </article>
@@ -281,7 +314,11 @@ export const HistoryQueryPage = () => {
             <p>展示当前选中历史结果的关键字段，当前为只读详情。</p>
           </div>
           <span className="tag">
-            {selectedResult ? settlementDirectionLabelMap[selectedResult.settlementDirection] : "未选择结果"}
+            {selectedResult
+              ? selectedResult.isInvalidated
+                ? "已失效快照"
+                : "当前有效结果"
+              : "未选择结果"}
           </span>
         </div>
 
@@ -296,6 +333,14 @@ export const HistoryQueryPage = () => {
             <div className="summary-card">
               <span>员工</span>
               <strong>{selectedResult.employeeName}</strong>
+            </div>
+            <div className="summary-card">
+              <span>结果状态</span>
+              <strong>
+                {selectedResult.isInvalidated
+                  ? historyResultStatusLabelMap.invalidated
+                  : historyResultStatusLabelMap.current}
+              </strong>
             </div>
             <div className="summary-card">
               <span>年度应纳税额</span>

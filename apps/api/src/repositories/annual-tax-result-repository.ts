@@ -3,6 +3,7 @@ import type {
   EmployeeAnnualTaxResult,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
+  ResultInvalidationReason,
   TaxSettlementDirection,
   TaxCalculationScheme,
 } from "../../../../packages/core/src/index.js";
@@ -42,8 +43,8 @@ export const annualTaxResultRepository = {
     filters: HistoryAnnualTaxQuery,
     currentPolicySignature: string,
   ): HistoryAnnualTaxResult[] {
-    const conditions: string[] = ["result.policy_signature = ?"];
-    const params: Array<number | string> = [currentPolicySignature];
+    const conditions: string[] = [];
+    const params: Array<number | string> = [];
 
     if (filters.unitId) {
       conditions.push("result.unit_id = ?");
@@ -60,6 +61,8 @@ export const annualTaxResultRepository = {
       params.push(filters.employeeId);
     }
 
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
     const rows = database
       .prepare(
         `
@@ -69,6 +72,7 @@ export const annualTaxResultRepository = {
             result.tax_year,
             result.selected_scheme,
             result.selected_tax_amount,
+            result.policy_signature,
             result.calculation_snapshot,
             result.calculated_at,
             e.employee_code,
@@ -79,17 +83,37 @@ export const annualTaxResultRepository = {
             ON e.id = result.employee_id
           INNER JOIN units u
             ON u.id = result.unit_id
-          WHERE ${conditions.join(" AND ")}
+          ${whereClause}
           ORDER BY result.tax_year DESC, u.created_at ASC, e.created_at DESC
         `,
       )
       .all(...params) as Record<string, unknown>[];
 
     return rows
-      .map((row) => ({
-        ...mapRowToAnnualTaxResult(row),
-        unitName: String(row.unit_name),
-      }))
+      .map((row) => {
+        const isInvalidated = String(row.policy_signature ?? "") !== currentPolicySignature;
+        const invalidatedReason: ResultInvalidationReason | null = isInvalidated
+          ? "tax_policy_changed"
+          : null;
+
+        return {
+          ...mapRowToAnnualTaxResult(row),
+          unitName: String(row.unit_name),
+          isInvalidated,
+          invalidatedReason,
+        };
+      })
+      .filter((result) => {
+        if (!filters.resultStatus || filters.resultStatus === "current") {
+          return !result.isInvalidated;
+        }
+
+        if (filters.resultStatus === "invalidated") {
+          return result.isInvalidated;
+        }
+
+        return true;
+      })
       .filter((result) =>
         filters.settlementDirection ? result.settlementDirection === filters.settlementDirection : true,
       );

@@ -178,7 +178,7 @@ test("仅保存说明时不应清空年度结果与重算记录", async () => {
   await app.close();
 });
 
-test("保存税标后会清空年度结果与重算记录", async () => {
+test("保存税标后会使旧税标结果逻辑失效", async () => {
   const [
     { registerCalculationRoutes },
     { registerTaxPolicyRoutes },
@@ -276,6 +276,23 @@ test("保存税标后会清空年度结果与重算记录", async () => {
   });
   assert.equal(historyResponse.statusCode, 200);
   assert.equal((historyResponse.json() as unknown[]).length, 0);
+
+  const invalidatedHistoryResponse = await app.inject({
+    method: "GET",
+    url: `/api/history-results?unitId=${unit.id}&taxYear=2026&resultStatus=invalidated`,
+  });
+  assert.equal(invalidatedHistoryResponse.statusCode, 200);
+  const invalidatedRows = invalidatedHistoryResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(invalidatedRows.length, 1);
+  assert.equal(invalidatedRows[0]?.isInvalidated, true);
+  assert.equal(invalidatedRows[0]?.invalidatedReason, "tax_policy_changed");
+
+  const allHistoryResponse = await app.inject({
+    method: "GET",
+    url: `/api/history-results?unitId=${unit.id}&taxYear=2026&resultStatus=all`,
+  });
+  assert.equal(allHistoryResponse.statusCode, 200);
+  assert.equal((allHistoryResponse.json() as unknown[]).length, 1);
 
   await app.close();
 });

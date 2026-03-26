@@ -106,6 +106,7 @@ export type UpsertEmployeeMonthRecordPayload = {
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
 
 export type ResultInvalidationReason = "tax_policy_changed";
+export type HistoryResultStatus = "current" | "invalidated" | "all";
 
 export type EmployeeCalculationStatus = {
   employeeId: number;
@@ -257,6 +258,8 @@ export type AnnualTaxExportPreviewRow = {
 
 export type HistoryAnnualTaxResult = EmployeeAnnualTaxResult & {
   unitName: string;
+  isInvalidated: boolean;
+  invalidatedReason: ResultInvalidationReason | null;
 };
 
 export type HistoryAnnualTaxQuery = {
@@ -264,6 +267,7 @@ export type HistoryAnnualTaxQuery = {
   taxYear?: number;
   employeeId?: number;
   settlementDirection?: TaxSettlementDirection;
+  resultStatus?: HistoryResultStatus;
 };
 
 export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";

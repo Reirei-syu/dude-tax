@@ -155,6 +155,9 @@ export const apiClient = {
     if (query.settlementDirection) {
       searchParams.set("settlementDirection", query.settlementDirection);
     }
+    if (query.resultStatus) {
+      searchParams.set("resultStatus", query.resultStatus);
+    }
 
     const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
     return request<HistoryAnnualTaxResult[]>(`/api/history-results${suffix}`);
