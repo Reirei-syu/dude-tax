@@ -10,7 +10,8 @@ import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
 import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
-import { buildMonthRecordSummary, getMonthProgressStatus } from "./month-record-progress";
+import { buildMonthRecordSummary } from "./month-record-progress";
+import { buildMonthRecordYearView } from "./month-record-year-view";
 
 const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
   status: "incomplete",
@@ -121,6 +122,7 @@ export const MonthRecordEntryPage = () => {
   );
   const canCopyPreviousMonth = selectedMonth > 1 && hasMonthRecordContent(previousMonthRecord);
   const monthSummary = useMemo(() => buildMonthRecordSummary(monthRecords), [monthRecords]);
+  const yearView = useMemo(() => buildMonthRecordYearView(monthRecords), [monthRecords]);
 
   const loadEmployees = async () => {
     if (!currentUnitId) {
@@ -303,41 +305,49 @@ export const MonthRecordEntryPage = () => {
           </div>
         ) : null}
 
-        <div className="unit-list month-list">
-          {monthRecords.length ? (
-            monthRecords.map((record) => {
-              const progressStatus = getMonthProgressStatus(record);
-              const progressLabel =
-                progressStatus === "completed"
-                  ? "已完成"
-                  : progressStatus === "draft"
-                    ? "待补录"
-                    : "未开始";
-              const progressClassName =
-                progressStatus === "completed"
-                  ? "tag"
-                  : progressStatus === "draft"
-                    ? "tag tag-warning"
-                    : "tag tag-neutral";
-
-              return (
-                <button
-                  className={selectedMonth === record.taxMonth ? "unit-item month-card selected-item" : "unit-item month-card"}
-                  key={record.taxMonth}
-                  onClick={() => setSelectedMonth(record.taxMonth)}
-                  type="button"
-                >
+        <div className="year-view-grid">
+          {yearView.length ? (
+            yearView.map((quarter) => (
+              <section className="year-quarter-card" key={quarter.quarter}>
+                <div className="year-quarter-header">
                   <div>
-                    <strong>{record.taxMonth} 月</strong>
-                    <p>状态：{progressLabel}</p>
+                    <strong>{quarter.label}</strong>
                     <p>
-                      工资：{record.salaryIncome.toFixed(2)} / 预扣税：{record.withheldTax.toFixed(2)}
+                      已完成 {quarter.summary.completed} / 待补录 {quarter.summary.draft} / 未开始 {quarter.summary.notStarted}
                     </p>
                   </div>
-                  <span className={progressClassName}>{progressLabel}</span>
-                </button>
-              );
-            })
+                  <span className="tag tag-neutral">{quarter.months.length} 个月</span>
+                </div>
+                <div className="year-month-grid">
+                  {quarter.months.map((month) => {
+                    const progressClassName =
+                      month.status === "completed"
+                        ? "tag"
+                        : month.status === "draft"
+                          ? "tag tag-warning"
+                          : "tag tag-neutral";
+
+                    return (
+                      <button
+                        className={selectedMonth === month.taxMonth ? "year-month-card selected-item" : "year-month-card"}
+                        key={month.taxMonth}
+                        onClick={() => setSelectedMonth(month.taxMonth)}
+                        type="button"
+                      >
+                        <div>
+                          <strong>{month.taxMonth} 月</strong>
+                          <p>状态：{month.statusLabel}</p>
+                          <p>
+                            工资：{month.salaryIncome.toFixed(2)} / 预扣税：{month.withheldTax.toFixed(2)}
+                          </p>
+                        </div>
+                        <span className={progressClassName}>{month.statusLabel}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))
           ) : (
             <div className="empty-state">当前单位下没有员工，无法录入月度数据。</div>
           )}
