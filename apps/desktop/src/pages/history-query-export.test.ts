@@ -103,9 +103,12 @@ test("历史查询 XLSX 导出工作表为历史结果", () => {
     "buildHistoryQueryExportWorkbook",
   ) as (rows: HistoryAnnualTaxResult[]) => {
     getWorksheet: (name: string) => {
-      getCell: (cell: string) => { value: string | number | null };
+      getCell: (cell: string) => {
+        value: string | number | null;
+        fill?: { fgColor?: { argb?: string } };
+      };
       views?: Array<{ state?: string; ySplit?: number }>;
-      getColumn: (index: number) => { width?: number };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
     };
     worksheets: Array<{ name: string }>;
   };
@@ -122,6 +125,12 @@ test("历史查询 XLSX 导出工作表为历史结果", () => {
   assert.equal(workbook.getWorksheet("导出说明")?.getCell("A1")?.value, "说明项");
   assert.equal(workbook.getWorksheet("导出说明")?.getCell("B2")?.value, "测试单位");
   assert.equal(workbook.getWorksheet("导出说明")?.views?.[0]?.state, "frozen");
+  assert.equal(workbook.getWorksheet("历史结果")?.getColumn(7)?.numFmt, "#,##0.00");
+  const historyFill = workbook.getWorksheet("历史结果")?.getCell("A2")?.fill;
+  assert.equal(
+    historyFill && "fgColor" in historyFill ? historyFill.fgColor?.argb : undefined,
+    "FFF8FBFF",
+  );
 });
 
 test("历史查询导出文件名带作用域信息", () => {

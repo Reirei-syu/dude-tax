@@ -147,14 +147,20 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
   ) => {
     worksheets: Array<{
       name: string;
-      getCell: (cell: string) => { value: string | number | null };
+      getCell: (cell: string) => {
+        value: string | number | null;
+        fill?: { fgColor?: { argb?: string } };
+      };
       views?: Array<{ state?: string; ySplit?: number }>;
-      getColumn: (index: number) => { width?: number };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
     }>;
     getWorksheet: (name: string) => {
-      getCell: (cell: string) => { value: string | number | null };
+      getCell: (cell: string) => {
+        value: string | number | null;
+        fill?: { fgColor?: { argb?: string } };
+      };
       views?: Array<{ state?: string; ySplit?: number }>;
-      getColumn: (index: number) => { width?: number };
+      getColumn: (index: number) => { width?: number; numFmt?: string };
     };
   };
 
@@ -177,6 +183,12 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
   assert.equal(workbook.getWorksheet("导出说明")?.getCell("A1")?.value, "说明项");
   assert.equal(workbook.getWorksheet("导出说明")?.getCell("B2")?.value, "测试单位 / 2026 年度");
   assert.equal(workbook.getWorksheet("导出说明")?.views?.[0]?.state, "frozen");
+  assert.equal(workbook.getWorksheet("个税结果")?.getColumn(3)?.numFmt, "#,##0.00");
+  const annualFill = workbook.getWorksheet("个税结果")?.getCell("A2")?.fill;
+  assert.equal(
+    annualFill && "fgColor" in annualFill ? annualFill.fgColor?.argb : undefined,
+    "FFF8FBFF",
+  );
 });
 
 test("XLSX 导出文件名带单位与年度信息", () => {

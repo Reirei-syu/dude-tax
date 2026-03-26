@@ -33,6 +33,8 @@ type HistoryQueryExportColumnDefinition = {
   label: string;
   getValue: (row: HistoryQueryExportRow) => string;
   getWorkbookValue: (row: HistoryQueryExportRow) => string | number;
+  numFmt?: string;
+  horizontalAlignment?: "left" | "center" | "right";
 };
 
 const settlementDirectionLabelMap = {
@@ -82,6 +84,7 @@ const columns: HistoryQueryExportColumnDefinition[] = [
     label: "年度",
     getValue: (row) => String(row.taxYear),
     getWorkbookValue: (row) => row.taxYear,
+    horizontalAlignment: "center",
   },
   {
     key: "employeeCode",
@@ -112,18 +115,24 @@ const columns: HistoryQueryExportColumnDefinition[] = [
     label: "年度应纳税额",
     getValue: (row) => formatCsvNumber(row.annualTaxPayable),
     getWorkbookValue: (row) => row.annualTaxPayable,
+    numFmt: "#,##0.00",
+    horizontalAlignment: "right",
   },
   {
     key: "annualTaxWithheld",
     label: "已预扣税额",
     getValue: (row) => formatCsvNumber(row.annualTaxWithheld),
     getWorkbookValue: (row) => row.annualTaxWithheld,
+    numFmt: "#,##0.00",
+    horizontalAlignment: "right",
   },
   {
     key: "annualTaxSettlement",
     label: "应补/应退税额",
     getValue: (row) => formatCsvNumber(row.annualTaxSettlement),
     getWorkbookValue: (row) => row.annualTaxSettlement,
+    numFmt: "#,##0.00",
+    horizontalAlignment: "right",
   },
   {
     key: "settlementDirectionLabel",
@@ -182,7 +191,43 @@ const applyWorksheetPresentation = (
       column.label.length,
       ...rows.map((row) => String(column.getWorkbookValue(row)).length),
     );
-    worksheet.getColumn(columnIndex + 1).width = Math.min(Math.max(maxContentLength + 4, 12), 28);
+    const excelColumn = worksheet.getColumn(columnIndex + 1);
+    excelColumn.width = Math.min(Math.max(maxContentLength + 4, 12), 28);
+
+    if (column.numFmt) {
+      excelColumn.numFmt = column.numFmt;
+    }
+
+    if (column.horizontalAlignment) {
+      excelColumn.alignment = {
+        vertical: "middle",
+        horizontal: column.horizontalAlignment,
+      };
+    }
+  });
+
+  rows.forEach((row, rowIndex) => {
+    const excelRow = worksheet.getRow(rowIndex + 2);
+    const isOddRow = rowIndex % 2 === 0;
+
+    excelRow.eachCell((cell, columnNumber) => {
+      if (isOddRow) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF8FBFF" },
+        };
+      }
+
+      const column = selectedColumns[columnNumber - 1];
+      if (column?.key === "resultStatusLabel") {
+        if (row.resultStatusLabel === "已失效") {
+          cell.font = { color: { argb: "FFB42318" }, bold: true };
+        } else {
+          cell.font = { color: { argb: "FF1570EF" }, bold: true };
+        }
+      }
+    });
   });
 };
 
@@ -212,6 +257,18 @@ const applyInfoWorksheetPresentation = (worksheet: ExcelJS.Worksheet) => {
     pattern: "solid",
     fgColor: { argb: "FF2F75DD" },
   };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+
+  for (let rowIndex = 2; rowIndex <= worksheet.rowCount; rowIndex += 1) {
+    const row = worksheet.getRow(rowIndex);
+    row.getCell(1).font = { bold: true, color: { argb: "FF344054" } };
+    row.getCell(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFEAF2FF" },
+    };
+    row.getCell(2).alignment = { vertical: "middle", wrapText: true };
+  }
 };
 
 export const buildHistoryQueryExportCsv = (rows: HistoryAnnualTaxResult[]) => {
