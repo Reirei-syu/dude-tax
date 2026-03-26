@@ -3,33 +3,72 @@ import {
   COMPREHENSIVE_TAX_BRACKETS,
   DEFAULT_BASIC_DEDUCTION_AMOUNT,
 } from "../../../../packages/config/src/index";
+import type { EmployeeCalculationStatus } from "../../../../packages/core/src/index";
 import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
-
-const reminderItems = [
-  {
-    title: "待重算",
-    description: "点击前往计算中心查看失效结果。",
-    path: "/calculation",
-    count: 0,
-  },
-  {
-    title: "未完成月份",
-    description: "点击前往月度数据录入，继续补齐记录。",
-    path: "/entry",
-    count: 0,
-  },
-  {
-    title: "导入冲突待处理",
-    description: "点击前往批量导入查看冲突预览。",
-    path: "/import",
-    count: 0,
-  },
-];
 
 export const HomePage = () => {
   const { context, errorMessage, loading } = useAppContext();
   const currentUnit = context?.units.find((item) => item.id === context.currentUnitId) ?? null;
+  const currentUnitId = context?.currentUnitId ?? null;
+  const currentTaxYear = context?.currentTaxYear ?? null;
+  const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderErrorMessage, setReminderErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadReminderStatuses = async () => {
+      if (!currentUnitId || !currentTaxYear) {
+        setStatuses([]);
+        setReminderErrorMessage(null);
+        return;
+      }
+
+      try {
+        setReminderLoading(true);
+        setReminderErrorMessage(null);
+        const nextStatuses = await apiClient.listCalculationStatuses(currentUnitId, currentTaxYear);
+        setStatuses(nextStatuses);
+      } catch (error) {
+        setReminderErrorMessage(error instanceof Error ? error.message : "加载工作提醒失败");
+      } finally {
+        setReminderLoading(false);
+      }
+    };
+
+    void loadReminderStatuses();
+  }, [currentTaxYear, currentUnitId]);
+
+  const reminderItems = useMemo(
+    () => [
+      {
+        title: "待重算",
+        description: "点击前往计算中心查看尚未重算的已完备员工。",
+        path: "/calculation",
+        count: statuses.filter(
+          (status) => status.preparationStatus === "ready" && !status.lastCalculatedAt,
+        ).length,
+      },
+      {
+        title: "未完成月份",
+        description: "点击前往月度数据录入，继续补齐当前单位年度数据。",
+        path: "/entry",
+        count: statuses.reduce(
+          (sum, status) => sum + Math.max(12 - status.completedMonthCount, 0),
+          0,
+        ),
+      },
+      {
+        title: "导入冲突待处理",
+        description: "点击前往批量导入查看冲突预览。",
+        path: "/import",
+        count: 0,
+      },
+    ],
+    [statuses],
+  );
 
   return (
     <section className="page-grid">
@@ -39,7 +78,7 @@ export const HomePage = () => {
             <h1>首页</h1>
             <p>这是当前单位和年份的工作总控台。</p>
           </div>
-          <span className="tag">{loading ? "加载中" : "可运行骨架已建立"}</span>
+          <span className="tag">{loading || reminderLoading ? "加载中" : "工作提醒已联动"}</span>
         </div>
 
         <div className="summary-grid">
@@ -58,6 +97,7 @@ export const HomePage = () => {
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+        {reminderErrorMessage ? <div className="error-banner">{reminderErrorMessage}</div> : null}
       </article>
 
       <article className="glass-card page-section">
