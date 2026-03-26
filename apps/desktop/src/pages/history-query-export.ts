@@ -37,6 +37,8 @@ type HistoryQueryExportColumnDefinition = {
   horizontalAlignment?: "left" | "center" | "right";
 };
 
+const WORKBOOK_YIELD_BATCH_SIZE = 200;
+
 const settlementDirectionLabelMap = {
   payable: "应补税",
   refund: "应退税",
@@ -71,6 +73,8 @@ const escapeCsvValue = (value: string) => {
 
   return `"${value.replace(/"/g, "\"\"")}"`;
 };
+
+const waitForNextTurn = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const columns: HistoryQueryExportColumnDefinition[] = [
   {
@@ -271,6 +275,38 @@ const applyInfoWorksheetPresentation = (worksheet: ExcelJS.Worksheet) => {
   }
 };
 
+const createHistoryQueryWorkbookSheets = (rows: HistoryQueryExportRow[]) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("历史结果");
+  const infoWorksheet = workbook.addWorksheet("导出说明");
+
+  worksheet.addRow(columns.map((column) => column.label));
+  buildHistoryQueryExportInfoRows(rows).forEach((row) => infoWorksheet.addRow(row));
+  applyInfoWorksheetPresentation(infoWorksheet);
+
+  return {
+    workbook,
+    worksheet,
+  };
+};
+
+const appendHistoryRowsInBatches = async (
+  worksheet: ExcelJS.Worksheet,
+  rows: HistoryQueryExportRow[],
+) => {
+  for (let index = 0; index < rows.length; index += WORKBOOK_YIELD_BATCH_SIZE) {
+    const chunk = rows
+      .slice(index, index + WORKBOOK_YIELD_BATCH_SIZE)
+      .map((row) => columns.map((column) => column.getWorkbookValue(row)));
+
+    worksheet.addRows(chunk);
+
+    if (index + WORKBOOK_YIELD_BATCH_SIZE < rows.length) {
+      await waitForNextTurn();
+    }
+  }
+};
+
 export const buildHistoryQueryExportCsv = (rows: HistoryAnnualTaxResult[]) => {
   const exportRows = rows.map(mapHistoryResultToExportRow);
   const csvLines = [columns.map((column) => column.label).join(",")];
@@ -283,25 +319,26 @@ export const buildHistoryQueryExportCsv = (rows: HistoryAnnualTaxResult[]) => {
 };
 
 export const buildHistoryQueryExportWorkbook = (rows: HistoryAnnualTaxResult[]) => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("历史结果");
-  const infoWorksheet = workbook.addWorksheet("导出说明");
   const exportRows = rows.map(mapHistoryResultToExportRow);
-
-  worksheet.addRow(columns.map((column) => column.label));
+  const { workbook, worksheet } = createHistoryQueryWorkbookSheets(exportRows);
   exportRows.forEach((row) => {
     worksheet.addRow(columns.map((column) => column.getWorkbookValue(row)));
   });
   applyWorksheetPresentation(worksheet, exportRows, columns);
 
-  buildHistoryQueryExportInfoRows(exportRows).forEach((row) => infoWorksheet.addRow(row));
-  applyInfoWorksheetPresentation(infoWorksheet);
-
   return workbook;
 };
 
 export const buildHistoryQueryExportWorkbookBuffer = (rows: HistoryAnnualTaxResult[]) =>
-  buildHistoryQueryExportWorkbook(rows).xlsx.writeBuffer();
+  {
+    const exportRows = rows.map(mapHistoryResultToExportRow);
+    const { workbook, worksheet } = createHistoryQueryWorkbookSheets(exportRows);
+
+    return appendHistoryRowsInBatches(worksheet, exportRows).then(() => {
+      applyWorksheetPresentation(worksheet, exportRows, columns);
+      return workbook.xlsx.writeBuffer();
+    });
+  };
 
 export const buildHistoryQueryExportFilename = (scopeLabel: string) =>
   `工资薪金历史结果_${scopeLabel}.csv`;

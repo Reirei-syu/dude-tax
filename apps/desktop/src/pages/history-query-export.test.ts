@@ -149,3 +149,13 @@ test("历史查询导出文件名带作用域信息", () => {
     "工资薪金历史结果_测试单位_2026_当前有效.xlsx",
   );
 });
+
+test("历史查询 XLSX Buffer 导出可返回有效内容", async () => {
+  const buildHistoryQueryExportWorkbookBuffer = Reflect.get(
+    exportModule,
+    "buildHistoryQueryExportWorkbookBuffer",
+  ) as (rows: HistoryAnnualTaxResult[]) => Promise<ArrayBuffer>;
+
+  const buffer = await buildHistoryQueryExportWorkbookBuffer([createHistoryResult()]);
+  assert.ok(buffer.byteLength > 0);
+});

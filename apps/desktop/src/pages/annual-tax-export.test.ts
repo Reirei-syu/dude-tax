@@ -200,3 +200,17 @@ test("XLSX 导出文件名带单位与年度信息", () => {
   const filename = buildAnnualTaxExportWorkbookFilename("华北一分部", 2026);
   assert.equal(filename, "工资薪金个税结果_华北一分部_2026.xlsx");
 });
+
+test("XLSX Buffer 导出可返回有效内容", async () => {
+  const buildAnnualTaxExportWorkbookBuffer = Reflect.get(
+    exportModule,
+    "buildAnnualTaxExportWorkbookBuffer",
+  ) as (rows: AnnualTaxExportPreviewRow[], selectedColumnKeys: string[]) => Promise<ArrayBuffer>;
+
+  const buffer = await buildAnnualTaxExportWorkbookBuffer(
+    [createExportRow()],
+    ["employeeCode", "employeeName", "selectedFinalTax"],
+  );
+
+  assert.ok(buffer.byteLength > 0);
+});

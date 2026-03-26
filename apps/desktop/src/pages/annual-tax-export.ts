@@ -46,6 +46,8 @@ type AnnualTaxExportTemplate = {
   columnKeys: AnnualTaxExportColumnKey[];
 };
 
+const WORKBOOK_YIELD_BATCH_SIZE = 200;
+
 const padNumber = (value: number) => String(value).padStart(2, "0");
 
 const formatCsvNumber = (value: number) => value.toFixed(2);
@@ -309,6 +311,8 @@ const resolveSelectedColumns = (selectedColumnKeys?: AnnualTaxExportColumnKey[])
   return ANNUAL_TAX_EXPORT_COLUMNS.filter((column) => selectedSet.has(column.key));
 };
 
+const waitForNextTurn = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const applyWorksheetPresentation = (
   worksheet: ExcelJS.Worksheet,
   rows: AnnualTaxExportPreviewRow[],
@@ -422,6 +426,42 @@ const applyInfoWorksheetPresentation = (worksheet: ExcelJS.Worksheet) => {
   }
 };
 
+const createAnnualTaxExportWorkbookSheets = (
+  rows: AnnualTaxExportPreviewRow[],
+  selectedColumns: AnnualTaxExportColumnDefinition[],
+) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("个税结果");
+  const infoWorksheet = workbook.addWorksheet("导出说明");
+
+  worksheet.addRow(selectedColumns.map((column) => column.label));
+  buildAnnualTaxExportInfoRows(rows, selectedColumns).forEach((row) => infoWorksheet.addRow(row));
+  applyInfoWorksheetPresentation(infoWorksheet);
+
+  return {
+    workbook,
+    worksheet,
+  };
+};
+
+const appendAnnualTaxRowsInBatches = async (
+  worksheet: ExcelJS.Worksheet,
+  rows: AnnualTaxExportPreviewRow[],
+  selectedColumns: AnnualTaxExportColumnDefinition[],
+) => {
+  for (let index = 0; index < rows.length; index += WORKBOOK_YIELD_BATCH_SIZE) {
+    const chunk = rows
+      .slice(index, index + WORKBOOK_YIELD_BATCH_SIZE)
+      .map((row) => selectedColumns.map((column) => column.getWorkbookValue(row)));
+
+    worksheet.addRows(chunk);
+
+    if (index + WORKBOOK_YIELD_BATCH_SIZE < rows.length) {
+      await waitForNextTurn();
+    }
+  }
+};
+
 export const buildAnnualTaxExportCsv = (
   rows: AnnualTaxExportPreviewRow[],
   selectedColumnKeys?: AnnualTaxExportColumnKey[],
@@ -442,18 +482,11 @@ export const buildAnnualTaxExportWorkbook = (
   selectedColumnKeys?: AnnualTaxExportColumnKey[],
 ) => {
   const selectedColumns = resolveSelectedColumns(selectedColumnKeys);
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("个税结果");
-  const infoWorksheet = workbook.addWorksheet("导出说明");
-
-  worksheet.addRow(selectedColumns.map((column) => column.label));
+  const { workbook, worksheet } = createAnnualTaxExportWorkbookSheets(rows, selectedColumns);
   rows.forEach((row) => {
     worksheet.addRow(selectedColumns.map((column) => column.getWorkbookValue(row)));
   });
   applyWorksheetPresentation(worksheet, rows, selectedColumns);
-
-  buildAnnualTaxExportInfoRows(rows, selectedColumns).forEach((row) => infoWorksheet.addRow(row));
-  applyInfoWorksheetPresentation(infoWorksheet);
 
   return workbook;
 };
@@ -461,7 +494,15 @@ export const buildAnnualTaxExportWorkbook = (
 export const buildAnnualTaxExportWorkbookBuffer = (
   rows: AnnualTaxExportPreviewRow[],
   selectedColumnKeys?: AnnualTaxExportColumnKey[],
-) => buildAnnualTaxExportWorkbook(rows, selectedColumnKeys).xlsx.writeBuffer();
+) => {
+  const selectedColumns = resolveSelectedColumns(selectedColumnKeys);
+  const { workbook, worksheet } = createAnnualTaxExportWorkbookSheets(rows, selectedColumns);
+
+  return appendAnnualTaxRowsInBatches(worksheet, rows, selectedColumns).then(() => {
+    applyWorksheetPresentation(worksheet, rows, selectedColumns);
+    return workbook.xlsx.writeBuffer();
+  });
+};
 
 export const buildAnnualTaxExportFilename = (unitName: string, taxYear: number) =>
   `工资薪金个税结果_${unitName}_${taxYear}.csv`;
