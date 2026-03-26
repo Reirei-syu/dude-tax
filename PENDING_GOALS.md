@@ -40,14 +40,16 @@
 ### 1.3 系统维护模块
 - 当前状态：
   - 前端已提供可编辑页面，可查看、编辑并保存全局税标
+  - 前端已支持维护全局说明文本
   - 后端已提供 `GET /api/tax-policy` 和 `PUT /api/tax-policy`
   - 当前税标使用 `app_preferences` 中的 `tax_policy_settings` 键持久化
+  - 当前全局说明使用 `app_preferences` 中的 `tax_policy_maintenance_notes` 键持久化
   - 保存税标后，会清空 `annual_tax_results` 与 `annual_calculation_runs`
 - 具体未完成项：
-  - 提示说明维护
   - 税标版本管理策略
   - 更细粒度的结果失效 / 重算策略
   - 更友好的税标编辑体验与字段校验提示
+  - 富文本说明维护
 - 完成标准：
   - 用户能在系统维护页修改全局税标和说明，且计算中心与首页同步使用新税标
 

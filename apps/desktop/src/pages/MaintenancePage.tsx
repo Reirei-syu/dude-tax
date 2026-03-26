@@ -51,6 +51,7 @@ export const MaintenancePage = () => {
   const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
   const [taxPolicy, setTaxPolicy] = useState<TaxPolicyResponse | null>(null);
   const [draftSettings, setDraftSettings] = useState<TaxPolicySettings | null>(null);
+  const [draftNotes, setDraftNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -63,10 +64,12 @@ export const MaintenancePage = () => {
       const nextTaxPolicy = await apiClient.getTaxPolicy();
       setTaxPolicy(nextTaxPolicy);
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
+      setDraftNotes(nextTaxPolicy.currentNotes);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载税标失败");
       setTaxPolicy(null);
       setDraftSettings(cloneTaxPolicySettings(buildDefaultTaxPolicySettings()));
+      setDraftNotes("");
     } finally {
       setLoading(false);
     }
@@ -81,8 +84,11 @@ export const MaintenancePage = () => {
       return false;
     }
 
-    return JSON.stringify(taxPolicy.currentSettings) !== JSON.stringify(draftSettings);
-  }, [draftSettings, taxPolicy]);
+    return (
+      JSON.stringify(taxPolicy.currentSettings) !== JSON.stringify(draftSettings) ||
+      taxPolicy.currentNotes !== draftNotes
+    );
+  }, [draftNotes, draftSettings, taxPolicy]);
 
   const currentSettings =
     draftSettings ?? taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
@@ -93,12 +99,14 @@ export const MaintenancePage = () => {
     }
 
     setDraftSettings(cloneTaxPolicySettings(taxPolicy.currentSettings));
+    setDraftNotes(taxPolicy.currentNotes);
     setSuccessMessage(null);
   };
 
   const resetToDefaultSettings = () => {
     const defaultSettings = taxPolicy?.defaultSettings ?? buildDefaultTaxPolicySettings();
     setDraftSettings(cloneTaxPolicySettings(defaultSettings));
+    setDraftNotes(taxPolicy?.defaultNotes ?? "");
     setSuccessMessage(null);
   };
 
@@ -111,13 +119,17 @@ export const MaintenancePage = () => {
       setSaving(true);
       setErrorMessage(null);
       setSuccessMessage(null);
-      const nextTaxPolicy = await apiClient.updateTaxPolicy(draftSettings);
+      const nextTaxPolicy = await apiClient.updateTaxPolicy({
+        ...draftSettings,
+        maintenanceNotes: draftNotes,
+      });
       setTaxPolicy(nextTaxPolicy);
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
+      setDraftNotes(nextTaxPolicy.currentNotes);
       setSuccessMessage(
         nextTaxPolicy.invalidatedResults
-          ? "税标已保存，年度结果与重算记录已失效，请前往计算中心重新计算。"
-          : "税标未发生变化，当前配置已保持最新。",
+          ? "说明与税标已保存；由于税标已变更，年度结果与重算记录已失效，请前往计算中心重新计算。"
+          : "说明已保存；当前税标未变更，年度结果保持有效。",
       );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存税标失败");
@@ -191,6 +203,28 @@ export const MaintenancePage = () => {
             }
           />
         </label>
+      </article>
+
+      <article className="glass-card page-section">
+        <div className="section-header">
+          <div>
+            <h2>全局说明</h2>
+            <p>用于维护当前税标口径、适用范围或内部提示说明，按全局统一生效。</p>
+          </div>
+          <span className="tag">{taxPolicy?.notesCustomized ? "已自定义说明" : "默认空白"}</span>
+        </div>
+
+        <label className="form-field">
+          <span>提示说明</span>
+          <textarea
+            className="maintenance-textarea"
+            maxLength={2000}
+            placeholder="例如：当前税标适用于 2026 年工资薪金年度计算；保存税标后需重新执行年度重算。"
+            value={draftNotes}
+            onChange={(event) => setDraftNotes(event.target.value)}
+          />
+        </label>
+        <p className="field-hint">当前已输入 {draftNotes.length} / 2000 字。</p>
       </article>
 
       <article className="glass-card page-section">

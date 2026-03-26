@@ -12,7 +12,7 @@ import type {
   HistoryAnnualTaxResult,
   TaxPolicyResponse,
   TaxPolicySaveResponse,
-  TaxPolicySettingsInput,
+  TaxPolicyUpdatePayload,
   UpdateAnnualResultSelectedSchemePayload,
   Unit,
   UpsertEmployeeMonthRecordPayload,
@@ -43,7 +43,7 @@ export const apiClient = {
   getTaxPolicy() {
     return request<TaxPolicyResponse>("/api/tax-policy");
   },
-  updateTaxPolicy(payload: TaxPolicySettingsInput) {
+  updateTaxPolicy(payload: TaxPolicyUpdatePayload) {
     return request<TaxPolicySaveResponse>("/api/tax-policy", {
       method: "PUT",
       body: JSON.stringify(payload),

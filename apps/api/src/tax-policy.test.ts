@@ -81,6 +81,8 @@ test("读取税标接口返回当前配置与默认配置", async () => {
 
   const body = response.json() as Record<string, unknown>;
   assert.equal(body.isCustomized, false);
+  assert.equal(body.currentNotes, "");
+  assert.equal(body.notesCustomized, false);
   assert.equal(
     (body.currentSettings as Record<string, unknown>).basicDeductionAmount,
     5_000,
@@ -89,6 +91,87 @@ test("读取税标接口返回当前配置与默认配置", async () => {
     ((body.currentSettings as Record<string, unknown>).comprehensiveTaxBrackets as unknown[]).length,
     7,
   );
+
+  await app.close();
+});
+
+test("仅保存说明时不应清空年度结果与重算记录", async () => {
+  const [
+    { registerCalculationRoutes },
+    { registerTaxPolicyRoutes },
+    { unitRepository },
+    { employeeRepository },
+    { monthRecordRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+  await registerTaxPolicyRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "税标说明测试单位",
+    remark: "",
+  });
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-TAX-002",
+    employeeName: "说明测试员工",
+    idNumber: "110101199001018888",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthRecordRepository.upsert(
+    unit.id,
+    employee.id,
+    2026,
+    1,
+    createMonthRecordPayload(),
+  );
+
+  await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  const currentPolicyResponse = await app.inject({
+    method: "GET",
+    url: "/api/tax-policy",
+  });
+
+  const currentPolicy = currentPolicyResponse.json() as Record<string, unknown>;
+
+  const saveResponse = await app.inject({
+    method: "PUT",
+    url: "/api/tax-policy",
+    payload: {
+      ...(currentPolicy.currentSettings as Record<string, unknown>),
+      maintenanceNotes: "当前说明已更新，但税标口径未发生变化。",
+    },
+  });
+
+  assert.equal(saveResponse.statusCode, 200);
+  const saveBody = saveResponse.json() as Record<string, unknown>;
+  assert.equal(saveBody.invalidatedResults, false);
+  assert.equal(saveBody.currentNotes, "当前说明已更新，但税标口径未发生变化。");
+  assert.equal(saveBody.notesCustomized, true);
+
+  const resultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/annual-results`,
+  });
+  assert.equal(resultsResponse.statusCode, 200);
+  assert.equal((resultsResponse.json() as unknown[]).length, 1);
+
+  const statusesResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses`,
+  });
+  assert.equal(statusesResponse.statusCode, 200);
+  const statuses = statusesResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(statuses.length, 1);
+  assert.equal(typeof statuses[0]?.lastCalculatedAt, "string");
 
   await app.close();
 });

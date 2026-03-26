@@ -49,6 +49,7 @@ const taxPolicySchema = z
     basicDeductionAmount: z.number().min(0),
     comprehensiveTaxBrackets: z.array(comprehensiveBracketSchema).min(1),
     bonusTaxBrackets: z.array(bonusBracketSchema).min(1),
+    maintenanceNotes: z.string().max(2000).optional(),
   })
   .superRefine((value, context) => {
     const comprehensiveLevels = value.comprehensiveTaxBrackets.map((bracket) => bracket.level);

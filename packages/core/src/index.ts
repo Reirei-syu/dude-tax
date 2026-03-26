@@ -155,14 +155,24 @@ export type TaxPolicySettings = {
   bonusTaxBrackets: BonusTaxBracket[];
 };
 
+export type TaxPolicyMaintenanceNotes = {
+  currentNotes: string;
+  defaultNotes: string;
+  notesCustomized: boolean;
+};
+
 export type TaxPolicyResponse = {
   currentSettings: TaxPolicySettings;
   defaultSettings: TaxPolicySettings;
   isCustomized: boolean;
-};
+} & TaxPolicyMaintenanceNotes;
 
 export type TaxPolicySaveResponse = TaxPolicyResponse & {
   invalidatedResults: boolean;
+};
+
+export type TaxPolicyUpdatePayload = TaxPolicySettingsInput & {
+  maintenanceNotes?: string;
 };
 
 export type AnnualTaxSchemeResult = {
