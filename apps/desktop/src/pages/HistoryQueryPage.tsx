@@ -175,6 +175,9 @@ export const HistoryQueryPage = () => {
       payable: results.filter((result) => result.settlementDirection === "payable").length,
       refund: results.filter((result) => result.settlementDirection === "refund").length,
       balanced: results.filter((result) => result.settlementDirection === "balanced").length,
+      unitCount: new Set(results.map((result) => result.unitId)).size,
+      employeeCount: new Set(results.map((result) => result.employeeId)).size,
+      yearCount: new Set(results.map((result) => result.taxYear)).size,
     }),
     [results],
   );
@@ -346,6 +349,29 @@ export const HistoryQueryPage = () => {
           <div className="summary-card">
             <span>应补税</span>
             <strong>{summary.payable}</strong>
+          </div>
+        </div>
+
+        <div className="summary-grid results-summary-grid detail-summary-grid">
+          <div className="summary-card">
+            <span>应退税</span>
+            <strong>{summary.refund}</strong>
+          </div>
+          <div className="summary-card">
+            <span>已平</span>
+            <strong>{summary.balanced}</strong>
+          </div>
+          <div className="summary-card">
+            <span>涉及单位数</span>
+            <strong>{summary.unitCount}</strong>
+          </div>
+          <div className="summary-card">
+            <span>涉及员工数</span>
+            <strong>{summary.employeeCount}</strong>
+          </div>
+          <div className="summary-card">
+            <span>涉及年份数</span>
+            <strong>{summary.yearCount}</strong>
           </div>
         </div>
 
