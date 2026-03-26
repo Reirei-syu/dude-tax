@@ -17,6 +17,10 @@ import {
   toggleBatchMonthSelection,
 } from "./month-record-batch-edit";
 import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
+import {
+  buildMonthRecordDraftDiffSummary,
+  getMonthRecordDraftDiffs,
+} from "./month-record-diff";
 import { buildMonthRecordSummary } from "./month-record-progress";
 import { buildMonthRecordYearView } from "./month-record-year-view";
 
@@ -148,6 +152,22 @@ export const MonthRecordEntryPage = () => {
     () => Object.keys(draftPayloadByMonth).length,
     [draftPayloadByMonth],
   );
+  const draftDiffSummary = useMemo(
+    () => buildMonthRecordDraftDiffSummary(monthRecords, draftPayloadByMonth),
+    [draftPayloadByMonth, monthRecords],
+  );
+  const changedMonthsSet = useMemo(
+    () => new Set(draftDiffSummary.changedMonths),
+    [draftDiffSummary.changedMonths],
+  );
+  const selectedMonthDiffs = useMemo(() => {
+    const savedRecord = monthRecords.find((record) => record.taxMonth === selectedMonth) ?? null;
+    if (!savedRecord) {
+      return [];
+    }
+
+    return getMonthRecordDraftDiffs(savedRecord, draftPayloadByMonth[selectedMonth]);
+  }, [draftPayloadByMonth, monthRecords, selectedMonth]);
 
   const loadEmployees = async () => {
     if (!currentUnitId) {
@@ -431,6 +451,10 @@ export const MonthRecordEntryPage = () => {
               <span>批量草稿月份</span>
               <strong>{draftMonthCount}</strong>
             </div>
+            <div className="summary-card">
+              <span>差异月份</span>
+              <strong>{draftDiffSummary.changedMonths.length}</strong>
+            </div>
           </div>
         ) : null}
 
@@ -447,6 +471,7 @@ export const MonthRecordEntryPage = () => {
             <div className="batch-month-grid">
               {effectiveMonthRecords.map((record) => {
                 const isSelected = selectedBatchMonths.includes(record.taxMonth);
+                const diffCount = draftDiffSummary.changedFieldCountByMonth[record.taxMonth] ?? 0;
                 return (
                   <label
                     className={isSelected ? "batch-month-item selected-item" : "batch-month-item"}
@@ -461,7 +486,10 @@ export const MonthRecordEntryPage = () => {
                         )
                       }
                     />
-                    <span>{record.taxMonth} 月</span>
+                    <div className="batch-month-label">
+                      <span>{record.taxMonth} 月</span>
+                      {diffCount ? <small>{diffCount} 项差异</small> : <small>无差异</small>}
+                    </div>
                   </label>
                 );
               })}
@@ -502,6 +530,7 @@ export const MonthRecordEntryPage = () => {
                         : month.status === "draft"
                           ? "tag tag-warning"
                           : "tag tag-neutral";
+                    const hasDiff = changedMonthsSet.has(month.taxMonth);
 
                     return (
                       <button
@@ -517,7 +546,10 @@ export const MonthRecordEntryPage = () => {
                             工资：{month.salaryIncome.toFixed(2)} / 预扣税：{month.withheldTax.toFixed(2)}
                           </p>
                         </div>
-                        <span className={progressClassName}>{month.statusLabel}</span>
+                        <div className="month-card-tag-row">
+                          <span className={progressClassName}>{month.statusLabel}</span>
+                          {hasDiff ? <span className="tag tag-diff">有差异</span> : null}
+                        </div>
                       </button>
                     );
                   })}
@@ -542,6 +574,13 @@ export const MonthRecordEntryPage = () => {
           </div>
           <span className="tag">减除费用：{DEFAULT_BASIC_DEDUCTION_AMOUNT} 元/月</span>
         </div>
+
+        {selectedMonthDiffs.length ? (
+          <div className="draft-diff-banner">
+            <strong>当前月份有 {selectedMonthDiffs.length} 项未保存差异</strong>
+            <p>{selectedMonthDiffs.map((diff) => diff.label).join("、")}</p>
+          </div>
+        ) : null}
 
         {selectedEmployee ? (
           <>

@@ -1,0 +1,101 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type {
+  EmployeeMonthRecord,
+  UpsertEmployeeMonthRecordPayload,
+} from "../../../../packages/core/src/index";
+import {
+  buildMonthRecordDraftDiffSummary,
+  getMonthRecordDraftDiffs,
+} from "./month-record-diff";
+
+const createMonthRecord = (
+  overrides: Partial<EmployeeMonthRecord> = {},
+): EmployeeMonthRecord => ({
+  id: null,
+  unitId: 1,
+  employeeId: 1,
+  taxYear: 2026,
+  taxMonth: 1,
+  status: "incomplete",
+  salaryIncome: 0,
+  annualBonus: 0,
+  pensionInsurance: 0,
+  medicalInsurance: 0,
+  occupationalAnnuity: 0,
+  housingFund: 0,
+  supplementaryHousingFund: 0,
+  unemploymentInsurance: 0,
+  workInjuryInsurance: 0,
+  withheldTax: 0,
+  infantCareDeduction: 0,
+  childEducationDeduction: 0,
+  continuingEducationDeduction: 0,
+  housingLoanInterestDeduction: 0,
+  housingRentDeduction: 0,
+  elderCareDeduction: 0,
+  otherDeduction: 0,
+  taxReductionExemption: 0,
+  remark: "",
+  createdAt: null,
+  updatedAt: null,
+  ...overrides,
+});
+
+const createPayload = (
+  overrides: Partial<UpsertEmployeeMonthRecordPayload> = {},
+): UpsertEmployeeMonthRecordPayload => ({
+  status: "incomplete",
+  salaryIncome: 0,
+  annualBonus: 0,
+  pensionInsurance: 0,
+  medicalInsurance: 0,
+  occupationalAnnuity: 0,
+  housingFund: 0,
+  supplementaryHousingFund: 0,
+  unemploymentInsurance: 0,
+  workInjuryInsurance: 0,
+  withheldTax: 0,
+  infantCareDeduction: 0,
+  childEducationDeduction: 0,
+  continuingEducationDeduction: 0,
+  housingLoanInterestDeduction: 0,
+  housingRentDeduction: 0,
+  elderCareDeduction: 0,
+  otherDeduction: 0,
+  taxReductionExemption: 0,
+  remark: "",
+  ...overrides,
+});
+
+test("草稿差异可识别被修改的字段标签", () => {
+  const diffs = getMonthRecordDraftDiffs(
+    createMonthRecord({ salaryIncome: 8000, withheldTax: 200 }),
+    createPayload({ salaryIncome: 12000, withheldTax: 300, remark: "补录说明" }),
+  );
+
+  assert.deepEqual(
+    diffs.map((diff) => diff.label),
+    ["工资收入", "已预扣税额", "备注"],
+  );
+});
+
+test("草稿差异摘要只统计真正有差异的月份", () => {
+  const summary = buildMonthRecordDraftDiffSummary(
+    [
+      createMonthRecord({ taxMonth: 1, salaryIncome: 5000 }),
+      createMonthRecord({ taxMonth: 2, salaryIncome: 6000 }),
+      createMonthRecord({ taxMonth: 3, salaryIncome: 7000 }),
+    ],
+    {
+      1: createPayload({ salaryIncome: 5000 }),
+      2: createPayload({ salaryIncome: 6500 }),
+      3: createPayload({ salaryIncome: 7000, remark: "有备注" }),
+    },
+  );
+
+  assert.deepEqual(summary.changedMonths, [2, 3]);
+  assert.equal(summary.changedFieldCountByMonth[1], undefined);
+  assert.equal(summary.changedFieldCountByMonth[2], 1);
+  assert.equal(summary.changedFieldCountByMonth[3], 1);
+});
