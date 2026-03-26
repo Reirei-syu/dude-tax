@@ -102,7 +102,11 @@ test("历史查询 XLSX 导出工作表为历史结果", () => {
     exportModule,
     "buildHistoryQueryExportWorkbook",
   ) as (rows: HistoryAnnualTaxResult[]) => {
-    getWorksheet: (name: string) => { getCell: (cell: string) => { value: string | number | null } };
+    getWorksheet: (name: string) => {
+      getCell: (cell: string) => { value: string | number | null };
+      views?: Array<{ state?: string; ySplit?: number }>;
+      getColumn: (index: number) => { width?: number };
+    };
     worksheets: Array<{ name: string }>;
   };
 
@@ -111,6 +115,9 @@ test("历史查询 XLSX 导出工作表为历史结果", () => {
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("A1")?.value, "单位名称");
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("E1")?.value, "结果状态");
   assert.equal(workbook.getWorksheet("历史结果")?.getCell("E2")?.value, "当前有效");
+  assert.equal(workbook.getWorksheet("历史结果")?.views?.[0]?.state, "frozen");
+  assert.equal(workbook.getWorksheet("历史结果")?.views?.[0]?.ySplit, 1);
+  assert.ok((workbook.getWorksheet("历史结果")?.getColumn(1)?.width ?? 0) >= 12);
 });
 
 test("历史查询导出文件名带作用域信息", () => {

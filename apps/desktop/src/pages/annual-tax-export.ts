@@ -277,6 +277,39 @@ const resolveSelectedColumns = (selectedColumnKeys?: AnnualTaxExportColumnKey[])
   return ANNUAL_TAX_EXPORT_COLUMNS.filter((column) => selectedSet.has(column.key));
 };
 
+const applyWorksheetPresentation = (
+  worksheet: ExcelJS.Worksheet,
+  rows: AnnualTaxExportPreviewRow[],
+  selectedColumns: AnnualTaxExportColumnDefinition[],
+) => {
+  if (!selectedColumns.length) {
+    return;
+  }
+
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: selectedColumns.length },
+  };
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF2F75DD" },
+  };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+
+  selectedColumns.forEach((column, columnIndex) => {
+    const maxContentLength = Math.max(
+      column.label.length,
+      ...rows.map((row) => String(column.getWorkbookValue(row)).length),
+    );
+    worksheet.getColumn(columnIndex + 1).width = Math.min(Math.max(maxContentLength + 4, 12), 28);
+  });
+};
+
 export const buildAnnualTaxExportCsv = (
   rows: AnnualTaxExportPreviewRow[],
   selectedColumnKeys?: AnnualTaxExportColumnKey[],
@@ -304,6 +337,7 @@ export const buildAnnualTaxExportWorkbook = (
   rows.forEach((row) => {
     worksheet.addRow(selectedColumns.map((column) => column.getWorkbookValue(row)));
   });
+  applyWorksheetPresentation(worksheet, rows, selectedColumns);
 
   return workbook;
 };

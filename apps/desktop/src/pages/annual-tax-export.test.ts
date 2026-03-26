@@ -148,9 +148,13 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
     worksheets: Array<{
       name: string;
       getCell: (cell: string) => { value: string | number | null };
+      views?: Array<{ state?: string; ySplit?: number }>;
+      getColumn: (index: number) => { width?: number };
     }>;
     getWorksheet: (name: string) => {
       getCell: (cell: string) => { value: string | number | null };
+      views?: Array<{ state?: string; ySplit?: number }>;
+      getColumn: (index: number) => { width?: number };
     };
   };
 
@@ -166,6 +170,9 @@ test("XLSX 导出内容包含工作表名和所选字段列", () => {
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("A2")?.value, "EMP-001");
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("B2")?.value, "张三");
   assert.equal(workbook.getWorksheet("个税结果")?.getCell("C2")?.value, 3000);
+  assert.equal(workbook.getWorksheet("个税结果")?.views?.[0]?.state, "frozen");
+  assert.equal(workbook.getWorksheet("个税结果")?.views?.[0]?.ySplit, 1);
+  assert.ok((workbook.getWorksheet("个税结果")?.getColumn(1)?.width ?? 0) >= 12);
 });
 
 test("XLSX 导出文件名带单位与年度信息", () => {
