@@ -1,0 +1,84 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { EmployeeAnnualTaxResult } from "../../../../packages/core/src/index";
+import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
+
+const createResult = (
+  overrides: Partial<EmployeeAnnualTaxResult> = {},
+): EmployeeAnnualTaxResult => ({
+  unitId: 1,
+  employeeId: 1,
+  employeeCode: "EMP001",
+  employeeName: "测试员工",
+  taxYear: 2026,
+  calculatedAt: "2026-03-27T00:00:00.000Z",
+  completedMonthCount: 12,
+  salaryIncomeTotal: 120000,
+  annualBonusTotal: 0,
+  insuranceAndHousingFundTotal: 0,
+  specialAdditionalDeductionTotal: 0,
+  otherDeductionTotal: 0,
+  basicDeductionTotal: 60000,
+  taxReductionExemptionTotal: 0,
+  selectedScheme: "separate_bonus",
+  selectedTaxAmount: 3000,
+  annualTaxPayable: 3000,
+  annualTaxWithheld: 2000,
+  annualTaxSettlement: 1000,
+  settlementDirection: "payable",
+  schemeResults: {
+    separateBonus: {
+      scheme: "separate_bonus",
+      taxableComprehensiveIncome: 60000,
+      comprehensiveIncomeTax: 3000,
+      annualBonusTax: 0,
+      grossTax: 3000,
+      taxReductionExemptionTotal: 0,
+      finalTax: 3000,
+      comprehensiveBracketLevel: 2,
+      bonusBracketLevel: null,
+    },
+    combinedBonus: {
+      scheme: "combined_bonus",
+      taxableComprehensiveIncome: 60000,
+      comprehensiveIncomeTax: 3000,
+      annualBonusTax: 0,
+      grossTax: 3000,
+      taxReductionExemptionTotal: 0,
+      finalTax: 3000,
+      comprehensiveBracketLevel: 2,
+      bonusBracketLevel: null,
+    },
+  },
+  ...overrides,
+});
+
+test("应补税结果会生成补税说明", () => {
+  const explanation = buildAnnualTaxExplanation(createResult());
+  assert.equal(explanation.title, "本年度应补税");
+  assert.match(explanation.summary, /需要补税/);
+});
+
+test("应退税结果会生成退税说明", () => {
+  const explanation = buildAnnualTaxExplanation(
+    createResult({
+      annualTaxWithheld: 4000,
+      annualTaxSettlement: -1000,
+      settlementDirection: "refund",
+    }),
+  );
+  assert.equal(explanation.title, "本年度应退税");
+  assert.match(explanation.summary, /可退税/);
+});
+
+test("已平结果会生成已平说明", () => {
+  const explanation = buildAnnualTaxExplanation(
+    createResult({
+      annualTaxWithheld: 3000,
+      annualTaxSettlement: 0,
+      settlementDirection: "balanced",
+    }),
+  );
+  assert.equal(explanation.title, "本年度已平");
+  assert.match(explanation.summary, /无需补税也无需退税/);
+});

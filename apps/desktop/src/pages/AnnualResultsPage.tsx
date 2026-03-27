@@ -22,6 +22,7 @@ import {
   type AnnualTaxExportColumnKey,
   type AnnualTaxExportTemplateId,
 } from "./annual-tax-export";
+import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
@@ -110,6 +111,7 @@ export const AnnualResultsPage = () => {
   const selectedResult =
     results.find((result) => result.employeeId === selectedEmployeeId) ?? results[0] ?? null;
   const selectedSchemeResult = selectedResult ? getSelectedSchemeResult(selectedResult) : null;
+  const selectedExplanation = selectedResult ? buildAnnualTaxExplanation(selectedResult) : null;
   const selectedExportPreviewRow =
     exportPreviewRows.find((row) => row.employeeId === selectedEmployeeId) ??
     exportPreviewRows[0] ??
@@ -430,6 +432,21 @@ export const AnnualResultsPage = () => {
                 <span>当前税额合计</span>
                 <strong>{formatCurrency(selectedSchemeResult.finalTax)}</strong>
               </div>
+            </div>
+
+            <div className="subsection-block">
+              <h3>结算说明</h3>
+              {selectedExplanation ? (
+                <div className="maintenance-note-card">
+                  <strong>{selectedExplanation.title}</strong>
+                  <p>{selectedExplanation.summary}</p>
+                  <div className="validation-list compact-validation-list">
+                    {selectedExplanation.detailLines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="subsection-block">
