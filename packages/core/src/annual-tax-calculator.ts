@@ -1,6 +1,10 @@
 import type {
   AnnualTaxCalculation,
   AnnualTaxSchemeResult,
+  AnnualTaxWithholdingContext,
+  AnnualTaxWithholdingMode,
+  AnnualTaxWithholdingTrace,
+  AnnualTaxWithholdingTraceItem,
   EmployeeMonthRecord,
   TaxPolicySettings,
   TaxSettlementDirection,
@@ -40,6 +44,150 @@ const getSpecialAdditionalDeductionTotal = (record: EmployeeMonthRecord) =>
   record.housingLoanInterestDeduction +
   record.housingRentDeduction +
   record.elderCareDeduction;
+
+const resolveWithholdingMode = (
+  context: AnnualTaxWithholdingContext,
+): AnnualTaxWithholdingMode => {
+  if (context.mode && context.mode !== "auto") {
+    return context.mode;
+  }
+
+  if (context.previousYearIncomeUnder60k) {
+    return "annual_60000_upfront";
+  }
+
+  if ((context.firstSalaryMonthInYear ?? 1) > 1) {
+    return "first_salary_month_cumulative";
+  }
+
+  return "standard_cumulative";
+};
+
+const getCumulativeBasicDeduction = (
+  mode: AnnualTaxWithholdingMode,
+  taxMonth: number,
+  processedMonthCount: number,
+  monthlyBasicDeduction: number,
+) => {
+  if (mode === "annual_60000_upfront") {
+    return roundCurrency(monthlyBasicDeduction * 12);
+  }
+
+  if (mode === "first_salary_month_cumulative") {
+    return roundCurrency(monthlyBasicDeduction * taxMonth);
+  }
+
+  return roundCurrency(monthlyBasicDeduction * processedMonthCount);
+};
+
+export const buildMonthlyWithholdingTrace = (
+  records: EmployeeMonthRecord[],
+  context: AnnualTaxWithholdingContext = {},
+  taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
+): AnnualTaxWithholdingTrace => {
+  const completedRecords = [...records]
+    .filter((record) => record.status === "completed")
+    .sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
+
+  if (!completedRecords.length) {
+    throw new Error("当前员工暂无已完成月份，无法生成预扣预缴轨迹");
+  }
+
+  const mode = resolveWithholdingMode(context);
+  let cumulativeSalaryIncome = 0;
+  let cumulativeInsuranceAndHousingFund = 0;
+  let cumulativeSpecialAdditionalDeduction = 0;
+  let cumulativeOtherDeduction = 0;
+  let cumulativeTaxReductionExemption = 0;
+  let previousCumulativeExpectedWithheldTax = 0;
+
+  const items = completedRecords.map((record, index) => {
+    cumulativeSalaryIncome = roundCurrency(cumulativeSalaryIncome + record.salaryIncome);
+    cumulativeInsuranceAndHousingFund = roundCurrency(
+      cumulativeInsuranceAndHousingFund + getInsuranceAndHousingFundTotal(record),
+    );
+    cumulativeSpecialAdditionalDeduction = roundCurrency(
+      cumulativeSpecialAdditionalDeduction + getSpecialAdditionalDeductionTotal(record),
+    );
+    cumulativeOtherDeduction = roundCurrency(cumulativeOtherDeduction + record.otherDeduction);
+    cumulativeTaxReductionExemption = roundCurrency(
+      cumulativeTaxReductionExemption + record.taxReductionExemption,
+    );
+
+    const cumulativeBasicDeduction = getCumulativeBasicDeduction(
+      mode,
+      record.taxMonth,
+      index + 1,
+      taxPolicy.basicDeductionAmount,
+    );
+    const cumulativeTaxableIncome = calculateTaxableIncome(
+      cumulativeSalaryIncome -
+        cumulativeBasicDeduction -
+        cumulativeInsuranceAndHousingFund -
+        cumulativeSpecialAdditionalDeduction -
+        cumulativeOtherDeduction,
+    );
+    const cumulativeBracket =
+      cumulativeTaxableIncome > 0
+        ? pickComprehensiveBracket(cumulativeTaxableIncome, taxPolicy)
+        : null;
+    const cumulativeExpectedWithheldTax = cumulativeBracket
+      ? roundCurrency(
+          Math.max(
+            cumulativeTaxableIncome * (cumulativeBracket.rate / 100) -
+              cumulativeBracket.quickDeduction -
+              cumulativeTaxReductionExemption,
+            0,
+          ),
+        )
+      : 0;
+    const currentMonthExpectedWithheldTax = roundCurrency(
+      cumulativeExpectedWithheldTax - previousCumulativeExpectedWithheldTax,
+    );
+
+    previousCumulativeExpectedWithheldTax = cumulativeExpectedWithheldTax;
+
+    const item: AnnualTaxWithholdingTraceItem = {
+      taxMonth: record.taxMonth,
+      withholdingMode: mode,
+      salaryIncome: roundCurrency(record.salaryIncome),
+      actualWithheldTax: roundCurrency(record.withheldTax),
+      cumulativeSalaryIncome,
+      cumulativeBasicDeduction,
+      cumulativeInsuranceAndHousingFund,
+      cumulativeSpecialAdditionalDeduction,
+      cumulativeOtherDeduction,
+      cumulativeTaxReductionExemption,
+      cumulativeTaxableIncome,
+      cumulativeExpectedWithheldTax,
+      currentMonthExpectedWithheldTax,
+      currentMonthWithholdingVariance: roundCurrency(
+        record.withheldTax - currentMonthExpectedWithheldTax,
+      ),
+    };
+
+    return item;
+  });
+
+  const expectedWithheldTaxTotal = roundCurrency(
+    items.reduce((sum, item) => sum + item.currentMonthExpectedWithheldTax, 0),
+  );
+  const actualWithheldTaxTotal = roundCurrency(
+    items.reduce((sum, item) => sum + item.actualWithheldTax, 0),
+  );
+
+  return {
+    mode,
+    items,
+    summary: {
+      withholdingMode: mode,
+      expectedWithheldTaxTotal,
+      actualWithheldTaxTotal,
+      withholdingVariance: roundCurrency(actualWithheldTaxTotal - expectedWithheldTaxTotal),
+      traceCount: items.length,
+    },
+  };
+};
 
 const pickComprehensiveBracket = (annualTaxableIncome: number, taxPolicy: TaxPolicySettings) =>
   taxPolicy.comprehensiveTaxBrackets.find(

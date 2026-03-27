@@ -124,6 +124,48 @@ export type TaxCalculationScheme = "separate_bonus" | "combined_bonus";
 
 export type TaxSettlementDirection = "payable" | "refund" | "balanced";
 
+export type AnnualTaxWithholdingMode =
+  | "standard_cumulative"
+  | "annual_60000_upfront"
+  | "first_salary_month_cumulative";
+
+export type AnnualTaxWithholdingContext = {
+  mode?: AnnualTaxWithholdingMode | "auto";
+  previousYearIncomeUnder60k?: boolean;
+  firstSalaryMonthInYear?: number | null;
+};
+
+export type AnnualTaxWithholdingTraceItem = {
+  taxMonth: number;
+  withholdingMode: AnnualTaxWithholdingMode;
+  salaryIncome: number;
+  actualWithheldTax: number;
+  cumulativeSalaryIncome: number;
+  cumulativeBasicDeduction: number;
+  cumulativeInsuranceAndHousingFund: number;
+  cumulativeSpecialAdditionalDeduction: number;
+  cumulativeOtherDeduction: number;
+  cumulativeTaxReductionExemption: number;
+  cumulativeTaxableIncome: number;
+  cumulativeExpectedWithheldTax: number;
+  currentMonthExpectedWithheldTax: number;
+  currentMonthWithholdingVariance: number;
+};
+
+export type AnnualTaxWithholdingSummary = {
+  withholdingMode: AnnualTaxWithholdingMode;
+  expectedWithheldTaxTotal: number;
+  actualWithheldTaxTotal: number;
+  withholdingVariance: number;
+  traceCount: number;
+};
+
+export type AnnualTaxWithholdingTrace = {
+  mode: AnnualTaxWithholdingMode;
+  items: AnnualTaxWithholdingTraceItem[];
+  summary: AnnualTaxWithholdingSummary;
+};
+
 export type ComprehensiveTaxBracket = {
   level: number;
   rangeText: string;
@@ -357,7 +399,7 @@ export type HistoryAnnualTaxQuery = {
   resultStatus?: HistoryResultStatus;
 };
 
-export { calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";
+export { buildMonthlyWithholdingTrace, calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";
 export {
   buildDefaultTaxPolicySettings,
   buildTaxPolicySignature,

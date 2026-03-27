@@ -1,6 +1,10 @@
 ﻿import assert from "node:assert/strict";
 import test from "node:test";
-import type { EmployeeMonthRecord, TaxPolicySettings } from "./index.js";
+import type {
+  AnnualTaxWithholdingTrace,
+  EmployeeMonthRecord,
+  TaxPolicySettings,
+} from "./index.js";
 import * as coreModule from "./index.js";
 
 const createMonthRecord = (
@@ -48,7 +52,18 @@ const getCalculator = () => {
 
 test("导出年度个税计算函数", () => {
   assert.equal(typeof Reflect.get(coreModule, "calculateEmployeeAnnualTax"), "function");
+  assert.equal(typeof Reflect.get(coreModule, "buildMonthlyWithholdingTrace"), "function");
 });
+
+const getWithholdingTraceBuilder = () => {
+  const builder = Reflect.get(coreModule, "buildMonthlyWithholdingTrace");
+  assert.equal(typeof builder, "function");
+  return builder as (
+    records: EmployeeMonthRecord[],
+    context?: Record<string, unknown>,
+    taxPolicy?: TaxPolicySettings,
+  ) => AnnualTaxWithholdingTrace;
+};
 
 test("在无年终奖时按综合所得计算并汇总基础抵扣", () => {
   const calculateEmployeeAnnualTax = getCalculator();
@@ -262,5 +277,78 @@ test("支持传入自定义税率并影响年度计算结果", () => {
   assert.equal(result.basicDeductionTotal, 6_000);
   assert.equal(result.selectedTaxAmount, 120);
   assert.equal(result.annualTaxPayable, 120);
+});
+
+test("标准累计预扣模式按已处理月份累计减除费用", () => {
+  const buildMonthlyWithholdingTrace = getWithholdingTraceBuilder();
+
+  const trace = buildMonthlyWithholdingTrace([
+    createMonthRecord(7, {
+      salaryIncome: 10_000,
+    }),
+    createMonthRecord(8, {
+      salaryIncome: 10_000,
+      withheldTax: 200,
+    }),
+  ]);
+
+  assert.equal(trace.mode, "standard_cumulative");
+  assert.equal(trace.items[0]?.cumulativeBasicDeduction, 5_000);
+  assert.equal(trace.items[0]?.currentMonthExpectedWithheldTax, 150);
+  assert.equal(trace.items[1]?.cumulativeBasicDeduction, 10_000);
+  assert.equal(trace.items[1]?.currentMonthExpectedWithheldTax, 150);
+  assert.equal(trace.summary.expectedWithheldTaxTotal, 300);
+  assert.equal(trace.summary.actualWithheldTaxTotal, 200);
+  assert.equal(trace.summary.withholdingVariance, -100);
+});
+
+test("首次取得工资模式按自然月累计减除费用", () => {
+  const buildMonthlyWithholdingTrace = getWithholdingTraceBuilder();
+
+  const trace = buildMonthlyWithholdingTrace(
+    [
+      createMonthRecord(7, {
+        salaryIncome: 10_000,
+      }),
+      createMonthRecord(8, {
+        salaryIncome: 10_000,
+      }),
+    ],
+    {
+      firstSalaryMonthInYear: 7,
+    },
+  );
+
+  assert.equal(trace.mode, "first_salary_month_cumulative");
+  assert.equal(trace.items[0]?.cumulativeBasicDeduction, 35_000);
+  assert.equal(trace.items[0]?.currentMonthExpectedWithheldTax, 0);
+  assert.equal(trace.items[1]?.cumulativeBasicDeduction, 40_000);
+  assert.equal(trace.items[1]?.currentMonthExpectedWithheldTax, 0);
+});
+
+test("上年收入不超过6万元模式可直接采用全年累计减除费用", () => {
+  const buildMonthlyWithholdingTrace = getWithholdingTraceBuilder();
+
+  const trace = buildMonthlyWithholdingTrace(
+    [
+      createMonthRecord(1, {
+        salaryIncome: 30_000,
+      }),
+      createMonthRecord(2, {
+        salaryIncome: 40_000,
+        withheldTax: 500,
+      }),
+    ],
+    {
+      previousYearIncomeUnder60k: true,
+    },
+  );
+
+  assert.equal(trace.mode, "annual_60000_upfront");
+  assert.equal(trace.items[0]?.cumulativeBasicDeduction, 60_000);
+  assert.equal(trace.items[0]?.currentMonthExpectedWithheldTax, 0);
+  assert.equal(trace.items[1]?.cumulativeBasicDeduction, 60_000);
+  assert.equal(trace.items[1]?.currentMonthExpectedWithheldTax, 300);
+  assert.equal(trace.items[1]?.currentMonthWithholdingVariance, 200);
 });
 
