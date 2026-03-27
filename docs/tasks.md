@@ -29,12 +29,15 @@
   - 结果中心明细页
   - 当前员工年度结果的版本时间线查看
 
-### [ ] 结果中心：结果版本差异对比
-- 类型：功能增强
-- 模块：ui
-- 描述：支持在结果中心对两个历史版本进行关键字段差异对比
-- 依赖：结果中心：历史版本查看
-- 风险：中
+### [x] 结果中心：结果版本差异对比
+- 完成时间：2026-03-27 12:20
+- 修改文件：
+  - `apps/desktop/src/pages/AnnualResultsPage.tsx`
+  - `apps/desktop/src/pages/annual-result-version-diff.ts`
+  - `apps/desktop/src/pages/annual-result-version-diff.test.ts`
+- 影响范围：
+  - 结果中心版本差异对比区块
+  - 双版本选择与关键字段差异展示
 
 ### [ ] 批量导入：Excel 解析支持
 - 类型：功能增强

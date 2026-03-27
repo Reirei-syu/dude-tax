@@ -24,6 +24,7 @@ import {
   type AnnualTaxExportTemplateId,
 } from "./annual-tax-export";
 import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
+import { buildAnnualResultVersionComparisonItems } from "./annual-result-version-diff";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
@@ -69,6 +70,8 @@ export const AnnualResultsPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [versionErrorMessage, setVersionErrorMessage] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+  const [selectedBaselineVersionId, setSelectedBaselineVersionId] = useState<number | null>(null);
+  const [selectedTargetVersionId, setSelectedTargetVersionId] = useState<number | null>(null);
   const [selectedExportTemplateId, setSelectedExportTemplateId] = useState<
     AnnualTaxExportTemplateId | "custom"
   >(DEFAULT_ANNUAL_TAX_EXPORT_TEMPLATE_ID);
@@ -131,6 +134,8 @@ export const AnnualResultsPage = () => {
       if (!currentUnitId || !currentTaxYear || !selectedResult) {
         setResultVersions([]);
         setVersionErrorMessage(null);
+        setSelectedBaselineVersionId(null);
+        setSelectedTargetVersionId(null);
         return;
       }
 
@@ -153,6 +158,34 @@ export const AnnualResultsPage = () => {
 
     void loadResultVersions();
   }, [currentTaxYear, currentUnitId, selectedResult]);
+
+  useEffect(() => {
+    if (!resultVersions.length) {
+      setSelectedBaselineVersionId(null);
+      setSelectedTargetVersionId(null);
+      return;
+    }
+
+    if (resultVersions.length === 1) {
+      setSelectedBaselineVersionId(resultVersions[0].versionId);
+      setSelectedTargetVersionId(null);
+      return;
+    }
+
+    const baselineVersion = resultVersions[1];
+    const targetVersion = resultVersions[0];
+
+    setSelectedBaselineVersionId((currentId) =>
+      resultVersions.some((version) => version.versionId === currentId)
+        ? currentId
+        : baselineVersion?.versionId ?? null,
+    );
+    setSelectedTargetVersionId((currentId) =>
+      resultVersions.some((version) => version.versionId === currentId)
+        ? currentId
+        : targetVersion?.versionId ?? null,
+    );
+  }, [resultVersions]);
 
   const switchSelectedScheme = async (selectedScheme: TaxCalculationScheme) => {
     if (!currentUnitId || !currentTaxYear || !selectedResult) {
@@ -259,6 +292,21 @@ export const AnnualResultsPage = () => {
       </section>
     );
   }
+
+  const selectedBaselineVersion =
+    resultVersions.find((version) => version.versionId === selectedBaselineVersionId) ?? null;
+  const selectedTargetVersion =
+    resultVersions.find((version) => version.versionId === selectedTargetVersionId) ?? null;
+  const versionComparisonItems =
+    selectedBaselineVersion &&
+    selectedTargetVersion &&
+    selectedBaselineVersion.versionId !== selectedTargetVersion.versionId
+      ? buildAnnualResultVersionComparisonItems(selectedBaselineVersion, selectedTargetVersion)
+      : [];
+  const versionOptions = resultVersions.map((version) => ({
+    value: version.versionId,
+    label: `V${version.versionSequence}（${formatDateTime(version.calculatedAt)}）`,
+  }));
 
   return (
     <section className="page-grid">
@@ -527,6 +575,77 @@ export const AnnualResultsPage = () => {
                 <div className="empty-state">
                   <strong>{versionLoading ? "版本历史加载中。" : "当前还没有可查看的历史版本。"}</strong>
                   <p>这里只记录真实重算形成的版本快照，手动方案切换不会单独生成新版本。</p>
+                </div>
+              )}
+            </div>
+
+            <div className="subsection-block">
+              <h3>版本差异对比</h3>
+
+              {resultVersions.length >= 2 ? (
+                <>
+                  <div className="form-grid">
+                    <label className="form-field">
+                      <span>基准版本</span>
+                      <select
+                        value={selectedBaselineVersionId ?? ""}
+                        onChange={(event) => setSelectedBaselineVersionId(Number(event.target.value))}
+                      >
+                        {versionOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="form-field">
+                      <span>对比版本</span>
+                      <select
+                        value={selectedTargetVersionId ?? ""}
+                        onChange={(event) => setSelectedTargetVersionId(Number(event.target.value))}
+                      >
+                        {versionOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {versionComparisonItems.length ? (
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>项目</th>
+                          <th>基准版本</th>
+                          <th>对比版本</th>
+                          <th>差异</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {versionComparisonItems.map((item) => (
+                          <tr key={item.label}>
+                            <td>{item.label}</td>
+                            <td>{item.baselineValue}</td>
+                            <td>{item.targetValue}</td>
+                            <td>{item.deltaValue}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="empty-state">
+                      <strong>请选择两个不同版本。</strong>
+                      <p>版本相同时不会生成有效差异。</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="empty-state">
+                  <strong>当前版本数量不足，无法对比。</strong>
+                  <p>至少需要两个真实重算版本，才能进行版本差异对比。</p>
                 </div>
               )}
             </div>
