@@ -105,18 +105,65 @@
   - 月度预扣轨迹纯函数
   - 核心层测试覆盖
 
-### [ ] 个税计算核心：年度计算器接入预扣轨迹摘要
+### [x] 个税计算核心：年度计算器接入预扣轨迹摘要
+- 完成时间：2026-03-27 13:28
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `packages/core/src/annual-tax-calculator.ts`
+  - `packages/core/src/annual-tax-calculator.test.ts`
+  - `apps/desktop/src/pages/annual-result-version-diff.test.ts`
+  - `apps/desktop/src/pages/annual-tax-explanation.test.ts`
+  - `apps/desktop/src/pages/history-query-diff.test.ts`
+  - `apps/desktop/src/pages/history-query-export.test.ts`
+  - `apps/desktop/src/pages/history-query-year-summary.test.ts`
+- 影响范围：
+  - 年度计算结果结构
+  - 预扣轨迹摘要接入
+  - 相关前端测试数据结构
+
+### [x] 结果中心：预扣轨迹摘要展示
+- 完成时间：2026-03-27 13:35
+- 修改文件：
+  - `apps/desktop/src/pages/AnnualResultsPage.tsx`
+  - `apps/desktop/src/pages/annual-tax-withholding-summary.ts`
+  - `apps/desktop/src/pages/annual-tax-withholding-summary.test.ts`
+  - `PENDING_GOALS.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 结果中心明细页
+  - 预扣模式、规则应预扣、实际已预扣和差异额展示
+
+### [x] 个税计算核心：补发补扣场景方案
+- 完成时间：2026-03-27 13:45
+- 修改文件：
+  - `docs/plans/2026-03-27_supplementary-payment-withholding-plan.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 补发补扣口径方案沉淀
+  - 后续实施任务拆解
+
+### [ ] 个税计算核心：补发补扣字段与共享类型
 - 类型：功能增强
 - 模块：core
-- 描述：在年度计算结果中接入预扣轨迹摘要，并保留当前年度汇算结论
-- 依赖：个税计算核心：预扣预缴共享类型与月度轨迹纯函数
+- 描述：为补发补扣场景补共享类型与月度记录字段设计，明确支付当月补发与往期更正的边界
+- 依赖：无
 - 风险：高
 
-### [ ] 结果中心：预扣轨迹摘要展示
+### [ ] 个税计算核心：补发补扣并入预扣轨迹
+- 类型：功能增强
+- 模块：core
+- 描述：在预扣轨迹算法中纳入补发工资和补扣税调整额
+- 依赖：个税计算核心：补发补扣字段与共享类型
+- 风险：高
+
+### [ ] 月度录入：补发补扣区块与校验
 - 类型：功能增强
 - 模块：ui
-- 描述：在结果中心展示实际已预扣、规则应预扣、差异额和预扣规则模式
-- 依赖：个税计算核心：年度计算器接入预扣轨迹摘要
+- 描述：在月度录入页新增补发补扣区块，并明确提示“支付当月补发”和“往期更正”不是一回事
+- 依赖：个税计算核心：补发补扣字段与共享类型
 - 风险：中
 
 ## 状态
