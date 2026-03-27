@@ -278,6 +278,7 @@ const buildCombinedBonusScheme = (
 export const calculateEmployeeAnnualTax = (
   records: EmployeeMonthRecord[],
   taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
+  withholdingContext: AnnualTaxWithholdingContext = {},
 ): AnnualTaxCalculation => {
   const completedRecords = records.filter((record) => record.status === "completed");
   if (!completedRecords.length) {
@@ -303,9 +304,8 @@ export const calculateEmployeeAnnualTax = (
   const taxReductionExemptionTotal = roundCurrency(
     completedRecords.reduce((sum, record) => sum + record.taxReductionExemption, 0),
   );
-  const annualTaxWithheld = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + record.withheldTax, 0),
-  );
+  const withholdingTrace = buildMonthlyWithholdingTrace(records, withholdingContext, taxPolicy);
+  const annualTaxWithheld = withholdingTrace.summary.actualWithheldTaxTotal;
   const basicDeductionTotal = roundCurrency(
     taxPolicy.basicDeductionAmount * completedMonthCount,
   );
@@ -358,6 +358,7 @@ export const calculateEmployeeAnnualTax = (
     annualTaxWithheld,
     annualTaxSettlement,
     settlementDirection,
+    withholdingSummary: withholdingTrace.summary,
     schemeResults: {
       separateBonus,
       combinedBonus,

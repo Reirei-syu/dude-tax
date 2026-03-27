@@ -328,6 +328,7 @@ export type AnnualTaxCalculation = {
   annualTaxWithheld: number;
   annualTaxSettlement: number;
   settlementDirection: TaxSettlementDirection;
+  withholdingSummary: AnnualTaxWithholdingSummary;
   schemeResults: {
     separateBonus: AnnualTaxSchemeResult;
     combinedBonus: AnnualTaxSchemeResult;

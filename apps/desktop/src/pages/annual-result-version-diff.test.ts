@@ -31,6 +31,13 @@ const createVersion = (
   annualTaxWithheld: 2_000,
   annualTaxSettlement: 1_000,
   settlementDirection: "payable",
+  withholdingSummary: {
+    withholdingMode: "standard_cumulative",
+    expectedWithheldTaxTotal: 2_000,
+    actualWithheldTaxTotal: 2_000,
+    withholdingVariance: 0,
+    traceCount: 12,
+  },
   schemeResults: {
     separateBonus: {
       scheme: "separate_bonus",

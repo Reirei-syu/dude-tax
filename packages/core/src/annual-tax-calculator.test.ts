@@ -1,6 +1,7 @@
 ﻿import assert from "node:assert/strict";
 import test from "node:test";
 import type {
+  AnnualTaxCalculation,
   AnnualTaxWithholdingTrace,
   EmployeeMonthRecord,
   TaxPolicySettings,
@@ -47,7 +48,8 @@ const getCalculator = () => {
   return calculator as (
     records: EmployeeMonthRecord[],
     taxPolicy?: TaxPolicySettings,
-  ) => Record<string, unknown>;
+    withholdingContext?: Record<string, unknown>,
+  ) => AnnualTaxCalculation;
 };
 
 test("导出年度个税计算函数", () => {
@@ -79,6 +81,8 @@ test("在无年终奖时按综合所得计算并汇总基础抵扣", () => {
   assert.equal(result.annualTaxWithheld, 0);
   assert.equal(result.annualTaxSettlement, 150);
   assert.equal(result.settlementDirection, "payable");
+  assert.equal(result.withholdingSummary.actualWithheldTaxTotal, 0);
+  assert.equal(result.withholdingSummary.expectedWithheldTaxTotal, 150);
 });
 
 test("当合并计税税额更低时默认采用合并计税方案", () => {

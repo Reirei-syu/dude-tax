@@ -26,6 +26,13 @@ const createResult = (
   annualTaxWithheld: 2000,
   annualTaxSettlement: 1000,
   settlementDirection: "payable",
+  withholdingSummary: {
+    withholdingMode: "standard_cumulative",
+    expectedWithheldTaxTotal: 2000,
+    actualWithheldTaxTotal: 2000,
+    withholdingVariance: 0,
+    traceCount: 12,
+  },
   schemeResults: {
     separateBonus: {
       scheme: "separate_bonus",

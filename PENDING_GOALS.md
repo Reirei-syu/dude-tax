@@ -1,6 +1,6 @@
 ﻿# 未完成目标清单（PENDING_GOALS.md）
 
-- 更新时间：2026-03-26
+- 更新时间：2026-03-27
 - 判断依据：
   - `PROGRESS.md`
   - `PROJECT_SPEC.md`
