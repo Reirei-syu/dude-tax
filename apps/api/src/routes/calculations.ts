@@ -11,8 +11,17 @@ import {
 import { employeeRepository } from "../repositories/employee-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 
+const withholdingContextSchema = z.object({
+  mode: z
+    .enum(["auto", "standard_cumulative", "annual_60000_upfront", "first_salary_month_cumulative"])
+    .optional(),
+  previousYearIncomeUnder60k: z.boolean().optional(),
+  firstSalaryMonthInYear: z.number().int().min(1).max(12).nullable().optional(),
+});
+
 const recalculateSchema = z.object({
   employeeId: z.number().int().positive().optional(),
+  withholdingContext: withholdingContextSchema.optional(),
 });
 
 const updateSelectedSchemeSchema = z.object({
@@ -40,6 +49,10 @@ const quickCalculateRecordSchema = z.object({
   unemploymentInsurance: z.number().min(0),
   workInjuryInsurance: z.number().min(0),
   withheldTax: z.number().min(0),
+  supplementarySalaryIncome: z.number().min(0).optional(),
+  supplementaryWithheldTaxAdjustment: z.number().min(0).optional(),
+  supplementarySourcePeriodLabel: z.string().trim().max(100).optional(),
+  supplementaryRemark: z.string().trim().max(300).optional(),
   infantCareDeduction: z.number().min(0),
   childEducationDeduction: z.number().min(0),
   continuingEducationDeduction: z.number().min(0),
@@ -55,6 +68,7 @@ const quickCalculateSchema = z.object({
   unitId: z.number().int().positive(),
   taxYear: z.number().int().min(2000).max(2100),
   records: z.array(quickCalculateRecordSchema).min(1),
+  withholdingContext: withholdingContextSchema.optional(),
 });
 
 const toTemporaryMonthRecord = (
@@ -78,6 +92,10 @@ const toTemporaryMonthRecord = (
   unemploymentInsurance: record.unemploymentInsurance,
   workInjuryInsurance: record.workInjuryInsurance,
   withheldTax: record.withheldTax,
+  supplementarySalaryIncome: record.supplementarySalaryIncome,
+  supplementaryWithheldTaxAdjustment: record.supplementaryWithheldTaxAdjustment,
+  supplementarySourcePeriodLabel: record.supplementarySourcePeriodLabel,
+  supplementaryRemark: record.supplementaryRemark,
   infantCareDeduction: record.infantCareDeduction,
   childEducationDeduction: record.childEducationDeduction,
   continuingEducationDeduction: record.continuingEducationDeduction,
@@ -116,6 +134,7 @@ export const registerCalculationRoutes = async (app: FastifyInstance) => {
         toTemporaryMonthRecord(parsedBody.data.unitId, parsedBody.data.taxYear, record),
       ),
       effectiveSettings,
+      parsedBody.data.withholdingContext,
     );
   });
 
@@ -277,7 +296,12 @@ export const registerCalculationRoutes = async (app: FastifyInstance) => {
       }
 
       try {
-        return annualTaxService.recalculate(unitId, taxYear, parsedBody.data.employeeId);
+        return annualTaxService.recalculate(
+          unitId,
+          taxYear,
+          parsedBody.data.employeeId,
+          parsedBody.data.withholdingContext,
+        );
       } catch (error) {
         if (error instanceof EmployeeCalculationNotReadyError) {
           return reply.status(409).send({ message: error.message });

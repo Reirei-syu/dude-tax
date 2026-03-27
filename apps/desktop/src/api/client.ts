@@ -2,6 +2,7 @@ import type {
   AnnualTaxCalculation,
   AnnualTaxExportPreviewRow,
   AnnualTaxResultVersion,
+  AnnualTaxWithholdingContext,
   AppContext,
   EmployeeAnnualTaxResult,
   EmployeeCalculationStatus,
@@ -201,12 +202,20 @@ export const apiClient = {
       `/api/units/${unitId}/years/${taxYear}/calculation-statuses`,
     );
   },
-  recalculateStatuses(unitId: number, taxYear: number, employeeId?: number) {
+  recalculateStatuses(
+    unitId: number,
+    taxYear: number,
+    employeeId?: number,
+    withholdingContext?: AnnualTaxWithholdingContext,
+  ) {
     return request<EmployeeCalculationStatus[]>(
       `/api/units/${unitId}/years/${taxYear}/calculation-statuses/recalculate`,
       {
         method: "POST",
-        body: JSON.stringify(employeeId ? { employeeId } : {}),
+        body: JSON.stringify({
+          ...(employeeId ? { employeeId } : {}),
+          ...(withholdingContext ? { withholdingContext } : {}),
+        }),
       },
     );
   },

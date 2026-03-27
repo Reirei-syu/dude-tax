@@ -107,6 +107,10 @@ database.exec(`
     unemployment_insurance REAL NOT NULL DEFAULT 0,
     work_injury_insurance REAL NOT NULL DEFAULT 0,
     withheld_tax REAL NOT NULL DEFAULT 0,
+    supplementary_salary_income REAL NOT NULL DEFAULT 0,
+    supplementary_withheld_tax_adjustment REAL NOT NULL DEFAULT 0,
+    supplementary_source_period_label TEXT DEFAULT '',
+    supplementary_remark TEXT DEFAULT '',
     infant_care_deduction REAL NOT NULL DEFAULT 0,
     child_education_deduction REAL NOT NULL DEFAULT 0,
     continuing_education_deduction REAL NOT NULL DEFAULT 0,
@@ -187,6 +191,30 @@ ensureColumnExists(
   "employee_month_records",
   "withheld_tax",
   "withheld_tax REAL NOT NULL DEFAULT 0",
+);
+
+ensureColumnExists(
+  "employee_month_records",
+  "supplementary_salary_income",
+  "supplementary_salary_income REAL NOT NULL DEFAULT 0",
+);
+
+ensureColumnExists(
+  "employee_month_records",
+  "supplementary_withheld_tax_adjustment",
+  "supplementary_withheld_tax_adjustment REAL NOT NULL DEFAULT 0",
+);
+
+ensureColumnExists(
+  "employee_month_records",
+  "supplementary_source_period_label",
+  "supplementary_source_period_label TEXT DEFAULT ''",
+);
+
+ensureColumnExists(
+  "employee_month_records",
+  "supplementary_remark",
+  "supplementary_remark TEXT DEFAULT ''",
 );
 
 ensureColumnExists(

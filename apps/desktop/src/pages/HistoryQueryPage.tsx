@@ -21,6 +21,10 @@ import {
 } from "./history-query-export";
 import { buildHistoryQueryComparisonItems } from "./history-query-diff";
 import { buildHistoryQueryYearSummaries } from "./history-query-year-summary";
+import {
+  annualTaxWithholdingModeLabelMap,
+  buildAnnualTaxWithholdingExplanation,
+} from "./annual-tax-withholding-summary";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
@@ -226,6 +230,9 @@ export const HistoryQueryPage = () => {
     selectedResult && comparisonResult && selectedResult.isInvalidated
       ? buildHistoryQueryComparisonItems(selectedResult, comparisonResult)
       : [];
+  const selectedWithholdingExplanation = selectedResult
+    ? buildAnnualTaxWithholdingExplanation(selectedResult.withholdingSummary)
+    : null;
   const yearSummaries = useMemo(() => buildHistoryQueryYearSummaries(results), [results]);
 
   const selectedUnitName =
@@ -598,6 +605,12 @@ export const HistoryQueryPage = () => {
               <strong>{settlementDirectionLabelMap[selectedResult.settlementDirection]}</strong>
             </div>
             <div className="summary-card">
+              <span>预扣模式</span>
+              <strong>
+                {annualTaxWithholdingModeLabelMap[selectedResult.withholdingSummary.withholdingMode]}
+              </strong>
+            </div>
+            <div className="summary-card">
               <span>工资收入合计</span>
               <strong>{formatCurrency(selectedResult.salaryIncomeTotal)}</strong>
             </div>
@@ -612,6 +625,21 @@ export const HistoryQueryPage = () => {
             <p>左侧列表点击任意结果后，可在这里查看只读详情。</p>
           </div>
         )}
+
+        {selectedResult && selectedWithholdingExplanation ? (
+          <div className="subsection-block">
+            <h3>预扣规则说明</h3>
+            <div className="maintenance-note-card">
+              <strong>{selectedWithholdingExplanation.title}</strong>
+              <p>{selectedWithholdingExplanation.summary}</p>
+              <div className="validation-list compact-validation-list">
+                {selectedWithholdingExplanation.detailLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </article>
 
       <article className="glass-card page-section placeholder-card">

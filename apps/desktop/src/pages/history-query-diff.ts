@@ -4,6 +4,7 @@ import type {
   TaxCalculationScheme,
   TaxSettlementDirection,
 } from "../../../../packages/core/src/index";
+import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
 
 export type HistoryQueryComparisonItem = {
   label: string;
@@ -38,6 +39,15 @@ export const buildHistoryQueryComparisonItems = (
   snapshot: HistoryAnnualTaxResult,
   current: AnnualTaxCalculation,
 ): HistoryQueryComparisonItem[] => [
+  {
+    label: "预扣模式",
+    snapshotValue: annualTaxWithholdingModeLabelMap[snapshot.withholdingSummary.withholdingMode],
+    currentValue: annualTaxWithholdingModeLabelMap[current.withholdingSummary.withholdingMode],
+    deltaValue:
+      snapshot.withholdingSummary.withholdingMode === current.withholdingSummary.withholdingMode
+        ? "无变化"
+        : "已变化",
+  },
   {
     label: "采用方案",
     snapshotValue: schemeLabelMap[snapshot.selectedScheme],

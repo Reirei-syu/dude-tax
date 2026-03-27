@@ -531,3 +531,142 @@ test("does not create recalculation history when only switching selected scheme"
 
   await app.close();
 });
+
+test("重算接口支持传入预扣规则模式并写入结果快照", async () => {
+  const [{ registerCalculationRoutes }, { unitRepository }, { employeeRepository }, { monthRecordRepository }] =
+    await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "预扣模式重算测试单位",
+    remark: "",
+  });
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-WITHHOLD-001",
+    employeeName: "预扣模式员工",
+    idNumber: "110101199001010099",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthRecordRepository.upsert(
+    unit.id,
+    employee.id,
+    2026,
+    1,
+    createMonthRecordPayload({
+      salaryIncome: 10_000,
+      withheldTax: 0,
+    }),
+  );
+
+  const recalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {
+      withholdingContext: {
+        mode: "annual_60000_upfront",
+      },
+    },
+  });
+
+  assert.equal(recalculateResponse.statusCode, 200);
+
+  const resultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/annual-results`,
+  });
+
+  assert.equal(resultsResponse.statusCode, 200);
+  const results = resultsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(results.length, 1);
+  const withholdingSummary = results[0]?.withholdingSummary as Record<string, unknown>;
+  assert.equal(withholdingSummary.withholdingMode, "annual_60000_upfront");
+  assert.equal(withholdingSummary.expectedWithheldTaxTotal, 0);
+
+  await app.close();
+});
+
+test("跨单位前置月份会影响当前单位结果的预扣轨迹摘要", async () => {
+  const [{ registerCalculationRoutes }, { unitRepository }, { employeeRepository }, { monthRecordRepository }] =
+    await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+
+  const unitA = unitRepository.create({
+    unitName: "当前单位",
+    remark: "",
+  });
+  const unitB = unitRepository.create({
+    unitName: "前序单位",
+    remark: "",
+  });
+
+  const employeeA = employeeRepository.create(unitA.id, {
+    employeeCode: "EMP-BRIDGE-A",
+    employeeName: "跨单位员工",
+    idNumber: "110101199001010188",
+    hireDate: "2026-07-01",
+    leaveDate: null,
+    remark: "",
+  });
+  const employeeB = employeeRepository.create(unitB.id, {
+    employeeCode: "EMP-BRIDGE-B",
+    employeeName: "跨单位员工-前单位",
+    idNumber: "110101199001010188",
+    hireDate: "2026-01-01",
+    leaveDate: "2026-06-30",
+    remark: "",
+  });
+
+  for (let taxMonth = 1; taxMonth <= 6; taxMonth += 1) {
+    monthRecordRepository.upsert(
+      unitB.id,
+      employeeB.id,
+      2026,
+      taxMonth,
+      createMonthRecordPayload({
+        salaryIncome: 20_000,
+        withheldTax: 1_000,
+      }),
+    );
+  }
+
+  monthRecordRepository.upsert(
+    unitA.id,
+    employeeA.id,
+    2026,
+    7,
+    createMonthRecordPayload({
+      salaryIncome: 20_000,
+      withheldTax: 0,
+    }),
+  );
+
+  const recalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unitA.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  assert.equal(recalculateResponse.statusCode, 200);
+
+  const resultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unitA.id}/years/2026/annual-results`,
+  });
+
+  assert.equal(resultsResponse.statusCode, 200);
+  const results = resultsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(results.length, 1);
+  const withholdingSummary = results[0]?.withholdingSummary as Record<string, unknown>;
+  assert.equal(withholdingSummary.withholdingMode, "standard_cumulative");
+  assert.equal(withholdingSummary.expectedWithheldTaxTotal, 1500);
+  assert.equal(withholdingSummary.actualWithheldTaxTotal, 0);
+
+  await app.close();
+});

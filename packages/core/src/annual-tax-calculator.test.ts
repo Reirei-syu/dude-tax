@@ -359,6 +359,35 @@ test("上年收入不超过6万元模式可直接采用全年累计减除费用"
   assert.equal(trace.items[1]?.currentMonthWithholdingVariance, 200);
 });
 
+test("跨单位前置月份会参与当前月份累计预扣，但不并入当前摘要合计", () => {
+  const buildMonthlyWithholdingTrace = getWithholdingTraceBuilder();
+
+  const trace = buildMonthlyWithholdingTrace(
+    [
+      createMonthRecord(7, {
+        unitId: 1,
+        salaryIncome: 20_000,
+        withheldTax: 0,
+      }),
+    ],
+    {
+      carryInCompletedRecords: Array.from({ length: 6 }, (_, index) =>
+        createMonthRecord(index + 1, {
+          unitId: 2,
+          salaryIncome: 20_000,
+          withheldTax: 1_000,
+        }),
+      ),
+    },
+  );
+
+  assert.equal(trace.items.length, 1);
+  assert.equal(trace.items[0]?.taxMonth, 7);
+  assert.equal(trace.items[0]?.currentMonthExpectedWithheldTax, 1500);
+  assert.equal(trace.summary.expectedWithheldTaxTotal, 1500);
+  assert.equal(trace.summary.actualWithheldTaxTotal, 0);
+});
+
 test("补发补扣辅助函数会把补发收入和补扣税并入当月金额", () => {
   const getSalaryIncomeForWithholding = Reflect.get(
     coreModule,

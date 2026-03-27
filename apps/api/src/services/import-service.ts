@@ -35,6 +35,10 @@ const monthRecordTemplateHeader = [
   "unemploymentInsurance",
   "workInjuryInsurance",
   "withheldTax",
+  "supplementarySalaryIncome",
+  "supplementaryWithheldTaxAdjustment",
+  "supplementarySourcePeriodLabel",
+  "supplementaryRemark",
   "infantCareDeduction",
   "childEducationDeduction",
   "continuingEducationDeduction",
@@ -57,6 +61,8 @@ type NumericMonthRecordField =
   | "unemploymentInsurance"
   | "workInjuryInsurance"
   | "withheldTax"
+  | "supplementarySalaryIncome"
+  | "supplementaryWithheldTaxAdjustment"
   | "infantCareDeduction"
   | "childEducationDeduction"
   | "continuingEducationDeduction"
@@ -237,6 +243,8 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     "unemploymentInsurance",
     "workInjuryInsurance",
     "withheldTax",
+    "supplementarySalaryIncome",
+    "supplementaryWithheldTaxAdjustment",
     "infantCareDeduction",
     "childEducationDeduction",
     "continuingEducationDeduction",
@@ -259,6 +267,10 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     unemploymentInsurance: 0,
     workInjuryInsurance: 0,
     withheldTax: 0,
+    supplementarySalaryIncome: 0,
+    supplementaryWithheldTaxAdjustment: 0,
+    supplementarySourcePeriodLabel: String(parsedData.supplementarySourcePeriodLabel ?? "").trim(),
+    supplementaryRemark: String(parsedData.supplementaryRemark ?? "").trim(),
     infantCareDeduction: 0,
     childEducationDeduction: 0,
     continuingEducationDeduction: 0,
@@ -284,6 +296,14 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     }
     monthPayload[field] = nextValue;
   });
+
+  if ((monthPayload.supplementarySourcePeriodLabel ?? "").length > 100) {
+    errors.push("supplementarySourcePeriodLabel 不能超过 100 个字符");
+  }
+
+  if ((monthPayload.supplementaryRemark ?? "").length > 300) {
+    errors.push("supplementaryRemark 不能超过 300 个字符");
+  }
 
   return {
     errors,

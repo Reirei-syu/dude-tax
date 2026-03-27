@@ -76,7 +76,7 @@ const currentCalculation: AnnualTaxCalculation = {
   annualTaxSettlement: 400,
   settlementDirection: "payable",
   withholdingSummary: {
-    withholdingMode: "standard_cumulative",
+    withholdingMode: "annual_60000_upfront",
     expectedWithheldTaxTotal: 2000,
     actualWithheldTaxTotal: 2000,
     withholdingVariance: 0,
@@ -111,20 +111,26 @@ const currentCalculation: AnnualTaxCalculation = {
 test("历史结果差异对比包含方案、税额和扣除差异", () => {
   const items = buildHistoryQueryComparisonItems(snapshotResult, currentCalculation);
 
-  assert.equal(items.length, 7);
+  assert.equal(items.length, 8);
   assert.deepEqual(items[0], {
+    label: "预扣模式",
+    snapshotValue: "标准累计预扣",
+    currentValue: "6万元优化预扣",
+    deltaValue: "已变化",
+  });
+  assert.deepEqual(items[1], {
     label: "采用方案",
     snapshotValue: "年终奖单独计税",
     currentValue: "并入综合所得",
     deltaValue: "已变化",
   });
-  assert.deepEqual(items[1], {
+  assert.deepEqual(items[2], {
     label: "年度应纳税额",
     snapshotValue: "3,000.00",
     currentValue: "2,400.00",
     deltaValue: "-600.00",
   });
-  assert.deepEqual(items[5], {
+  assert.deepEqual(items[6], {
     label: "减除费用合计",
     snapshotValue: "60,000.00",
     currentValue: "72,000.00",

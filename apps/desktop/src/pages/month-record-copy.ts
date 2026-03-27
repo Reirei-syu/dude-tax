@@ -20,6 +20,8 @@ export const hasMonthRecordContent = (record: EmployeeMonthRecord | null) => {
     hasPositiveValue(record.unemploymentInsurance) ||
     hasPositiveValue(record.workInjuryInsurance) ||
     hasPositiveValue(record.withheldTax) ||
+    hasPositiveValue(record.supplementarySalaryIncome) ||
+    hasPositiveValue(record.supplementaryWithheldTaxAdjustment) ||
     hasPositiveValue(record.infantCareDeduction) ||
     hasPositiveValue(record.childEducationDeduction) ||
     hasPositiveValue(record.continuingEducationDeduction) ||
@@ -28,6 +30,8 @@ export const hasMonthRecordContent = (record: EmployeeMonthRecord | null) => {
     hasPositiveValue(record.elderCareDeduction) ||
     hasPositiveValue(record.otherDeduction) ||
     hasPositiveValue(record.taxReductionExemption) ||
+    Boolean(record.supplementarySourcePeriodLabel) ||
+    Boolean(record.supplementaryRemark) ||
     Boolean(record.remark)
   );
 };
@@ -46,6 +50,10 @@ export const buildCopiedMonthRecordPayload = (
   unemploymentInsurance: sourceRecord.unemploymentInsurance,
   workInjuryInsurance: sourceRecord.workInjuryInsurance,
   withheldTax: sourceRecord.withheldTax,
+  supplementarySalaryIncome: sourceRecord.supplementarySalaryIncome,
+  supplementaryWithheldTaxAdjustment: sourceRecord.supplementaryWithheldTaxAdjustment,
+  supplementarySourcePeriodLabel: sourceRecord.supplementarySourcePeriodLabel,
+  supplementaryRemark: sourceRecord.supplementaryRemark,
   infantCareDeduction: sourceRecord.infantCareDeduction,
   childEducationDeduction: sourceRecord.childEducationDeduction,
   continuingEducationDeduction: sourceRecord.continuingEducationDeduction,

@@ -46,6 +46,20 @@ export const employeeRepository = {
 
     return row ? mapRowToEmployee(row) : null;
   },
+  listByIdNumber(idNumber: string): Employee[] {
+    const rows = database
+      .prepare(
+        `
+          SELECT id, unit_id, employee_code, employee_name, id_number, hire_date, leave_date, remark, created_at, updated_at
+          FROM employees
+          WHERE id_number = ?
+          ORDER BY created_at ASC
+        `,
+      )
+      .all(idNumber.trim()) as Record<string, unknown>[];
+
+    return rows.map(mapRowToEmployee);
+  },
   create(unitId: number, payload: CreateEmployeePayload): Employee {
     const now = new Date().toISOString();
     const result = database

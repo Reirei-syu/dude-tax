@@ -27,7 +27,10 @@ import {
 import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
 import { buildAnnualTaxExportSelectionSummary } from "./annual-tax-export-template-manager";
 import { buildAnnualResultVersionComparisonItems } from "./annual-result-version-diff";
-import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
+import {
+  annualTaxWithholdingModeLabelMap,
+  buildAnnualTaxWithholdingExplanation,
+} from "./annual-tax-withholding-summary";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
@@ -128,6 +131,9 @@ export const AnnualResultsPage = () => {
     results.find((result) => result.employeeId === selectedEmployeeId) ?? results[0] ?? null;
   const selectedSchemeResult = selectedResult ? getSelectedSchemeResult(selectedResult) : null;
   const selectedExplanation = selectedResult ? buildAnnualTaxExplanation(selectedResult) : null;
+  const selectedWithholdingExplanation = selectedResult
+    ? buildAnnualTaxWithholdingExplanation(selectedResult.withholdingSummary)
+    : null;
   const selectedExportPreviewRow =
     exportPreviewRows.find((row) => row.employeeId === selectedEmployeeId) ??
     exportPreviewRows[0] ??
@@ -571,6 +577,21 @@ export const AnnualResultsPage = () => {
                   <strong>{selectedResult.withholdingSummary.traceCount}</strong>
                 </div>
               </div>
+            </div>
+
+            <div className="subsection-block">
+              <h3>预扣规则说明</h3>
+              {selectedWithholdingExplanation ? (
+                <div className="maintenance-note-card">
+                  <strong>{selectedWithholdingExplanation.title}</strong>
+                  <p>{selectedWithholdingExplanation.summary}</p>
+                  <div className="validation-list compact-validation-list">
+                    {selectedWithholdingExplanation.detailLines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="subsection-block">

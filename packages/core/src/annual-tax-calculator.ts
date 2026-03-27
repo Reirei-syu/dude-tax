@@ -106,6 +106,9 @@ export const buildMonthlyWithholdingTrace = (
   const completedRecords = [...records]
     .filter((record) => record.status === "completed")
     .sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
+  const carryInCompletedRecords = [...(context.carryInCompletedRecords ?? [])]
+    .filter((record) => record.status === "completed")
+    .sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
 
   if (!completedRecords.length) {
     throw new Error("当前员工暂无已完成月份，无法生成预扣预缴轨迹");
@@ -119,7 +122,13 @@ export const buildMonthlyWithholdingTrace = (
   let cumulativeTaxReductionExemption = 0;
   let previousCumulativeExpectedWithheldTax = 0;
 
-  const items = completedRecords.map((record, index) => {
+  const processedRecords = [
+    ...carryInCompletedRecords.map((record) => ({ record, isCarryIn: true })),
+    ...completedRecords.map((record) => ({ record, isCarryIn: false })),
+  ].sort((leftEntry, rightEntry) => leftEntry.record.taxMonth - rightEntry.record.taxMonth);
+
+  const items = processedRecords.flatMap((entry, index) => {
+    const { record, isCarryIn } = entry;
     cumulativeSalaryIncome = roundCurrency(
       cumulativeSalaryIncome + getSalaryIncomeForWithholding(record),
     );
@@ -167,6 +176,10 @@ export const buildMonthlyWithholdingTrace = (
 
     previousCumulativeExpectedWithheldTax = cumulativeExpectedWithheldTax;
 
+    if (isCarryIn) {
+      return [];
+    }
+
     const item: AnnualTaxWithholdingTraceItem = {
       taxMonth: record.taxMonth,
       withholdingMode: mode,
@@ -186,7 +199,7 @@ export const buildMonthlyWithholdingTrace = (
       ),
     };
 
-    return item;
+    return [item];
   });
 
   const expectedWithheldTaxTotal = roundCurrency(

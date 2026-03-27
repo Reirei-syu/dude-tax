@@ -22,6 +22,10 @@ const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord 
   unemploymentInsurance: Number(row.unemployment_insurance),
   workInjuryInsurance: Number(row.work_injury_insurance),
   withheldTax: Number(row.withheld_tax ?? 0),
+  supplementarySalaryIncome: Number(row.supplementary_salary_income ?? 0),
+  supplementaryWithheldTaxAdjustment: Number(row.supplementary_withheld_tax_adjustment ?? 0),
+  supplementarySourcePeriodLabel: String(row.supplementary_source_period_label ?? ""),
+  supplementaryRemark: String(row.supplementary_remark ?? ""),
   infantCareDeduction: Number(row.infant_care_deduction),
   childEducationDeduction: Number(row.child_education_deduction),
   continuingEducationDeduction: Number(row.continuing_education_deduction),
@@ -57,6 +61,10 @@ const createDefaultMonthRecord = (
   unemploymentInsurance: 0,
   workInjuryInsurance: 0,
   withheldTax: 0,
+  supplementarySalaryIncome: 0,
+  supplementaryWithheldTaxAdjustment: 0,
+  supplementarySourcePeriodLabel: "",
+  supplementaryRemark: "",
   infantCareDeduction: 0,
   childEducationDeduction: 0,
   continuingEducationDeduction: 0,
@@ -81,6 +89,8 @@ const numericFields = [
   "unemploymentInsurance",
   "workInjuryInsurance",
   "withheldTax",
+  "supplementarySalaryIncome",
+  "supplementaryWithheldTaxAdjustment",
   "infantCareDeduction",
   "childEducationDeduction",
   "continuingEducationDeduction",
@@ -92,6 +102,30 @@ const numericFields = [
 ] as const;
 
 export const monthRecordRepository = {
+  listCompletedByEmployeeIdsAndYear(
+    employeeIds: number[],
+    taxYear: number,
+  ): EmployeeMonthRecord[] {
+    if (!employeeIds.length) {
+      return [];
+    }
+
+    const placeholders = employeeIds.map(() => "?").join(", ");
+    const rows = database
+      .prepare(
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE tax_year = ?
+            AND status = 'completed'
+            AND employee_id IN (${placeholders})
+          ORDER BY tax_month ASC, created_at ASC
+        `,
+      )
+      .all(taxYear, ...employeeIds) as Record<string, unknown>[];
+
+    return rows.map(mapRowToMonthRecord);
+  },
   listByEmployeeAndYear(unitId: number, employeeId: number, taxYear: number): EmployeeMonthRecord[] {
     const rows = database
       .prepare(
@@ -123,7 +157,9 @@ export const monthRecordRepository = {
     payload: UpsertEmployeeMonthRecordPayload,
   ): EmployeeMonthRecord {
     const now = new Date().toISOString();
-    const values = numericFields.map((field) => payload[field]);
+    const values = numericFields.map((field) => payload[field] ?? 0);
+    const supplementarySourcePeriodLabel = payload.supplementarySourcePeriodLabel?.trim() ?? "";
+    const supplementaryRemark = payload.supplementaryRemark?.trim() ?? "";
 
     database
       .prepare(
@@ -144,6 +180,8 @@ export const monthRecordRepository = {
             unemployment_insurance,
             work_injury_insurance,
             withheld_tax,
+            supplementary_salary_income,
+            supplementary_withheld_tax_adjustment,
             infant_care_deduction,
             child_education_deduction,
             continuing_education_deduction,
@@ -153,10 +191,12 @@ export const monthRecordRepository = {
             other_deduction,
             tax_reduction_exemption,
             remark,
+            supplementary_source_period_label,
+            supplementary_remark,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(unit_id, employee_id, tax_year, tax_month) DO UPDATE SET
             status = excluded.status,
             salary_income = excluded.salary_income,
@@ -169,6 +209,8 @@ export const monthRecordRepository = {
             unemployment_insurance = excluded.unemployment_insurance,
             work_injury_insurance = excluded.work_injury_insurance,
             withheld_tax = excluded.withheld_tax,
+            supplementary_salary_income = excluded.supplementary_salary_income,
+            supplementary_withheld_tax_adjustment = excluded.supplementary_withheld_tax_adjustment,
             infant_care_deduction = excluded.infant_care_deduction,
             child_education_deduction = excluded.child_education_deduction,
             continuing_education_deduction = excluded.continuing_education_deduction,
@@ -178,6 +220,8 @@ export const monthRecordRepository = {
             other_deduction = excluded.other_deduction,
             tax_reduction_exemption = excluded.tax_reduction_exemption,
             remark = excluded.remark,
+            supplementary_source_period_label = excluded.supplementary_source_period_label,
+            supplementary_remark = excluded.supplementary_remark,
             updated_at = excluded.updated_at
         `,
       )
@@ -189,6 +233,8 @@ export const monthRecordRepository = {
         payload.status,
         ...values,
         payload.remark?.trim() ?? "",
+        supplementarySourcePeriodLabel,
+        supplementaryRemark,
         now,
         now,
       );

@@ -3,36 +3,21 @@ import {
 } from "../../../../packages/config/src/index";
 import type {
   AnnualTaxCalculation,
+  AnnualTaxWithholdingMode,
   QuickCalculateMonthInput,
   QuickCalculatePayload,
 } from "../../../../packages/core/src/index";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
-
-const emptyQuickCalcRecord = (taxMonth: number): QuickCalculateMonthInput => ({
-  taxMonth,
-  status: "incomplete",
-  salaryIncome: 0,
-  annualBonus: 0,
-  pensionInsurance: 0,
-  medicalInsurance: 0,
-  occupationalAnnuity: 0,
-  housingFund: 0,
-  supplementaryHousingFund: 0,
-  unemploymentInsurance: 0,
-  workInjuryInsurance: 0,
-  withheldTax: 0,
-  infantCareDeduction: 0,
-  childEducationDeduction: 0,
-  continuingEducationDeduction: 0,
-  housingLoanInterestDeduction: 0,
-  housingRentDeduction: 0,
-  elderCareDeduction: 0,
-  otherDeduction: 0,
-  taxReductionExemption: 0,
-  remark: "",
-});
+import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
+import {
+  applyQuickCalcTemplateToMonths,
+  clearQuickCalcMonths,
+  createDefaultQuickCalcRecords,
+  createEmptyQuickCalcRecord,
+  toggleQuickCalcTemplateMonthSelection,
+} from "./quick-calculate-template";
 
 const insuranceFields = [
   { key: "pensionInsurance", label: "养老保险" },
@@ -55,9 +40,6 @@ const specialDeductionFields = [
   { key: "taxReductionExemption", label: "减免税额" },
 ] as const;
 
-const createDefaultRecords = () =>
-  Array.from({ length: 12 }, (_, index) => emptyQuickCalcRecord(index + 1));
-
 const parseCurrencyValue = (value: string) => {
   const nextValue = Number(value);
   if (Number.isNaN(nextValue) || nextValue < 0) {
@@ -73,14 +55,18 @@ export const QuickCalculatePage = () => {
   const currentTaxYear = context?.currentTaxYear ?? null;
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
-  const [records, setRecords] = useState<QuickCalculateMonthInput[]>(createDefaultRecords);
+  const [records, setRecords] = useState<QuickCalculateMonthInput[]>(createDefaultQuickCalcRecords);
+  const [selectedTemplateMonths, setSelectedTemplateMonths] = useState<number[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(1);
+  const [withholdingMode, setWithholdingMode] = useState<AnnualTaxWithholdingMode>("standard_cumulative");
   const [result, setResult] = useState<AnnualTaxCalculation | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedRecord = useMemo(
-    () => records.find((record) => record.taxMonth === selectedMonth) ?? emptyQuickCalcRecord(selectedMonth),
+    () =>
+      records.find((record) => record.taxMonth === selectedMonth) ??
+      createEmptyQuickCalcRecord(selectedMonth),
     [records, selectedMonth],
   );
 
@@ -111,6 +97,9 @@ export const QuickCalculatePage = () => {
         unitId: currentUnitId,
         taxYear: currentTaxYear,
         records,
+        withholdingContext: {
+          mode: withholdingMode,
+        },
       };
       const nextResult = await apiClient.quickCalculate(payload) as AnnualTaxCalculation;
       setResult(nextResult);
@@ -123,10 +112,42 @@ export const QuickCalculatePage = () => {
   };
 
   const resetQuickCalculate = () => {
-    setRecords(createDefaultRecords());
+    setRecords(createDefaultQuickCalcRecords());
+    setSelectedTemplateMonths([]);
     setSelectedMonth(1);
     setResult(null);
     setErrorMessage(null);
+  };
+
+  const applyCurrentMonthAsTemplate = () => {
+    if (!selectedTemplateMonths.length) {
+      setErrorMessage("请先选择需要套用模板的月份");
+      return;
+    }
+
+    setErrorMessage(null);
+    setRecords((currentRecords) =>
+      applyQuickCalcTemplateToMonths(currentRecords, selectedTemplateMonths, selectedRecord),
+    );
+  };
+
+  const applyCurrentMonthToFullYear = () => {
+    const targetMonths = records.map((record) => record.taxMonth);
+    setErrorMessage(null);
+    setSelectedTemplateMonths(targetMonths);
+    setRecords((currentRecords) =>
+      applyQuickCalcTemplateToMonths(currentRecords, targetMonths, selectedRecord),
+    );
+  };
+
+  const clearSelectedTemplateMonths = () => {
+    if (!selectedTemplateMonths.length) {
+      setErrorMessage("请先选择需要清空的月份");
+      return;
+    }
+
+    setErrorMessage(null);
+    setRecords((currentRecords) => clearQuickCalcMonths(currentRecords, selectedTemplateMonths));
   };
 
   if (!currentUnitId || !currentTaxYear) {
@@ -151,6 +172,28 @@ export const QuickCalculatePage = () => {
             </p>
           </div>
           <span className="tag">不落库测算</span>
+        </div>
+
+        <div className="form-grid">
+          <label className="form-field">
+            <span>预扣规则模式</span>
+            <select
+              value={withholdingMode}
+              onChange={(event) =>
+                setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
+              }
+            >
+              {(
+                Object.entries(annualTaxWithholdingModeLabelMap) as Array<
+                  [AnnualTaxWithholdingMode, string]
+                >
+              ).map(([mode, label]) => (
+                <option key={mode} value={mode}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="year-view-grid">
@@ -183,6 +226,54 @@ export const QuickCalculatePage = () => {
               ))}
             </div>
           </section>
+        </div>
+
+        <div className="batch-edit-panel">
+          <div className="section-header">
+            <div>
+              <h3>模板化输入</h3>
+              <p>可将当前月份表单作为临时模板，批量套用到所选月份或全年，不会写入正式月度记录。</p>
+            </div>
+            <span className="tag tag-neutral">已选 {selectedTemplateMonths.length} 个月</span>
+          </div>
+
+          <div className="batch-month-grid">
+            {records.map((record) => {
+              const isSelected = selectedTemplateMonths.includes(record.taxMonth);
+              return (
+                <label
+                  className={isSelected ? "batch-month-item selected-item" : "batch-month-item"}
+                  key={`template-${record.taxMonth}`}
+                >
+                  <input
+                    checked={isSelected}
+                    type="checkbox"
+                    onChange={() =>
+                      setSelectedTemplateMonths((currentMonths) =>
+                        toggleQuickCalcTemplateMonthSelection(currentMonths, record.taxMonth),
+                      )
+                    }
+                  />
+                  <div className="batch-month-label">
+                    <span>{record.taxMonth} 月</span>
+                    <small>{record.status === "completed" ? "已录入" : "未录入"}</small>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="button-row compact">
+            <button className="ghost-button" disabled={submitting} onClick={applyCurrentMonthAsTemplate}>
+              套用当前月为模板
+            </button>
+            <button className="ghost-button" disabled={submitting} onClick={applyCurrentMonthToFullYear}>
+              套用到全年
+            </button>
+            <button className="ghost-button" disabled={submitting} onClick={clearSelectedTemplateMonths}>
+              清空所选月份
+            </button>
+          </div>
         </div>
       </article>
 
@@ -240,6 +331,65 @@ export const QuickCalculatePage = () => {
               onChange={(event) => updateNumericField("withheldTax", event.target.value)}
             />
           </label>
+        </div>
+
+        <div className="subsection-block">
+          <h3>补发补扣调整</h3>
+          <p className="field-hint">
+            仅记录“支付当月补发 / 补扣”的临时测算值，不等同于往期更正申报。
+          </p>
+          <div className="form-grid">
+            <label className="form-field">
+              <span>补发收入</span>
+              <input
+                min="0"
+                step="0.01"
+                type="number"
+                value={selectedRecord.supplementarySalaryIncome ?? 0}
+                onChange={(event) =>
+                  updateNumericField("supplementarySalaryIncome", event.target.value)
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>补扣税调整</span>
+              <input
+                min="0"
+                step="0.01"
+                type="number"
+                value={selectedRecord.supplementaryWithheldTaxAdjustment ?? 0}
+                onChange={(event) =>
+                  updateNumericField("supplementaryWithheldTaxAdjustment", event.target.value)
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>补发所属期间</span>
+              <input
+                maxLength={100}
+                placeholder="例如：2026-01"
+                value={selectedRecord.supplementarySourcePeriodLabel ?? ""}
+                onChange={(event) =>
+                  updateRecord(selectedMonth, {
+                    supplementarySourcePeriodLabel: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="form-field">
+              <span>补发备注</span>
+              <input
+                maxLength={300}
+                placeholder="例如：补发绩效差额"
+                value={selectedRecord.supplementaryRemark ?? ""}
+                onChange={(event) =>
+                  updateRecord(selectedMonth, {
+                    supplementaryRemark: event.target.value,
+                  })
+                }
+              />
+            </label>
+          </div>
         </div>
 
         <div className="subsection-block">
@@ -302,6 +452,12 @@ export const QuickCalculatePage = () => {
           <div className="subsection-block">
             <h3>试算结果</h3>
             <div className="summary-grid results-summary-grid">
+              <div className="summary-card">
+                <span>预扣模式</span>
+                <strong>
+                  {annualTaxWithholdingModeLabelMap[result.withholdingSummary.withholdingMode]}
+                </strong>
+              </div>
               <div className="summary-card">
                 <span>采用方案</span>
                 <strong>{result.selectedScheme === "separate_bonus" ? "年终奖单独计税" : "并入综合所得"}</strong>

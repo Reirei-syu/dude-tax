@@ -140,6 +140,7 @@ export type AnnualTaxWithholdingContext = {
   mode?: AnnualTaxWithholdingMode | "auto";
   previousYearIncomeUnder60k?: boolean;
   firstSalaryMonthInYear?: number | null;
+  carryInCompletedRecords?: EmployeeMonthRecord[];
 };
 
 export type AnnualTaxWithholdingTraceItem = {
@@ -259,6 +260,7 @@ export type QuickCalculatePayload = {
   unitId: number;
   taxYear: number;
   records: QuickCalculateMonthInput[];
+  withholdingContext?: AnnualTaxWithholdingContext;
 };
 
 export type ImportType = "employee" | "month_record";

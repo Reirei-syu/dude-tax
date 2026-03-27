@@ -36,6 +36,10 @@ const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
   unemploymentInsurance: 0,
   workInjuryInsurance: 0,
   withheldTax: 0,
+  supplementarySalaryIncome: 0,
+  supplementaryWithheldTaxAdjustment: 0,
+  supplementarySourcePeriodLabel: "",
+  supplementaryRemark: "",
   infantCareDeduction: 0,
   childEducationDeduction: 0,
   continuingEducationDeduction: 0,
@@ -91,6 +95,10 @@ const toMonthRecordPayload = (
   unemploymentInsurance: record?.unemploymentInsurance ?? 0,
   workInjuryInsurance: record?.workInjuryInsurance ?? 0,
   withheldTax: record?.withheldTax ?? 0,
+  supplementarySalaryIncome: record?.supplementarySalaryIncome ?? 0,
+  supplementaryWithheldTaxAdjustment: record?.supplementaryWithheldTaxAdjustment ?? 0,
+  supplementarySourcePeriodLabel: record?.supplementarySourcePeriodLabel ?? "",
+  supplementaryRemark: record?.supplementaryRemark ?? "",
   infantCareDeduction: record?.infantCareDeduction ?? 0,
   childEducationDeduction: record?.childEducationDeduction ?? 0,
   continuingEducationDeduction: record?.continuingEducationDeduction ?? 0,
@@ -630,6 +638,65 @@ export const MonthRecordEntryPage = () => {
                   onChange={(event) => updateNumericField("withheldTax", event.target.value)}
                 />
               </label>
+            </div>
+
+            <div className="subsection-block">
+              <h3>补发补扣调整</h3>
+              <p className="field-hint">
+                仅记录“支付当月补发 / 补扣”的金额与说明，不等同于往期更正申报。
+              </p>
+              <div className="form-grid">
+                <label className="form-field">
+                  <span>补发收入</span>
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={form.supplementarySalaryIncome ?? 0}
+                    onChange={(event) => updateNumericField("supplementarySalaryIncome", event.target.value)}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>补扣税调整</span>
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={form.supplementaryWithheldTaxAdjustment ?? 0}
+                    onChange={(event) =>
+                      updateNumericField("supplementaryWithheldTaxAdjustment", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="form-field">
+                  <span>补发所属期间</span>
+                  <input
+                    maxLength={100}
+                    placeholder="例如：2026-01"
+                    value={form.supplementarySourcePeriodLabel ?? ""}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        supplementarySourcePeriodLabel: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="form-field">
+                  <span>补发备注</span>
+                  <input
+                    maxLength={300}
+                    placeholder="例如：补发绩效差额"
+                    value={form.supplementaryRemark ?? ""}
+                    onChange={(event) =>
+                      setForm((currentForm) => ({
+                        ...currentForm,
+                        supplementaryRemark: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="subsection-block">

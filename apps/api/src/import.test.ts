@@ -166,7 +166,7 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
       importType: "month_record",
       unitId: unit.id,
       csvText:
-        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP100,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,覆盖导入",
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,supplementarySalaryIncome,supplementaryWithheldTaxAdjustment,supplementarySourcePeriodLabel,supplementaryRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP100,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,2500,80,2026-01,补发绩效,0,0,0,0,0,0,0,0,覆盖导入",
       conflictStrategy: "overwrite",
     },
   });
@@ -185,6 +185,10 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
   const firstMonthRecord = records.find((record) => record.taxMonth === 1);
   assert.equal(firstMonthRecord?.salaryIncome, 8000);
   assert.equal(firstMonthRecord?.withheldTax, 100);
+  assert.equal(firstMonthRecord?.supplementarySalaryIncome, 2500);
+  assert.equal(firstMonthRecord?.supplementaryWithheldTaxAdjustment, 80);
+  assert.equal(firstMonthRecord?.supplementarySourcePeriodLabel, "2026-01");
+  assert.equal(firstMonthRecord?.supplementaryRemark, "补发绩效");
   assert.equal(firstMonthRecord?.remark, "覆盖导入");
 
   await app.close();
@@ -250,7 +254,7 @@ test("月度导入预览会限制在当前年份作用域内", async () => {
       unitId: unit.id,
       scopeTaxYear: 2026,
       csvText:
-        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP200,2025,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,跨年导入",
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,supplementarySalaryIncome,supplementaryWithheldTaxAdjustment,supplementarySourcePeriodLabel,supplementaryRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP200,2025,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,,,0,0,0,0,0,0,0,0,跨年导入",
     },
   });
 
@@ -292,7 +296,7 @@ test("月度导入预览可识别同一文件内重复月份记录", async () =>
       unitId: unit.id,
       scopeTaxYear: 2026,
       csvText:
-        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP300,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,首次导入\nEMP300,2026,1,completed,9000,0,0,0,0,0,0,0,0,120,0,0,0,0,0,0,0,0,重复导入",
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,supplementarySalaryIncome,supplementaryWithheldTaxAdjustment,supplementarySourcePeriodLabel,supplementaryRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP300,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,,,0,0,0,0,0,0,0,0,首次导入\nEMP300,2026,1,completed,9000,0,0,0,0,0,0,0,0,120,0,0,,,0,0,0,0,0,0,0,0,重复导入",
     },
   });
 

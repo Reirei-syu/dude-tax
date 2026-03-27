@@ -42,6 +42,8 @@ test("月度预览会保留关键字段并折叠零值字段", () => {
       salaryIncome: "8000",
       annualBonus: "0",
       withheldTax: "100",
+      supplementarySalaryIncome: "2500",
+      supplementarySourcePeriodLabel: "2026-01",
       pensionInsurance: "0",
       remark: "",
     },
@@ -52,5 +54,6 @@ test("月度预览会保留关键字段并折叠零值字段", () => {
   assert.equal(detail.primaryText, "EMP200 / 2026 年 / 1 月");
   assert.equal(detail.secondaryText, "已完成");
   assert.equal(detail.fields.some((field) => field.label === "工资收入"), true);
+  assert.equal(detail.fields.some((field) => field.label === "补发收入"), true);
   assert.equal(detail.fields.some((field) => field.label === "年终奖"), false);
 });

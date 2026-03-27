@@ -1,7 +1,11 @@
-﻿import type { EmployeeCalculationStatus } from "../../../../packages/core/src/index";
+import type {
+  AnnualTaxWithholdingMode,
+  EmployeeCalculationStatus,
+} from "../../../../packages/core/src/index";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
 
 const statusLabelMap: Record<EmployeeCalculationStatus["preparationStatus"], string> = {
   not_started: "未开始",
@@ -24,6 +28,7 @@ export const CalculationCenterPage = () => {
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
   const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
+  const [withholdingMode, setWithholdingMode] = useState<AnnualTaxWithholdingMode>("standard_cumulative");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState<number | "all" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,7 +74,14 @@ export const CalculationCenterPage = () => {
     try {
       setSubmitting(employeeId ?? "all");
       setErrorMessage(null);
-      const nextStatuses = await apiClient.recalculateStatuses(currentUnitId, currentTaxYear, employeeId);
+      const nextStatuses = await apiClient.recalculateStatuses(
+        currentUnitId,
+        currentTaxYear,
+        employeeId,
+        {
+          mode: withholdingMode,
+        },
+      );
       setStatuses(nextStatuses);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "执行重算失败");
@@ -121,6 +133,28 @@ export const CalculationCenterPage = () => {
           </div>
         </div>
 
+        <div className="form-grid">
+          <label className="form-field">
+            <span>预扣规则模式</span>
+            <select
+              value={withholdingMode}
+              onChange={(event) =>
+                setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
+              }
+            >
+              {(
+                Object.entries(annualTaxWithholdingModeLabelMap) as Array<
+                  [AnnualTaxWithholdingMode, string]
+                >
+              ).map(([mode, label]) => (
+                <option key={mode} value={mode}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <div className="button-row">
           <button className="ghost-button" disabled={loading} onClick={() => void loadStatuses()}>
             刷新状态
@@ -141,7 +175,7 @@ export const CalculationCenterPage = () => {
         <div className="section-header">
           <div>
             <h2>员工计算准备状态</h2>
-            <p>只有“可计算”员工可执行重算；若税率已变更，会显示“需按新税率重算”。</p>
+            <p>只有“可计算”员工可执行重算；本次重算会带上当前选择的预扣规则模式。</p>
           </div>
           <span className="tag">{loading ? "加载中" : "已同步"}</span>
         </div>
@@ -194,4 +228,3 @@ export const CalculationCenterPage = () => {
     </section>
   );
 };
-
