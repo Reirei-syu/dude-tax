@@ -1,5 +1,6 @@
 ﻿import type {
   AnnualTaxExportPreviewRow,
+  AnnualTaxResultVersion,
   AnnualTaxSchemeResult,
   EmployeeCalculationStatus,
   EmployeeAnnualTaxResult,
@@ -42,6 +43,11 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("zh-CN", {
+    hour12: false,
+  });
+
 const getSelectedSchemeResult = (result: EmployeeAnnualTaxResult): AnnualTaxSchemeResult =>
   result.selectedScheme === "separate_bonus"
     ? result.schemeResults.separateBonus
@@ -54,11 +60,14 @@ export const AnnualResultsPage = () => {
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
   const [results, setResults] = useState<EmployeeAnnualTaxResult[]>([]);
+  const [resultVersions, setResultVersions] = useState<AnnualTaxResultVersion[]>([]);
   const [exportPreviewRows, setExportPreviewRows] = useState<AnnualTaxExportPreviewRow[]>([]);
   const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  const [versionLoading, setVersionLoading] = useState(false);
   const [switchingScheme, setSwitchingScheme] = useState<TaxCalculationScheme | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [versionErrorMessage, setVersionErrorMessage] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [selectedExportTemplateId, setSelectedExportTemplateId] = useState<
     AnnualTaxExportTemplateId | "custom"
@@ -116,6 +125,34 @@ export const AnnualResultsPage = () => {
     exportPreviewRows.find((row) => row.employeeId === selectedEmployeeId) ??
     exportPreviewRows[0] ??
     null;
+
+  useEffect(() => {
+    const loadResultVersions = async () => {
+      if (!currentUnitId || !currentTaxYear || !selectedResult) {
+        setResultVersions([]);
+        setVersionErrorMessage(null);
+        return;
+      }
+
+      try {
+        setVersionLoading(true);
+        setVersionErrorMessage(null);
+        const nextVersions = await apiClient.listAnnualResultVersions(
+          currentUnitId,
+          currentTaxYear,
+          selectedResult.employeeId,
+        );
+        setResultVersions(nextVersions);
+      } catch (error) {
+        setResultVersions([]);
+        setVersionErrorMessage(error instanceof Error ? error.message : "加载版本历史失败");
+      } finally {
+        setVersionLoading(false);
+      }
+    };
+
+    void loadResultVersions();
+  }, [currentTaxYear, currentUnitId, selectedResult]);
 
   const switchSelectedScheme = async (selectedScheme: TaxCalculationScheme) => {
     if (!currentUnitId || !currentTaxYear || !selectedResult) {
@@ -447,6 +484,51 @@ export const AnnualResultsPage = () => {
                   </div>
                 </div>
               ) : null}
+            </div>
+
+            <div className="subsection-block">
+              <h3>历史版本查看</h3>
+              {versionErrorMessage ? <div className="error-banner">{versionErrorMessage}</div> : null}
+
+              {resultVersions.length ? (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>版本</th>
+                      <th>重算时间</th>
+                      <th>结果状态</th>
+                      <th>当前方案</th>
+                      <th>年度应纳税额</th>
+                      <th>应补/应退</th>
+                      <th>结算方向</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultVersions.map((version) => (
+                      <tr key={version.versionId}>
+                        <td>V{version.versionSequence}</td>
+                        <td>{formatDateTime(version.calculatedAt)}</td>
+                        <td>
+                          {version.isInvalidated ? (
+                            <span className="tag tag-warning">已失效</span>
+                          ) : (
+                            <span className="tag">当前有效</span>
+                          )}
+                        </td>
+                        <td>{schemeLabelMap[version.selectedScheme]}</td>
+                        <td>{formatCurrency(version.annualTaxPayable)}</td>
+                        <td>{formatCurrency(version.annualTaxSettlement)}</td>
+                        <td>{settlementDirectionLabelMap[version.settlementDirection]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="empty-state">
+                  <strong>{versionLoading ? "版本历史加载中。" : "当前还没有可查看的历史版本。"}</strong>
+                  <p>这里只记录真实重算形成的版本快照，手动方案切换不会单独生成新版本。</p>
+                </div>
+              )}
             </div>
 
             <div className="subsection-block">
