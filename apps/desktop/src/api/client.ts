@@ -163,12 +163,13 @@ export const apiClient = {
       return response.text();
     });
   },
-  previewImport(importType: ImportType, unitId: number, csvText: string) {
+  previewImport(importType: ImportType, unitId: number, csvText: string, scopeTaxYear?: number) {
     return request<ImportPreviewResponse>("/api/import/preview", {
       method: "POST",
       body: JSON.stringify({
         importType,
         unitId,
+        scopeTaxYear,
         csvText,
       }),
     });
@@ -178,12 +179,14 @@ export const apiClient = {
     unitId: number,
     csvText: string,
     conflictStrategy: ImportConflictStrategy,
+    scopeTaxYear?: number,
   ) {
     return request<ImportCommitResponse>("/api/import/commit", {
       method: "POST",
       body: JSON.stringify({
         importType,
         unitId,
+        scopeTaxYear,
         csvText,
         conflictStrategy,
       }),

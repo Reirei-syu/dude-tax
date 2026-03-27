@@ -189,3 +189,119 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
 
   await app.close();
 });
+
+test("预览接口可识别同一份员工 CSV 内的重复工号", async () => {
+  const [{ registerImportRoutes }, , , { unitRepository }] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "员工重复导入测试单位",
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/preview",
+    payload: {
+      importType: "employee",
+      unitId: unit.id,
+      csvText:
+        "employeeCode,employeeName,idNumber,hireDate,leaveDate,remark\nEMP009,张三,110101199001014444,,,\nEMP009,李四,110101199001015555,,,",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  const rows = body.rows as Array<Record<string, unknown>>;
+  assert.equal(body.errorRows, 1);
+  assert.equal(rows[1]?.status, "error");
+  assert.match(String((rows[1]?.errors as string[])[0]), /同一导入文件内工号重复/);
+
+  await app.close();
+});
+
+test("月度导入预览会限制在当前年份作用域内", async () => {
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "年份围栏测试单位",
+    remark: "",
+  });
+
+  employeeRepository.create(unit.id, {
+    employeeCode: "EMP200",
+    employeeName: "年份测试员工",
+    idNumber: "110101199001016666",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/preview",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      scopeTaxYear: 2026,
+      csvText:
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP200,2025,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,跨年导入",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  const rows = body.rows as Array<Record<string, unknown>>;
+  assert.equal(body.errorRows, 1);
+  assert.equal(rows[0]?.status, "error");
+  assert.match(String((rows[0]?.errors as string[])[0]), /当前年份/);
+
+  await app.close();
+});
+
+test("月度导入预览可识别同一文件内重复月份记录", async () => {
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "重复月份导入测试单位",
+    remark: "",
+  });
+
+  employeeRepository.create(unit.id, {
+    employeeCode: "EMP300",
+    employeeName: "重复月份员工",
+    idNumber: "110101199001017777",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/preview",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      scopeTaxYear: 2026,
+      csvText:
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP300,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,首次导入\nEMP300,2026,1,completed,9000,0,0,0,0,0,0,0,0,120,0,0,0,0,0,0,0,0,重复导入",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  const rows = body.rows as Array<Record<string, unknown>>;
+  assert.equal(body.errorRows, 1);
+  assert.equal(rows[1]?.status, "error");
+  assert.match(String((rows[1]?.errors as string[])[0]), /重复的员工年度月份记录/);
+
+  await app.close();
+});

@@ -8,6 +8,7 @@ const importTypeSchema = z.enum(["employee", "month_record"]);
 const importPreviewSchema = z.object({
   importType: importTypeSchema,
   unitId: z.number().int().positive(),
+  scopeTaxYear: z.number().int().min(2000).max(2100).optional(),
   csvText: z.string().min(1),
 });
 const importCommitSchema = importPreviewSchema.extend({
@@ -61,6 +62,7 @@ export const registerImportRoutes = async (app: FastifyInstance) => {
       parsedBody.data.importType,
       parsedBody.data.unitId,
       parsedBody.data.csvText,
+      parsedBody.data.scopeTaxYear,
     );
   });
 
@@ -83,6 +85,7 @@ export const registerImportRoutes = async (app: FastifyInstance) => {
       parsedBody.data.unitId,
       parsedBody.data.csvText,
       parsedBody.data.conflictStrategy,
+      parsedBody.data.scopeTaxYear,
     );
   });
 };

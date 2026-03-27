@@ -57,6 +57,25 @@ export const ImportPage = () => {
     }
   };
 
+  const handleCsvFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      setErrorMessage(null);
+      const fileText = await file.text();
+      setCsvText(fileText);
+      setPreview(null);
+      setCommitResult(null);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "读取文件失败");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   const previewImport = async () => {
     if (!currentUnitId) {
       setErrorMessage("请先选择单位");
@@ -67,7 +86,12 @@ export const ImportPage = () => {
       setPreviewing(true);
       setErrorMessage(null);
       setCommitResult(null);
-      const nextPreview = await apiClient.previewImport(importType, currentUnitId, csvText);
+      const nextPreview = await apiClient.previewImport(
+        importType,
+        currentUnitId,
+        csvText,
+        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
+      );
       setPreview(nextPreview);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "导入预览失败");
@@ -91,9 +115,15 @@ export const ImportPage = () => {
         currentUnitId,
         csvText,
         conflictStrategy,
+        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
       );
       setCommitResult(nextCommitResult);
-      const nextPreview = await apiClient.previewImport(importType, currentUnitId, csvText);
+      const nextPreview = await apiClient.previewImport(
+        importType,
+        currentUnitId,
+        csvText,
+        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
+      );
       setPreview(nextPreview);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "执行导入失败");
@@ -147,6 +177,11 @@ export const ImportPage = () => {
             value={csvText}
             onChange={(event) => setCsvText(event.target.value)}
           />
+        </label>
+
+        <label className="form-field">
+          <span>CSV 文件</span>
+          <input accept=".csv,text/csv" type="file" onChange={(event) => void handleCsvFileSelect(event)} />
         </label>
 
         <div className="button-row">

@@ -346,16 +346,45 @@ export const importService = {
   getTemplate(importType: ImportType) {
     return buildTemplate(importType);
   },
-  preview(importType: ImportType, unitId: number, csvText: string): ImportPreviewResponse {
+  preview(importType: ImportType, unitId: number, csvText: string, scopeTaxYear?: number): ImportPreviewResponse {
     const { headers, rows } = parseCsv(csvText);
+    const seenEmployeeCodes = new Set<string>();
+    const seenEmployeeIdNumbers = new Set<string>();
+    const seenMonthKeys = new Set<string>();
 
     const previewRows = rows.map((row) => {
       if (importType === "employee") {
         const { errors, payload, parsedData } = parseEmployeeRow(headers, row.values);
+        if (!errors.length) {
+          if (seenEmployeeCodes.has(payload.employeeCode)) {
+            errors.push("同一导入文件内工号重复");
+          } else {
+            seenEmployeeCodes.add(payload.employeeCode);
+          }
+
+          if (seenEmployeeIdNumbers.has(payload.idNumber)) {
+            errors.push("同一导入文件内证件号重复");
+          } else {
+            seenEmployeeIdNumbers.add(payload.idNumber);
+          }
+        }
         return buildEmployeePreviewRow(unitId, row.rowNumber, payload, errors, parsedData);
       }
 
       const { errors, payload, parsedData } = parseMonthRecordRow(headers, row.values);
+      if (!errors.length && scopeTaxYear && payload.taxYear !== scopeTaxYear) {
+        errors.push(`当前年份为 ${scopeTaxYear}，仅允许导入该年度月度数据`);
+      }
+
+      if (!errors.length) {
+        const monthKey = `${payload.employeeCode}:${payload.taxYear}:${payload.taxMonth}`;
+        if (seenMonthKeys.has(monthKey)) {
+          errors.push("同一导入文件内存在重复的员工年度月份记录");
+        } else {
+          seenMonthKeys.add(monthKey);
+        }
+      }
+
       return buildMonthRecordPreviewRow(unitId, row.rowNumber, payload, errors, parsedData);
     });
 
@@ -368,8 +397,9 @@ export const importService = {
     unitId: number,
     csvText: string,
     conflictStrategy: ImportConflictStrategy,
+    scopeTaxYear?: number,
   ): ImportCommitResponse {
-    const preview = this.preview(importType, unitId, csvText);
+    const preview = this.preview(importType, unitId, csvText, scopeTaxYear);
     const failures: ImportCommitResponse["failures"] = [];
     let successCount = 0;
     let skippedCount = 0;
@@ -481,7 +511,7 @@ export const importService = {
       failures,
     };
 
-    const latestPreview = this.preview(importType, unitId, csvText);
+    const latestPreview = this.preview(importType, unitId, csvText, scopeTaxYear);
     importSummaryRepository.savePreview(unitId, importType, latestPreview);
 
     return result;
