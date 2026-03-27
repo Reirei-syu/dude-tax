@@ -45,6 +45,24 @@ const getSpecialAdditionalDeductionTotal = (record: EmployeeMonthRecord) =>
   record.housingRentDeduction +
   record.elderCareDeduction;
 
+const getSupplementarySalaryIncome = (record: EmployeeMonthRecord) =>
+  roundCurrency(record.supplementarySalaryIncome ?? 0);
+
+const getSupplementaryWithheldTaxAdjustment = (record: EmployeeMonthRecord) =>
+  roundCurrency(record.supplementaryWithheldTaxAdjustment ?? 0);
+
+export const getSalaryIncomeForWithholding = (record: EmployeeMonthRecord) =>
+  roundCurrency(record.salaryIncome + getSupplementarySalaryIncome(record));
+
+export const getActualWithheldTaxForWithholding = (record: EmployeeMonthRecord) =>
+  roundCurrency(record.withheldTax + getSupplementaryWithheldTaxAdjustment(record));
+
+export const hasSupplementaryAdjustments = (record: EmployeeMonthRecord) =>
+  getSupplementarySalaryIncome(record) !== 0 ||
+  getSupplementaryWithheldTaxAdjustment(record) !== 0 ||
+  Boolean(record.supplementarySourcePeriodLabel?.trim()) ||
+  Boolean(record.supplementaryRemark?.trim());
+
 const resolveWithholdingMode = (
   context: AnnualTaxWithholdingContext,
 ): AnnualTaxWithholdingMode => {

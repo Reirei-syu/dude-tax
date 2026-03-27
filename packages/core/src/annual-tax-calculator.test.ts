@@ -55,6 +55,9 @@ const getCalculator = () => {
 test("导出年度个税计算函数", () => {
   assert.equal(typeof Reflect.get(coreModule, "calculateEmployeeAnnualTax"), "function");
   assert.equal(typeof Reflect.get(coreModule, "buildMonthlyWithholdingTrace"), "function");
+  assert.equal(typeof Reflect.get(coreModule, "getSalaryIncomeForWithholding"), "function");
+  assert.equal(typeof Reflect.get(coreModule, "getActualWithheldTaxForWithholding"), "function");
+  assert.equal(typeof Reflect.get(coreModule, "hasSupplementaryAdjustments"), "function");
 });
 
 const getWithholdingTraceBuilder = () => {
@@ -354,5 +357,57 @@ test("上年收入不超过6万元模式可直接采用全年累计减除费用"
   assert.equal(trace.items[1]?.cumulativeBasicDeduction, 60_000);
   assert.equal(trace.items[1]?.currentMonthExpectedWithheldTax, 300);
   assert.equal(trace.items[1]?.currentMonthWithholdingVariance, 200);
+});
+
+test("补发补扣辅助函数会把补发收入和补扣税并入当月金额", () => {
+  const getSalaryIncomeForWithholding = Reflect.get(
+    coreModule,
+    "getSalaryIncomeForWithholding",
+  ) as (record: EmployeeMonthRecord) => number;
+  const getActualWithheldTaxForWithholding = Reflect.get(
+    coreModule,
+    "getActualWithheldTaxForWithholding",
+  ) as (record: EmployeeMonthRecord) => number;
+  const hasSupplementaryAdjustments = Reflect.get(
+    coreModule,
+    "hasSupplementaryAdjustments",
+  ) as (record: EmployeeMonthRecord) => boolean;
+
+  const record = createMonthRecord(3, {
+    salaryIncome: 10_000,
+    withheldTax: 300,
+    supplementarySalaryIncome: 2_500,
+    supplementaryWithheldTaxAdjustment: -50,
+    supplementarySourcePeriodLabel: "2026-01",
+    supplementaryRemark: "补发绩效差额",
+  });
+
+  assert.equal(getSalaryIncomeForWithholding(record), 12_500);
+  assert.equal(getActualWithheldTaxForWithholding(record), 250);
+  assert.equal(hasSupplementaryAdjustments(record), true);
+});
+
+test("未填写补发补扣字段时辅助函数保持兼容默认值", () => {
+  const getSalaryIncomeForWithholding = Reflect.get(
+    coreModule,
+    "getSalaryIncomeForWithholding",
+  ) as (record: EmployeeMonthRecord) => number;
+  const getActualWithheldTaxForWithholding = Reflect.get(
+    coreModule,
+    "getActualWithheldTaxForWithholding",
+  ) as (record: EmployeeMonthRecord) => number;
+  const hasSupplementaryAdjustments = Reflect.get(
+    coreModule,
+    "hasSupplementaryAdjustments",
+  ) as (record: EmployeeMonthRecord) => boolean;
+
+  const record = createMonthRecord(4, {
+    salaryIncome: 8_000,
+    withheldTax: 100,
+  });
+
+  assert.equal(getSalaryIncomeForWithholding(record), 8_000);
+  assert.equal(getActualWithheldTaxForWithholding(record), 100);
+  assert.equal(hasSupplementaryAdjustments(record), false);
 });
 

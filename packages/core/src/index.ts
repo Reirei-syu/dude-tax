@@ -50,6 +50,13 @@ export type UpdateEmployeePayload = CreateEmployeePayload;
 
 export type MonthRecordStatus = "incomplete" | "completed";
 
+export type EmployeeMonthSupplementaryAdjustmentFields = {
+  supplementarySalaryIncome?: number;
+  supplementaryWithheldTaxAdjustment?: number;
+  supplementarySourcePeriodLabel?: string;
+  supplementaryRemark?: string;
+};
+
 export type EmployeeMonthRecord = {
   id: number | null;
   unitId: number;
@@ -78,7 +85,7 @@ export type EmployeeMonthRecord = {
   remark: string;
   createdAt: string | null;
   updatedAt: string | null;
-};
+} & EmployeeMonthSupplementaryAdjustmentFields;
 
 export type UpsertEmployeeMonthRecordPayload = {
   status: MonthRecordStatus;
@@ -101,7 +108,7 @@ export type UpsertEmployeeMonthRecordPayload = {
   otherDeduction: number;
   taxReductionExemption: number;
   remark?: string;
-};
+} & EmployeeMonthSupplementaryAdjustmentFields;
 
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
 
@@ -400,7 +407,13 @@ export type HistoryAnnualTaxQuery = {
   resultStatus?: HistoryResultStatus;
 };
 
-export { buildMonthlyWithholdingTrace, calculateEmployeeAnnualTax } from "./annual-tax-calculator.js";
+export {
+  buildMonthlyWithholdingTrace,
+  calculateEmployeeAnnualTax,
+  getActualWithheldTaxForWithholding,
+  getSalaryIncomeForWithholding,
+  hasSupplementaryAdjustments,
+} from "./annual-tax-calculator.js";
 export {
   buildDefaultTaxPolicySettings,
   buildTaxPolicySignature,
