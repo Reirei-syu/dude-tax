@@ -11,9 +11,25 @@ import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
 import { registerUnitRoutes } from "./routes/units.js";
 
 const app = Fastify({ logger: false });
+const allowedOrigins = new Set(["http://127.0.0.1:5173", "http://localhost:5173"]);
+const isAllowedOrigin = (origin?: string) =>
+  !origin || origin === "null" || allowedOrigins.has(origin);
+
+app.addHook("onRequest", async (request, reply) => {
+  const origin = request.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    return;
+  }
+
+  return reply.status(403).send({
+    message: "禁止外部来源访问本地 API",
+  });
+});
 
 await app.register(cors, {
-  origin: true,
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  },
   methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 });

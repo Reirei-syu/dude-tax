@@ -1,6 +1,18 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+
+const isAppNavigationTarget = (url) => {
+  if (process.env.ELECTRON_RENDERER_URL) {
+    try {
+      return new URL(url).origin === new URL(process.env.ELECTRON_RENDERER_URL).origin;
+    } catch {
+      return false;
+    }
+  }
+
+  return url.startsWith("file://");
+};
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -11,7 +23,24 @@ const createWindow = () => {
     backgroundColor: "#f2f7ff",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (isAppNavigationTarget(url)) {
+      return;
+    }
+
+    event.preventDefault();
+    void shell.openExternal(url);
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {

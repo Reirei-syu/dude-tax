@@ -1,6 +1,6 @@
 ﻿# 项目进度与记忆 (PROGRESS.md)
 
-- **更新时间**：2026-03-27 14:20
+- **更新时间**：2026-03-27 14:25
 - **项目标识**：dude-tax
 - **产品显示名**：工资薪金个税计算器
 - **当前版本阶段**：v0.1.0-alpha
@@ -12,6 +12,7 @@
   - `/docs/plans/2026-03-27_import-module_minimal-loop-plan.md`
   - `/docs/plans/2026-03-27_history-query_recalculation-version-history_plan.md`
   - `/docs/plans/2026-03-27_withholding-prepayment-complete-plan.md`
+  - `/docs/plans/2026-03-27_project-review-hardening-plan.md`
 - **已完成模块**：
   - 项目基础文档：`AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
   - 工程骨架：npm workspaces、`apps/api`、`apps/desktop`、`packages/core`、`packages/config`
@@ -24,6 +25,12 @@
   - 前端基础能力：首页、单位管理、全局单位/年份上下文栏、模块导航占位页
   - 首页税率表静态展示：与后续计算核心同源配置
 - **本次更新**：
+  - 按“全项目审查与加固方案”完成首轮生产性审查，新增本地 API 与桌面壳安全加固、导入链路稳健性增强任务
+  - 收紧本地 API CORS 白名单，并显式拒绝外部来源访问本地 `127.0.0.1:3001` 服务，降低任意网站读取/改写本地税务数据的风险
+  - 为 Electron `BrowserWindow` 显式开启 `contextIsolation`、关闭 `nodeIntegration`、开启 `sandbox`，并阻止窗口内跳转到外部页面
+  - 增强导入服务 CSV 解析器，支持处理引号包裹字段、字段内逗号和跨行备注，避免导入错列和数据污染
+  - 为导入链路新增“复杂 CSV 字段”回归测试，覆盖带换行和逗号的员工备注场景
+  - 重新执行 `npm audit`，确认当前仍存在 `exceljs -> archiver -> brace-expansion` 运行时中危漏洞，`npm audit fix` 无法在不引入破坏性变更的前提下自动消除
   - 修复桌面端导出在原生“另存为”对话框取消后仍错误回退为浏览器下载的问题，并补充对应测试文件
   - 完成首个最小可运行里程碑：桌面壳 + 前后台分层 + 单位/年份全局上下文闭环
   - 将共享类型和默认配置抽离到 `packages/core` 与 `packages/config`
@@ -174,6 +181,9 @@
   - 补发补扣字段与共享类型
   - 补发补扣并入预扣轨迹
   - 桌面端导出取消保存保护
+  - 本地 API 与 Electron 安全边界
+  - 导入 CSV 解析稳健性
+  - 依赖漏洞审计结论
 - **当前版本状态补充**：
   - 项目已初步完成，主要业务模块、前后台数据勾连和模块联动均已跑通；后续重点转向导出模板策略、复杂税务口径、数据围栏和边界收口
 - **当前上下文/已知问题**：
@@ -189,7 +199,10 @@
   - 项目内容已迁移到 `D:\coding\dude-tax`，原 `D:\coding\salary-tax` 目录已清空；由于当前会话策略限制，未在本轮自动删除空目录
   - 当前仓库无远程仓库，且本地已只保留 `master`；后续如需协作，需先补远程与分支规范
   - 当前税率失效策略已从“全量清空”升级为基于 `policy_signature` 的逻辑失效
+  - `npm audit --omit=dev` 当前仍有 9 个中危漏洞，集中在 `exceljs -> archiver -> brace-expansion` 依赖链；`npm audit fix` 无法无损收敛，需要后续评估替换导出库或等待上游修复
+  - `apps/api` 与 `apps/desktop` 当前仍大量通过深相对路径直接引用 `packages/*/src`，会削弱 workspace 包边界与长期可维护性
+  - `packages/core` 中补发补扣字段已进入类型与算法辅助函数，但数据库/API/UI 尚未完全打通，当前仍属于半闭环状态
 - **下一步开发计划**：
-  - 按“先搭模块、再做优化收口”的优先级，下一步优先推进月度录入中的补发补扣区块与校验
-  - 后续进入更复杂税务口径、导出模板策略和数据围栏优化
+  - 按“先收口审查风险、再推进复杂口径”的优先级，下一步优先评估 `exceljs` 替换或隔离方案，消除运行时审计漏洞残留
+  - 其次推进跨包导入收口与“月度录入 -> 补发补扣区块与校验”，补齐当前半闭环能力
 

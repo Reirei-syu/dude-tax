@@ -73,25 +73,84 @@ type ParsedMonthRecordRow = UpsertEmployeeMonthRecordPayload & {
   taxMonth: number;
 };
 
-const parseCsv = (csvText: string) => {
-  const lines = csvText
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+const isRowEmpty = (row: string[]) => row.every((value) => !value.trim());
 
-  if (!lines.length) {
+const parseCsv = (csvText: string) => {
+  const parsedRows: string[][] = [];
+  const normalizedText = csvText.replace(/^\uFEFF/, "");
+  let currentRow: string[] = [];
+  let currentValue = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < normalizedText.length; index += 1) {
+    const character = normalizedText[index]!;
+
+    if (inQuotes) {
+      if (character === "\"") {
+        const nextCharacter = normalizedText[index + 1];
+        if (nextCharacter === "\"") {
+          currentValue += "\"";
+          index += 1;
+          continue;
+        }
+
+        inQuotes = false;
+        continue;
+      }
+
+      currentValue += character;
+      continue;
+    }
+
+    if (character === "\"") {
+      inQuotes = true;
+      continue;
+    }
+
+    if (character === ",") {
+      currentRow.push(currentValue.trim());
+      currentValue = "";
+      continue;
+    }
+
+    if (character === "\r" || character === "\n") {
+      currentRow.push(currentValue.trim());
+      currentValue = "";
+
+      if (!isRowEmpty(currentRow)) {
+        parsedRows.push(currentRow);
+      }
+
+      currentRow = [];
+
+      if (character === "\r" && normalizedText[index + 1] === "\n") {
+        index += 1;
+      }
+
+      continue;
+    }
+
+    currentValue += character;
+  }
+
+  if (currentValue.length || currentRow.length) {
+    currentRow.push(currentValue.trim());
+    if (!isRowEmpty(currentRow)) {
+      parsedRows.push(currentRow);
+    }
+  }
+
+  if (!parsedRows.length) {
     return {
       headers: [],
       rows: [],
     };
   }
 
-  const headers = lines[0]!.split(",").map((item) => item.trim());
-  const rows = lines.slice(1).map((line, index) => ({
+  const headers = parsedRows[0]!.map((item) => item.trim());
+  const rows = parsedRows.slice(1).map((values, index) => ({
     rowNumber: index + 2,
-    values: line.split(",").map((item) => item.trim()),
+    values,
   }));
 
   return {
@@ -489,12 +548,6 @@ export const importService = {
           rowNumber: row.rowNumber,
           reason: "员工工号不存在",
         });
-        return;
-      }
-
-      if (previewRow.status === "conflict" && conflictStrategy === "overwrite") {
-        monthRecordRepository.upsert(unitId, employee.id, payload.taxYear, payload.taxMonth, payload);
-        successCount += 1;
         return;
       }
 

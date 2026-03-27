@@ -259,7 +259,7 @@ test("月度导入预览会限制在当前年份作用域内", async () => {
   const rows = body.rows as Array<Record<string, unknown>>;
   assert.equal(body.errorRows, 1);
   assert.equal(rows[0]?.status, "error");
-  assert.match(String((rows[0]?.errors as string[])[0]), /当前年份/);
+  assert.match(String((rows[0]?.errors as string[])[0]), /当前年份为/);
 
   await app.close();
 });
@@ -302,6 +302,41 @@ test("月度导入预览可识别同一文件内重复月份记录", async () =>
   assert.equal(body.errorRows, 1);
   assert.equal(rows[1]?.status, "error");
   assert.match(String((rows[1]?.errors as string[])[0]), /重复的员工年度月份记录/);
+
+  await app.close();
+});
+
+test("执行导入可正确解析带引号、逗号和换行的员工字段", async () => {
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "复杂 CSV 导入测试单位",
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/commit",
+    payload: {
+      importType: "employee",
+      unitId: unit.id,
+      conflictStrategy: "abort",
+      csvText:
+        'employeeCode,employeeName,idNumber,hireDate,leaveDate,remark\nEMP500,王五,110101199001018888,,,\"第一行备注\n第二行备注，带逗号\"',
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  assert.equal(body.successCount, 1);
+  assert.equal(body.failureCount, 0);
+
+  const employees = employeeRepository.listByUnitId(unit.id);
+  assert.equal(employees.length, 1);
+  assert.equal(employees[0]?.remark, "第一行备注\n第二行备注，带逗号");
 
   await app.close();
 });
