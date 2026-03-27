@@ -11,6 +11,10 @@ import type {
   EmployeeMonthRecord,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
+  ImportCommitResponse,
+  ImportPreviewResponse,
+  ImportType,
+  ImportConflictStrategy,
   TaxPolicyResponse,
   TaxPolicySaveResponse,
   TaxPolicyUpdatePayload,
@@ -148,6 +152,40 @@ export const apiClient = {
     return request<AnnualTaxCalculation>("/api/quick-calculate", {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  },
+  downloadImportTemplate(importType: ImportType) {
+    return fetch(`${API_BASE_URL}/api/import/templates/${importType}`).then((response) => {
+      if (!response.ok) {
+        throw new Error("下载导入模板失败");
+      }
+      return response.text();
+    });
+  },
+  previewImport(importType: ImportType, unitId: number, csvText: string) {
+    return request<ImportPreviewResponse>("/api/import/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        importType,
+        unitId,
+        csvText,
+      }),
+    });
+  },
+  commitImport(
+    importType: ImportType,
+    unitId: number,
+    csvText: string,
+    conflictStrategy: ImportConflictStrategy,
+  ) {
+    return request<ImportCommitResponse>("/api/import/commit", {
+      method: "POST",
+      body: JSON.stringify({
+        importType,
+        unitId,
+        csvText,
+        conflictStrategy,
+      }),
     });
   },
   listCalculationStatuses(unitId: number, taxYear: number) {

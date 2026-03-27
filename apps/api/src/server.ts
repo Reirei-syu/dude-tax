@@ -5,6 +5,7 @@ import { registerCalculationRoutes } from "./routes/calculations.js";
 import { registerContextRoutes } from "./routes/context.js";
 import { registerEmployeeRoutes } from "./routes/employees.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerImportRoutes } from "./routes/import.js";
 import { registerMonthRecordRoutes } from "./routes/month-records.js";
 import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
 import { registerUnitRoutes } from "./routes/units.js";
@@ -16,6 +17,7 @@ await app.register(cors, {
 });
 
 await registerHealthRoutes(app);
+await registerImportRoutes(app);
 await registerCalculationRoutes(app);
 await registerContextRoutes(app);
 await registerEmployeeRoutes(app);

@@ -9,6 +9,7 @@ import { AppContextProvider } from "./context/AppContextProvider";
 import { EmployeeManagementPage } from "./pages/EmployeeManagementPage";
 import { HomePage } from "./pages/HomePage";
 import { HistoryQueryPage } from "./pages/HistoryQueryPage";
+import { ImportPage } from "./pages/ImportPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
 import { QuickCalculatePage } from "./pages/QuickCalculatePage";
@@ -24,15 +25,7 @@ const router = createHashRouter([
       { path: "units", element: <UnitManagementPage /> },
       { path: "employees", element: <EmployeeManagementPage /> },
       { path: "entry", element: <MonthRecordEntryPage /> },
-      {
-        path: "import",
-        element: (
-          <PlaceholderModulePage
-            title="批量导入"
-            description="后续里程碑将提供模板下载、导入预览和冲突处理。"
-          />
-        ),
-      },
+      { path: "import", element: <ImportPage /> },
       { path: "quick-calc", element: <QuickCalculatePage /> },
       { path: "calculation", element: <CalculationCenterPage /> },
       {

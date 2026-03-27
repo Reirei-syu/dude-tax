@@ -212,6 +212,38 @@ export type QuickCalculatePayload = {
   records: QuickCalculateMonthInput[];
 };
 
+export type ImportType = "employee" | "month_record";
+export type ImportConflictStrategy = "skip" | "overwrite" | "abort";
+
+export type ImportPreviewRow = {
+  rowNumber: number;
+  status: "ready" | "conflict" | "error";
+  conflictType: string | null;
+  errors: string[];
+  parsedData: Record<string, unknown>;
+};
+
+export type ImportPreviewResponse = {
+  importType: ImportType;
+  totalRows: number;
+  readyRows: number;
+  conflictRows: number;
+  errorRows: number;
+  rows: ImportPreviewRow[];
+};
+
+export type ImportCommitResponse = {
+  importType: ImportType;
+  totalRows: number;
+  successCount: number;
+  skippedCount: number;
+  failureCount: number;
+  failures: Array<{
+    rowNumber: number;
+    reason: string;
+  }>;
+};
+
 export type TaxPolicyBindScopePayload = {
   unitId: number;
   taxYear: number;
