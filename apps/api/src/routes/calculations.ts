@@ -173,6 +173,28 @@ export const registerCalculationRoutes = async (app: FastifyInstance) => {
     return annualTaxService.listResults(unitId, taxYear);
   });
 
+  app.get(
+    "/api/units/:unitId/years/:taxYear/employees/:employeeId/annual-result-versions",
+    async (request, reply) => {
+      const params = request.params as { unitId: string; taxYear: string; employeeId: string };
+      const unitId = Number(params.unitId);
+      const taxYear = Number(params.taxYear);
+      const employeeId = Number(params.employeeId);
+
+      const unitExists = unitRepository.list().some((unit) => unit.id === unitId);
+      if (!unitExists) {
+        return reply.status(404).send({ message: "目标单位不存在" });
+      }
+
+      const employee = employeeRepository.getById(employeeId);
+      if (!employee || employee.unitId !== unitId) {
+        return reply.status(404).send({ message: "目标员工不存在" });
+      }
+
+      return annualTaxService.listResultVersions(unitId, taxYear, employeeId);
+    },
+  );
+
   app.get("/api/units/:unitId/years/:taxYear/annual-results/export-preview", async (request, reply) => {
     const unitId = Number((request.params as { unitId: string }).unitId);
     const taxYear = Number((request.params as { taxYear: string }).taxYear);

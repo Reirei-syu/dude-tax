@@ -1,6 +1,7 @@
 import type {
   AnnualTaxCalculation,
   AnnualTaxExportPreviewRow,
+  AnnualTaxResultVersion,
   AppContext,
   EmployeeAnnualTaxResult,
   EmployeeCalculationStatus,
@@ -211,6 +212,11 @@ export const apiClient = {
   },
   listAnnualResults(unitId: number, taxYear: number) {
     return request<EmployeeAnnualTaxResult[]>(`/api/units/${unitId}/years/${taxYear}/annual-results`);
+  },
+  listAnnualResultVersions(unitId: number, taxYear: number, employeeId: number) {
+    return request<AnnualTaxResultVersion[]>(
+      `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/annual-result-versions`,
+    );
   },
   listAnnualResultExportPreview(unitId: number, taxYear: number) {
     return request<AnnualTaxExportPreviewRow[]>(

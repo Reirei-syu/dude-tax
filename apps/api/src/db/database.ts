@@ -153,6 +153,24 @@ database.exec(`
     UNIQUE(unit_id, employee_id, tax_year)
   );
 
+  CREATE TABLE IF NOT EXISTS annual_tax_result_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL,
+    version_sequence INTEGER NOT NULL,
+    policy_signature TEXT NOT NULL DEFAULT '',
+    selected_scheme TEXT NOT NULL,
+    selected_tax_amount REAL NOT NULL DEFAULT 0,
+    calculation_snapshot TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_annual_tax_result_versions_scope
+    ON annual_tax_result_versions (unit_id, employee_id, tax_year, version_sequence DESC, id DESC);
+
   CREATE TABLE IF NOT EXISTS import_preview_summaries (
     unit_id INTEGER PRIMARY KEY,
     import_type TEXT NOT NULL,

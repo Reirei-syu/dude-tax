@@ -146,6 +146,14 @@ export const annualTaxService = {
   searchHistory(filters: HistoryAnnualTaxQuery) {
     return annualTaxResultRepository.searchHistory(filters);
   },
+  listResultVersions(unitId: number, taxYear: number, employeeId: number) {
+    return annualTaxResultRepository.listVersionsByEmployeeAndYear(
+      unitId,
+      employeeId,
+      taxYear,
+      taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
+    );
+  },
   listResults(unitId: number, taxYear: number) {
     return annualTaxResultRepository.listByUnitAndYear(
       unitId,

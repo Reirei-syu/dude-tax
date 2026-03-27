@@ -1,5 +1,6 @@
 import type {
   AnnualTaxCalculation,
+  AnnualTaxResultVersion,
   EmployeeAnnualTaxResult,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
@@ -36,6 +37,23 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
     annualTaxSettlement,
     settlementDirection,
     calculatedAt: String(row.calculated_at),
+  };
+};
+
+const mapRowToAnnualTaxResultVersion = (
+  row: Record<string, unknown>,
+  currentPolicySignature: string,
+): AnnualTaxResultVersion => {
+  const result = mapRowToAnnualTaxResult(row);
+  const isInvalidated = String(row.policy_signature ?? "") !== currentPolicySignature;
+
+  return {
+    ...result,
+    versionId: Number(row.version_id),
+    versionSequence: Number(row.version_sequence),
+    policySignature: String(row.policy_signature ?? ""),
+    isInvalidated,
+    invalidatedReason: isInvalidated ? "tax_policy_changed" : null,
   };
 };
 
@@ -195,6 +213,39 @@ export const annualTaxResultRepository = {
 
     return rows.map(mapRowToAnnualTaxResult);
   },
+  listVersionsByEmployeeAndYear(
+    unitId: number,
+    employeeId: number,
+    taxYear: number,
+    currentPolicySignature: string,
+  ): AnnualTaxResultVersion[] {
+    const rows = database
+      .prepare(
+        `
+          SELECT
+            version.id AS version_id,
+            version.version_sequence,
+            version.unit_id,
+            version.employee_id,
+            version.tax_year,
+            version.selected_scheme,
+            version.selected_tax_amount,
+            version.policy_signature,
+            version.calculation_snapshot,
+            version.created_at AS calculated_at,
+            employee.employee_code,
+            employee.employee_name
+          FROM annual_tax_result_versions version
+          INNER JOIN employees employee
+            ON employee.id = version.employee_id
+          WHERE version.unit_id = ? AND version.employee_id = ? AND version.tax_year = ?
+          ORDER BY version.version_sequence DESC, version.id DESC
+        `,
+      )
+      .all(unitId, employeeId, taxYear) as Record<string, unknown>[];
+
+    return rows.map((row) => mapRowToAnnualTaxResultVersion(row, currentPolicySignature));
+  },
   upsert(
     unitId: number,
     employeeId: number,
@@ -203,42 +254,89 @@ export const annualTaxResultRepository = {
     policySignature: string,
   ) {
     const now = new Date().toISOString();
+    const calculationSnapshot = JSON.stringify(calculation);
+    const persistTransaction = database.transaction(() => {
+      database
+        .prepare(
+          `
+            INSERT INTO annual_tax_results (
+              unit_id,
+              employee_id,
+              tax_year,
+              selected_scheme,
+              selected_tax_amount,
+              policy_signature,
+              calculation_snapshot,
+              calculated_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(unit_id, employee_id, tax_year) DO UPDATE SET
+              selected_scheme = excluded.selected_scheme,
+              selected_tax_amount = excluded.selected_tax_amount,
+              policy_signature = excluded.policy_signature,
+              calculation_snapshot = excluded.calculation_snapshot,
+              calculated_at = excluded.calculated_at,
+              updated_at = excluded.updated_at
+          `,
+        )
+        .run(
+          unitId,
+          employeeId,
+          taxYear,
+          calculation.selectedScheme,
+          calculation.selectedTaxAmount,
+          policySignature,
+          calculationSnapshot,
+          now,
+          now,
+        );
 
-    database
-      .prepare(
-        `
-          INSERT INTO annual_tax_results (
-            unit_id,
-            employee_id,
-            tax_year,
-            selected_scheme,
-            selected_tax_amount,
-            policy_signature,
-            calculation_snapshot,
-            calculated_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(unit_id, employee_id, tax_year) DO UPDATE SET
-            selected_scheme = excluded.selected_scheme,
-            selected_tax_amount = excluded.selected_tax_amount,
-            policy_signature = excluded.policy_signature,
-            calculation_snapshot = excluded.calculation_snapshot,
-            calculated_at = excluded.calculated_at,
-            updated_at = excluded.updated_at
-        `,
-      )
-      .run(
-        unitId,
-        employeeId,
-        taxYear,
-        calculation.selectedScheme,
-        calculation.selectedTaxAmount,
-        policySignature,
-        JSON.stringify(calculation),
-        now,
-        now,
+      const nextVersionSequence = Number(
+        (
+          database
+            .prepare(
+              `
+                SELECT COALESCE(MAX(version_sequence), 0) + 1 AS next_version_sequence
+                FROM annual_tax_result_versions
+                WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+              `,
+            )
+            .get(unitId, employeeId, taxYear) as { next_version_sequence: number }
+        ).next_version_sequence,
       );
+
+      database
+        .prepare(
+          `
+            INSERT INTO annual_tax_result_versions (
+              unit_id,
+              employee_id,
+              tax_year,
+              version_sequence,
+              policy_signature,
+              selected_scheme,
+              selected_tax_amount,
+              calculation_snapshot,
+              created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          unitId,
+          employeeId,
+          taxYear,
+          nextVersionSequence,
+          policySignature,
+          calculation.selectedScheme,
+          calculation.selectedTaxAmount,
+          calculationSnapshot,
+          now,
+        );
+    });
+
+    persistTransaction();
   },
   updateSelectedScheme(
     unitId: number,

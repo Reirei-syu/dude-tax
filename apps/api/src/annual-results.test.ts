@@ -50,6 +50,7 @@ before(() => {
 beforeEach(async () => {
   const [, , , , { database }] = await modulesPromise;
   database.exec(`
+    DELETE FROM annual_tax_result_versions;
     DELETE FROM annual_tax_results;
     DELETE FROM annual_calculation_runs;
     DELETE FROM employee_month_records;
@@ -382,6 +383,151 @@ test("历史查询接口支持按单位、年份和结算方向过滤年度结�
   assert.equal(results[0]?.employeeCode, "EMP-HIS-1");
   assert.equal(results[0]?.settlementDirection, "payable");
   assert.equal(results[0]?.annualTaxSettlement, 150);
+
+  await app.close();
+});
+
+test("returns recalculation version history for the selected employee and year", async () => {
+  const [{ registerCalculationRoutes }, { unitRepository }, { employeeRepository }, { monthRecordRepository }] =
+    await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "版本历史单位",
+    remark: "",
+  });
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-V-001",
+    employeeName: "版本员工",
+    idNumber: "110101199001019999",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  for (let taxMonth = 1; taxMonth <= 10; taxMonth += 1) {
+    monthRecordRepository.upsert(
+      unit.id,
+      employee.id,
+      2026,
+      taxMonth,
+      createMonthRecordPayload({
+        salaryIncome: 19_000,
+        annualBonus: taxMonth === 1 ? 40_000 : 0,
+        withheldTax: 1_000,
+      }),
+    );
+  }
+
+  const firstRecalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  assert.equal(firstRecalculateResponse.statusCode, 200);
+
+  monthRecordRepository.upsert(
+    unit.id,
+    employee.id,
+    2026,
+    1,
+    createMonthRecordPayload({
+      salaryIncome: 25_000,
+      annualBonus: 0,
+      withheldTax: 1_000,
+    }),
+  );
+
+  const secondRecalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  assert.equal(secondRecalculateResponse.statusCode, 200);
+
+  const versionsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/annual-result-versions`,
+  });
+
+  assert.equal(versionsResponse.statusCode, 200);
+
+  const versions = versionsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(versions.length, 2);
+  assert.equal(versions[0]?.versionSequence, 2);
+  assert.equal(versions[1]?.versionSequence, 1);
+  assert.equal(typeof versions[0]?.calculatedAt, "string");
+  assert.equal(typeof versions[1]?.calculatedAt, "string");
+  assert.notEqual(versions[0]?.selectedTaxAmount, versions[1]?.selectedTaxAmount);
+
+  await app.close();
+});
+
+test("does not create recalculation history when only switching selected scheme", async () => {
+  const [{ registerCalculationRoutes }, { unitRepository }, { employeeRepository }, { monthRecordRepository }] =
+    await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "版本历史单位-方案切换",
+    remark: "",
+  });
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-V-002",
+    employeeName: "版本员工-方案切换",
+    idNumber: "110101199001018888",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  for (let taxMonth = 1; taxMonth <= 10; taxMonth += 1) {
+    monthRecordRepository.upsert(
+      unit.id,
+      employee.id,
+      2026,
+      taxMonth,
+      createMonthRecordPayload({
+        salaryIncome: 19_000,
+        annualBonus: taxMonth === 1 ? 40_000 : 0,
+      }),
+    );
+  }
+
+  const recalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  assert.equal(recalculateResponse.statusCode, 200);
+
+  const switchResponse = await app.inject({
+    method: "PUT",
+    url: `/api/units/${unit.id}/years/2026/annual-results/${employee.id}/selected-scheme`,
+    payload: {
+      selectedScheme: "combined_bonus",
+    },
+  });
+
+  assert.equal(switchResponse.statusCode, 200);
+
+  const versionsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/annual-result-versions`,
+  });
+
+  assert.equal(versionsResponse.statusCode, 200);
+
+  const versions = versionsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0]?.versionSequence, 1);
 
   await app.close();
 });

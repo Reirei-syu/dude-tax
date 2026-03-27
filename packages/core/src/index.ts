@@ -301,6 +301,14 @@ export type EmployeeAnnualTaxResult = AnnualTaxCalculation & {
   calculatedAt: string;
 };
 
+export type AnnualTaxResultVersion = EmployeeAnnualTaxResult & {
+  versionId: number;
+  versionSequence: number;
+  policySignature: string;
+  isInvalidated: boolean;
+  invalidatedReason: ResultInvalidationReason | null;
+};
+
 export type UpdateAnnualResultSelectedSchemePayload = {
   selectedScheme: TaxCalculationScheme;
 };

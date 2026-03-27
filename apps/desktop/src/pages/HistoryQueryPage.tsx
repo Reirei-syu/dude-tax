@@ -1,5 +1,6 @@
 ﻿import type {
   AnnualTaxCalculation,
+  AnnualTaxResultVersion,
   Employee,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
@@ -45,6 +46,11 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("zh-CN", {
+    hour12: false,
+  });
+
 const buildHistoryQueryExportScopeLabel = (
   unitName: string | undefined,
   taxYear: number | undefined,
@@ -62,9 +68,14 @@ export const HistoryQueryPage = () => {
   const years = getSelectableYears();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [results, setResults] = useState<HistoryAnnualTaxResult[]>([]);
+  const [versionHistory, setVersionHistory] = useState<AnnualTaxResultVersion[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [versionHistoryLoading, setVersionHistoryLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [versionHistoryErrorMessage, setVersionHistoryErrorMessage] = useState<string | null>(
+    null,
+  );
   const [comparisonResult, setComparisonResult] = useState<AnnualTaxCalculation | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonErrorMessage, setComparisonErrorMessage] = useState<string | null>(null);
@@ -125,6 +136,34 @@ export const HistoryQueryPage = () => {
     results.find(
       (result) => `${result.unitId}-${result.employeeId}-${result.taxYear}` === selectedResultId,
     ) ?? results[0] ?? null;
+
+  useEffect(() => {
+    const loadVersionHistory = async () => {
+      if (!selectedResult) {
+        setVersionHistory([]);
+        setVersionHistoryErrorMessage(null);
+        return;
+      }
+
+      try {
+        setVersionHistoryLoading(true);
+        setVersionHistoryErrorMessage(null);
+        const nextVersions = await apiClient.listAnnualResultVersions(
+          selectedResult.unitId,
+          selectedResult.taxYear,
+          selectedResult.employeeId,
+        );
+        setVersionHistory(nextVersions);
+      } catch (error) {
+        setVersionHistory([]);
+        setVersionHistoryErrorMessage(error instanceof Error ? error.message : "加载版本历史失败");
+      } finally {
+        setVersionHistoryLoading(false);
+      }
+    };
+
+    void loadVersionHistory();
+  }, [selectedResult]);
 
   useEffect(() => {
     const loadComparison = async () => {
@@ -392,7 +431,7 @@ export const HistoryQueryPage = () => {
         <div className="section-header">
           <div>
             <h2>历史结果列表</h2>
-            <p>支持切换查看当前有效结果、已失效快照或全部结果；当前仍不含重算版本历史。</p>
+            <p>支持切换查看当前有效结果、已失效快照或全部结果，并联动查看所选结果的重算版本历史。</p>
           </div>
           <span className="tag">{results.length ? `命中 ${results.length} 条` : "暂无结果"}</span>
         </div>
@@ -571,6 +610,71 @@ export const HistoryQueryPage = () => {
           <div className="empty-state">
             <strong>请先选择一条历史结果。</strong>
             <p>左侧列表点击任意结果后，可在这里查看只读详情。</p>
+          </div>
+        )}
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>重算版本历史</h2>
+            <p>仅展示真实重算产生的版本快照，不包含手动方案切换。</p>
+          </div>
+          <span className="tag">
+            {versionHistoryLoading
+              ? "加载中"
+              : selectedResult
+                ? `${versionHistory.length} 个版本`
+                : "未选择结果"}
+          </span>
+        </div>
+
+        {versionHistoryErrorMessage ? <div className="error-banner">{versionHistoryErrorMessage}</div> : null}
+
+        {selectedResult ? (
+          versionHistory.length ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>版本</th>
+                  <th>重算时间</th>
+                  <th>结果状态</th>
+                  <th>当前方案</th>
+                  <th>应纳税额</th>
+                  <th>应补/应退</th>
+                  <th>结算方向</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versionHistory.map((version) => (
+                  <tr key={version.versionId}>
+                    <td>V{version.versionSequence}</td>
+                    <td>{formatDateTime(version.calculatedAt)}</td>
+                    <td>
+                      {version.isInvalidated ? (
+                        <span className="tag tag-warning">已失效</span>
+                      ) : (
+                        <span className="tag">当前有效</span>
+                      )}
+                    </td>
+                    <td>{schemeLabelMap[version.selectedScheme]}</td>
+                    <td>{formatCurrency(version.annualTaxPayable)}</td>
+                    <td>{formatCurrency(version.annualTaxSettlement)}</td>
+                    <td>{settlementDirectionLabelMap[version.settlementDirection]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">
+              <strong>当前结果还没有重算版本历史。</strong>
+              <p>只有执行过年度重算后，这里才会出现对应的版本快照。</p>
+            </div>
+          )
+        ) : (
+          <div className="empty-state">
+            <strong>请先选择一条历史结果。</strong>
+            <p>选中结果后，这里会展示该员工该年度的重算版本时间线。</p>
           </div>
         )}
       </article>
