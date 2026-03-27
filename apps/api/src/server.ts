@@ -14,6 +14,8 @@ const app = Fastify({ logger: false });
 
 await app.register(cors, {
   origin: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
 });
 
 await registerHealthRoutes(app);
