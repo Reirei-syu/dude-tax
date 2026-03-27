@@ -8,13 +8,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
-
-type WorkSuggestion = {
-  title: string;
-  description: string;
-  path: string;
-  actionLabel: string;
-};
+import { buildHomeSuggestions } from "./home-suggestions";
 
 export const HomePage = () => {
   const { context, errorMessage, loading } = useAppContext();
@@ -120,78 +114,28 @@ export const HomePage = () => {
   const incompleteMonthCount = reminderItems[1]?.count ?? 0;
   const currentTaxPolicy = taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
 
-  const workSuggestions = useMemo<WorkSuggestion[]>(() => {
-    if (!currentUnitId || !currentTaxYear) {
-      return [
-        {
-          title: "先确定工作房间",
-          description: "请先选择单位和年份，后续所有录入、计算和查询都会基于这个上下文进行。",
-          path: "/units",
-          actionLabel: "前往单位管理",
-        },
-      ];
-    }
-
-    if (employeeCount === 0) {
-      return [
-        {
-          title: "先补员工基础档案",
-          description: "当前单位下还没有员工，建议先建立员工档案，再进入月度录入和计算。",
-          path: "/employees",
-          actionLabel: "前往员工信息",
-        },
-      ];
-    }
-
-    const suggestions: WorkSuggestion[] = [];
-    const invalidatedCount = statuses.filter((status) => status.isInvalidated).length;
-
-    if (incompleteMonthCount > 0) {
-      suggestions.push({
-        title: "优先补齐月度数据",
-        description: `当前还有 ${incompleteMonthCount} 个月份未完成，建议先补录，避免后续计算结果不完整。`,
-        path: "/entry",
-        actionLabel: "前往月度录入",
-      });
-    }
-
-    if (pendingRecalculateCount > 0) {
-      suggestions.push({
-        title: "执行年度重算",
-        description:
-          invalidatedCount > 0
-            ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名是因税率变更导致结果失效。`
-            : `当前有 ${pendingRecalculateCount} 名员工已具备条件但尚未重算，建议尽快生成最新年度结果。`,
-        path: "/calculation",
-        actionLabel: "前往计算中心",
-      });
-    }
-
-    if (!suggestions.length) {
-      suggestions.push({
-        title: "查看年度结果",
-        description: "当前录入与计算状态整体平稳，可以直接进入结果中心查看、导出和复核结果。",
-        path: "/results",
-        actionLabel: "前往结果中心",
-      });
-    }
-
-    suggestions.push({
-      title: "检查税率口径",
-      description: "如需复核当前税率或确认维护边界，可进入系统维护页查看默认口径。",
-      path: "/maintenance",
-      actionLabel: "前往系统维护",
-    });
-
-    return suggestions.slice(0, 3);
-  }, [
-    currentTaxYear,
-    currentUnitId,
-    employeeCount,
-    incompleteMonthCount,
-    pendingRecalculateCount,
-    statuses,
-  ]);
+  const workSuggestions = useMemo(
+    () =>
+      buildHomeSuggestions({
+        currentUnitId,
+        currentTaxYear,
+        employeeCount,
+        incompleteMonthCount,
+        pendingRecalculateCount,
+        invalidatedCount: statuses.filter((status) => status.isInvalidated).length,
+        importSummary,
+        statuses,
+      }),
+    [
+      currentTaxYear,
+      currentUnitId,
+      employeeCount,
+      importSummary,
+      incompleteMonthCount,
+      pendingRecalculateCount,
+      statuses,
+    ],
+  );
 
   return (
     <section className="page-grid">
