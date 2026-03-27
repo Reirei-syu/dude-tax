@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
+import { calculateEmployeeAnnualTax, type EmployeeMonthRecord } from "../../../../packages/core/src/index.js";
 import {
   annualTaxService,
   AnnualTaxResultNotFoundError,
@@ -26,7 +27,98 @@ const historyQuerySchema = z.object({
   resultStatus: z.enum(["current", "invalidated", "all"]).optional(),
 });
 
+const quickCalculateRecordSchema = z.object({
+  taxMonth: z.number().int().min(1).max(12),
+  status: z.enum(["incomplete", "completed"]),
+  salaryIncome: z.number().min(0),
+  annualBonus: z.number().min(0),
+  pensionInsurance: z.number().min(0),
+  medicalInsurance: z.number().min(0),
+  occupationalAnnuity: z.number().min(0),
+  housingFund: z.number().min(0),
+  supplementaryHousingFund: z.number().min(0),
+  unemploymentInsurance: z.number().min(0),
+  workInjuryInsurance: z.number().min(0),
+  withheldTax: z.number().min(0),
+  infantCareDeduction: z.number().min(0),
+  childEducationDeduction: z.number().min(0),
+  continuingEducationDeduction: z.number().min(0),
+  housingLoanInterestDeduction: z.number().min(0),
+  housingRentDeduction: z.number().min(0),
+  elderCareDeduction: z.number().min(0),
+  otherDeduction: z.number().min(0),
+  taxReductionExemption: z.number().min(0),
+  remark: z.string().optional(),
+});
+
+const quickCalculateSchema = z.object({
+  unitId: z.number().int().positive(),
+  taxYear: z.number().int().min(2000).max(2100),
+  records: z.array(quickCalculateRecordSchema).min(1),
+});
+
+const toTemporaryMonthRecord = (
+  unitId: number,
+  taxYear: number,
+  record: z.infer<typeof quickCalculateRecordSchema>,
+): EmployeeMonthRecord => ({
+  id: null,
+  unitId,
+  employeeId: 0,
+  taxYear,
+  taxMonth: record.taxMonth,
+  status: record.status,
+  salaryIncome: record.salaryIncome,
+  annualBonus: record.annualBonus,
+  pensionInsurance: record.pensionInsurance,
+  medicalInsurance: record.medicalInsurance,
+  occupationalAnnuity: record.occupationalAnnuity,
+  housingFund: record.housingFund,
+  supplementaryHousingFund: record.supplementaryHousingFund,
+  unemploymentInsurance: record.unemploymentInsurance,
+  workInjuryInsurance: record.workInjuryInsurance,
+  withheldTax: record.withheldTax,
+  infantCareDeduction: record.infantCareDeduction,
+  childEducationDeduction: record.childEducationDeduction,
+  continuingEducationDeduction: record.continuingEducationDeduction,
+  housingLoanInterestDeduction: record.housingLoanInterestDeduction,
+  housingRentDeduction: record.housingRentDeduction,
+  elderCareDeduction: record.elderCareDeduction,
+  otherDeduction: record.otherDeduction,
+  taxReductionExemption: record.taxReductionExemption,
+  remark: record.remark ?? "",
+  createdAt: null,
+  updatedAt: null,
+});
+
 export const registerCalculationRoutes = async (app: FastifyInstance) => {
+  app.post("/api/quick-calculate", async (request, reply) => {
+    const parsedBody = quickCalculateSchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "快速计算参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
+    }
+
+    const unitExists = unitRepository.list().some((unit) => unit.id === parsedBody.data.unitId);
+    if (!unitExists) {
+      return reply.status(404).send({ message: "目标单位不存在" });
+    }
+
+    const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(
+      parsedBody.data.unitId,
+      parsedBody.data.taxYear,
+    );
+
+    return calculateEmployeeAnnualTax(
+      parsedBody.data.records.map((record) =>
+        toTemporaryMonthRecord(parsedBody.data.unitId, parsedBody.data.taxYear, record),
+      ),
+      effectiveSettings,
+    );
+  });
+
   app.get("/api/history-results", async (request, reply) => {
     const parsedQuery = historyQuerySchema.safeParse(request.query ?? {});
     if (!parsedQuery.success) {
@@ -65,7 +157,7 @@ export const registerCalculationRoutes = async (app: FastifyInstance) => {
     return calculationRunRepository.listStatuses(
       unitId,
       taxYear,
-      taxPolicyRepository.getCurrentPolicySignature(),
+      taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
     );
   });
 

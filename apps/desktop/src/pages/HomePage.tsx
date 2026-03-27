@@ -321,12 +321,14 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h2>快速计算</h2>
-            <p>本模块在当前里程碑暂不开放，只保留入口说明。</p>
+            <p>已开放不落库的即时测算，可直接录入临时月份数据并查看双方案结果。</p>
           </div>
         </div>
         <div className="quick-calc-card">
-          <p>后续将提供不落库的即时录入与速算结果页面，使用当前全局税率。</p>
-          <span className="tag">规划中</span>
+          <p>快速计算会复用当前单位 / 年度税率口径，但不会写入员工档案、月度记录和年度结果表。</p>
+          <Link className="primary-button link-button" to="/quick-calc">
+            前往快速计算
+          </Link>
         </div>
       </article>
     </section>

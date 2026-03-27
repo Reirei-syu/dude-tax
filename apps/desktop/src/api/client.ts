@@ -1,4 +1,5 @@
 import type {
+  AnnualTaxCalculation,
   AnnualTaxExportPreviewRow,
   AppContext,
   EmployeeAnnualTaxResult,
@@ -15,6 +16,7 @@ import type {
   TaxPolicyUpdatePayload,
   UpdateAnnualResultSelectedSchemePayload,
   Unit,
+  QuickCalculatePayload,
   UpsertEmployeeMonthRecordPayload,
 } from "../../../../packages/core/src/index";
 
@@ -141,6 +143,12 @@ export const apiClient = {
         body: JSON.stringify(payload),
       },
     );
+  },
+  quickCalculate(payload: QuickCalculatePayload) {
+    return request<AnnualTaxCalculation>("/api/quick-calculate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
   listCalculationStatuses(unitId: number, taxYear: number) {
     return request<EmployeeCalculationStatus[]>(

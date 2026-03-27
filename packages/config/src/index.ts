@@ -14,6 +14,7 @@ export const MODULE_NAV_ITEMS = [
   { path: "/employees", label: "员工信息", isPlaceholder: false },
   { path: "/entry", label: "月度数据录入", isPlaceholder: false },
   { path: "/import", label: "批量导入", isPlaceholder: true },
+  { path: "/quick-calc", label: "快速计算", isPlaceholder: false },
   { path: "/calculation", label: "计算中心", isPlaceholder: false },
   { path: "/results", label: "结果中心", isPlaceholder: false },
   { path: "/history", label: "历史查询", isPlaceholder: false },

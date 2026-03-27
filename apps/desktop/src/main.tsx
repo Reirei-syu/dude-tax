@@ -11,6 +11,7 @@ import { HomePage } from "./pages/HomePage";
 import { HistoryQueryPage } from "./pages/HistoryQueryPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
+import { QuickCalculatePage } from "./pages/QuickCalculatePage";
 import { UnitManagementPage } from "./pages/UnitManagementPage";
 import "./styles.css";
 
@@ -32,6 +33,7 @@ const router = createHashRouter([
           />
         ),
       },
+      { path: "quick-calc", element: <QuickCalculatePage /> },
       { path: "calculation", element: <CalculationCenterPage /> },
       {
         path: "results",

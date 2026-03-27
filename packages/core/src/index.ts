@@ -202,6 +202,16 @@ export type TaxPolicyUpdatePayload = TaxPolicySettingsInput & {
   maintenanceNotes?: string;
 };
 
+export type QuickCalculateMonthInput = UpsertEmployeeMonthRecordPayload & {
+  taxMonth: number;
+};
+
+export type QuickCalculatePayload = {
+  unitId: number;
+  taxYear: number;
+  records: QuickCalculateMonthInput[];
+};
+
 export type TaxPolicyBindScopePayload = {
   unitId: number;
   taxYear: number;
