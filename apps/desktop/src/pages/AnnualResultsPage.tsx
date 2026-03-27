@@ -24,6 +24,7 @@ import {
   type AnnualTaxExportTemplateId,
 } from "./annual-tax-export";
 import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
+import { buildAnnualTaxExportSelectionSummary } from "./annual-tax-export-template-manager";
 import { buildAnnualResultVersionComparisonItems } from "./annual-result-version-diff";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
@@ -68,6 +69,7 @@ export const AnnualResultsPage = () => {
   const [versionLoading, setVersionLoading] = useState(false);
   const [switchingScheme, setSwitchingScheme] = useState<TaxCalculationScheme | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [exportFeedbackMessage, setExportFeedbackMessage] = useState<string | null>(null);
   const [versionErrorMessage, setVersionErrorMessage] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [selectedBaselineVersionId, setSelectedBaselineVersionId] = useState<number | null>(null);
@@ -219,9 +221,14 @@ export const AnnualResultsPage = () => {
     }),
     [results, statuses],
   );
+  const exportSelectionSummary = useMemo(
+    () => buildAnnualTaxExportSelectionSummary(selectedExportColumnKeys),
+    [selectedExportColumnKeys],
+  );
 
   const toggleExportColumn = (columnKey: AnnualTaxExportColumnKey) => {
     setSelectedExportTemplateId("custom");
+    setExportFeedbackMessage(null);
     setSelectedExportColumnKeys((currentKeys) => {
       if (currentKeys.includes(columnKey)) {
         return currentKeys.filter((key) => key !== columnKey);
@@ -239,6 +246,7 @@ export const AnnualResultsPage = () => {
 
     setSelectedExportTemplateId(templateId);
     setSelectedExportColumnKeys(template.columnKeys);
+    setExportFeedbackMessage(null);
   };
 
   const downloadExportPreview = () => {
@@ -258,6 +266,9 @@ export const AnnualResultsPage = () => {
       mimeType: "text/csv;charset=utf-8;",
       content: `\uFEFF${csvContent}`,
     });
+    setExportFeedbackMessage(
+      `已按${exportSelectionSummary.matchedTemplateLabel ?? "自定义模板"}导出 CSV，共 ${selectedExportColumnKeys.length} 个字段。`,
+    );
   };
 
   const downloadExportWorkbook = async () => {
@@ -280,6 +291,9 @@ export const AnnualResultsPage = () => {
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       content: workbookArray,
     });
+    setExportFeedbackMessage(
+      `已按${exportSelectionSummary.matchedTemplateLabel ?? "自定义模板"}导出 XLSX，共 ${selectedExportColumnKeys.length} 个字段。`,
+    );
   };
 
   if (!currentUnitId || !currentTaxYear) {
@@ -753,15 +767,36 @@ export const AnnualResultsPage = () => {
         <div className="section-header">
           <div>
             <h2>年度导出预览</h2>
-            <p>这里展示导出模板、字段分组和当前导出预览，支持按模板或自定义字段导出 CSV。</p>
+            <p>这里展示导出模板、当前选择状态和导出预览，支持按模板或自定义字段导出。</p>
           </div>
           <span className="tag">
             {exportPreviewRows.length ? `共 ${exportPreviewRows.length} 行` : "暂无预览"}
           </span>
         </div>
 
+        <div className="summary-grid results-summary-grid detail-summary-grid">
+          <div className="summary-card">
+            <span>当前模板</span>
+            <strong>{exportSelectionSummary.matchedTemplateLabel ?? "自定义模板"}</strong>
+          </div>
+          <div className="summary-card">
+            <span>已选字段数</span>
+            <strong>{exportSelectionSummary.selectedColumnCount}</strong>
+          </div>
+          <div className="summary-card">
+            <span>涉及分组数</span>
+            <strong>{exportSelectionSummary.selectedGroupCount}</strong>
+          </div>
+          <div className="summary-card">
+            <span>模板状态</span>
+            <strong>{exportSelectionSummary.isCustomSelection ? "已自定义" : "匹配预置模板"}</strong>
+          </div>
+        </div>
+
+        {exportFeedbackMessage ? <div className="success-banner">{exportFeedbackMessage}</div> : null}
+
         <div className="export-template-panel">
-          {ANNUAL_TAX_EXPORT_TEMPLATES.map((template) => (
+          {exportSelectionSummary.templates.map((template) => (
             <button
               className={
                 template.id === selectedExportTemplateId
@@ -774,6 +809,9 @@ export const AnnualResultsPage = () => {
             >
               <strong>{template.label}</strong>
               <small>{template.description}</small>
+              <small>
+                {template.columnCount} 个字段 / {template.groupCount} 个分组
+              </small>
             </button>
           ))}
         </div>
@@ -792,7 +830,38 @@ export const AnnualResultsPage = () => {
           >
             {selectedExportTemplateId === "custom" ? "恢复推荐模板字段" : "恢复当前模板字段"}
           </button>
+          <button
+            className="ghost-button"
+            onClick={() => {
+              setSelectedExportTemplateId("custom");
+              setSelectedExportColumnKeys([]);
+              setExportFeedbackMessage(null);
+            }}
+            type="button"
+          >
+            清空字段选择
+          </button>
         </div>
+
+        {exportSelectionSummary.groups.length ? (
+          <div className="subsection-block">
+            <h3>当前模板摘要</h3>
+            <div className="template-summary-grid">
+              {exportSelectionSummary.groups.map((group) => (
+                <div className="template-summary-card" key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} 个字段</span>
+                  <small>{group.labels.join("、")}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <strong>当前还没有选中导出字段。</strong>
+            <p>可先选择一个模板，或手动勾选需要导出的字段。</p>
+          </div>
+        )}
 
         {Array.from(
           ANNUAL_TAX_EXPORT_COLUMNS.reduce((groupMap, column) => {

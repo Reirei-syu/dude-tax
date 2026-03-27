@@ -712,6 +712,36 @@ textarea {
   color: #6e84a1;
 }
 
+.template-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.template-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(202, 220, 241, 0.56);
+}
+
+.template-summary-card strong {
+  color: #1b4878;
+}
+
+.template-summary-card span {
+  color: #4f6c8d;
+  font-size: 13px;
+}
+
+.template-summary-card small {
+  color: #6e84a1;
+  line-height: 1.5;
+}
+
 .export-column-item {
   display: flex;
   align-items: center;
@@ -939,6 +969,10 @@ textarea {
   }
 
   .export-template-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .template-summary-grid {
     grid-template-columns: 1fr;
   }
 

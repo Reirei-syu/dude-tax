@@ -27,7 +27,7 @@ export type AnnualTaxExportColumnKey =
   | "selectedFinalTax"
   | "calculatedAt";
 
-type AnnualTaxExportColumnDefinition = {
+export type AnnualTaxExportColumnDefinition = {
   key: AnnualTaxExportColumnKey;
   label: string;
   group: AnnualTaxExportColumnGroup;
@@ -39,7 +39,7 @@ type AnnualTaxExportColumnDefinition = {
 
 export type AnnualTaxExportTemplateId = "compact" | "finance" | "full";
 
-type AnnualTaxExportTemplate = {
+export type AnnualTaxExportTemplate = {
   id: AnnualTaxExportTemplateId;
   label: string;
   description: string;

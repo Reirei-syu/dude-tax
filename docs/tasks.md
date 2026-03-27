@@ -71,12 +71,24 @@
   - 系统维护说明编辑区
   - 富文本预览与格式工具栏
 
-### [ ] 结果中心：导出结果模板管理
-- 类型：体验增强
-- 模块：ui
-- 描述：增强结果中心导出模板的管理与切换体验，支持更清晰的模板语义和使用反馈
+### [x] 结果中心：导出结果模板管理
+- 完成时间：2026-03-27 13:00
+- 修改文件：
+  - `apps/desktop/src/pages/AnnualResultsPage.tsx`
+  - `apps/desktop/src/pages/annual-tax-export.ts`
+  - `apps/desktop/src/pages/annual-tax-export-template-manager.ts`
+  - `apps/desktop/src/pages/annual-tax-export-template-manager.test.ts`
+  - `apps/desktop/src/styles.css`
+- 影响范围：
+  - 结果中心导出模板管理区
+  - 模板摘要、字段分组统计和导出反馈
+
+### [ ] 个税计算核心：完整预扣预缴规则方案
+- 类型：方案设计
+- 模块：core / service
+- 描述：为完整预扣预缴规则补方案文档与后续实施拆解，明确现有年度口径与月度预扣链路的差距
 - 依赖：无
-- 风险：中低
+- 风险：高
 
 ## 状态
 - [ ] 未完成
