@@ -5,15 +5,21 @@
   type TaxPolicyResponse,
   type TaxPolicySettings,
 } from "../../../../packages/core/src/index";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import {
+  applyLinePrefixEdit,
+  applyWrapEdit,
+  parseMaintenanceRichText,
+  renderRichTextTokens,
+} from "./maintenance-rich-text";
 import { validateTaxPolicyDraft } from "./tax-policy-validation";
 
 const maintenanceScopeItems = [
   "当前版本支持编辑并保存全局税率，保存后会自动使年度结果与重算记录失效。",
   "保存后的税率会同步作用于首页展示、系统维护页面和后续年度计算逻辑。",
-  "当前仍不包含税率版本管理、富文本说明维护和变更审计。",
+  "当前已支持税率版本管理、富文本说明维护和作用域绑定，仍不包含变更审计。",
 ];
 
 const maintenanceRoadmapItems = [
@@ -59,6 +65,7 @@ export const MaintenancePage = () => {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const notesTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadTaxPolicy = async () => {
     try {
@@ -95,6 +102,7 @@ export const MaintenancePage = () => {
 
   const currentSettings =
     draftSettings ?? taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
+  const richTextBlocks = useMemo(() => parseMaintenanceRichText(draftNotes), [draftNotes]);
   const validationIssues = useMemo(
     () => validateTaxPolicyDraft(currentSettings, draftNotes),
     [currentSettings, draftNotes],
@@ -165,6 +173,29 @@ export const MaintenancePage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyNotesEdit = (
+    transform: (text: string, selectionStart: number, selectionEnd: number) => {
+      nextText: string;
+      nextSelectionStart: number;
+      nextSelectionEnd: number;
+    },
+  ) => {
+    const textarea = notesTextareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? draftNotes.length;
+    const selectionEnd = textarea?.selectionEnd ?? draftNotes.length;
+    const result = transform(draftNotes, selectionStart, selectionEnd);
+
+    setDraftNotes(result.nextText);
+    requestAnimationFrame(() => {
+      if (!textarea) {
+        return;
+      }
+
+      textarea.focus();
+      textarea.setSelectionRange(result.nextSelectionStart, result.nextSelectionEnd);
+    });
   };
 
   const activateTaxPolicyVersion = async (versionId: number) => {
@@ -309,24 +340,118 @@ export const MaintenancePage = () => {
       <article className="glass-card page-section">
         <div className="section-header">
           <div>
-            <h2>全局说明</h2>
-            <p>用于维护当前税率口径、适用范围或内部提示说明，按全局统一生效。</p>
+            <h2>全局说明（富文本）</h2>
+            <p>支持标题、列表、引用、加粗和代码样式，仍按全局统一生效。</p>
           </div>
           <span className="tag">{taxPolicy?.notesCustomized ? "已自定义说明" : "默认空白"}</span>
         </div>
 
-        <label className="form-field">
-          <span>提示说明</span>
-          <textarea
-            className={notesIssue ? "maintenance-textarea input-invalid" : "maintenance-textarea"}
-            maxLength={2000}
-            placeholder="例如：当前税率适用于 2026 年工资薪金年度计算；保存税率后需重新执行年度重算。"
-            value={draftNotes}
-            onChange={(event) => setDraftNotes(event.target.value)}
-          />
-        </label>
+        <div className="rich-text-toolbar">
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyLinePrefixEdit(text, start, end, "# "))}
+            type="button"
+          >
+            标题
+          </button>
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyLinePrefixEdit(text, start, end, "## "))}
+            type="button"
+          >
+            小标题
+          </button>
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyLinePrefixEdit(text, start, end, "- "))}
+            type="button"
+          >
+            列表
+          </button>
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyLinePrefixEdit(text, start, end, "> "))}
+            type="button"
+          >
+            引用
+          </button>
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyWrapEdit(text, start, end, "**", "**"))}
+            type="button"
+          >
+            加粗
+          </button>
+          <button
+            className="ghost-button table-action-button"
+            onClick={() => applyNotesEdit((text, start, end) => applyWrapEdit(text, start, end, "`", "`"))}
+            type="button"
+          >
+            代码
+          </button>
+        </div>
+
+        <div className="rich-text-editor-grid">
+          <label className="form-field">
+            <span>编辑说明</span>
+            <textarea
+              className={notesIssue ? "maintenance-textarea input-invalid" : "maintenance-textarea"}
+              maxLength={2000}
+              placeholder="例如：# 适用范围&#10;- 当前税率适用于 2026 年工资薪金年度计算&#10;- 保存税率后需重新执行年度重算"
+              ref={notesTextareaRef}
+              value={draftNotes}
+              onChange={(event) => setDraftNotes(event.target.value)}
+            />
+          </label>
+
+          <div className="rich-text-preview-card">
+            <span className="field-label">预览</span>
+            {richTextBlocks.length ? (
+              <div className="rich-text-preview">
+                {richTextBlocks.map((block, index) => {
+                  if (block.type === "heading") {
+                    if (block.level === 1) {
+                      return <h3 key={index}>{renderRichTextTokens(block.tokens, `heading-1-${index}`)}</h3>;
+                    }
+
+                    if (block.level === 2) {
+                      return <h4 key={index}>{renderRichTextTokens(block.tokens, `heading-2-${index}`)}</h4>;
+                    }
+
+                    return <h5 key={index}>{renderRichTextTokens(block.tokens, `heading-3-${index}`)}</h5>;
+                  }
+
+                  if (block.type === "quote") {
+                    return <blockquote key={index}>{renderRichTextTokens(block.tokens, `quote-${index}`)}</blockquote>;
+                  }
+
+                  if (block.type === "list") {
+                    return (
+                      <ul key={index}>
+                        {block.items.map((itemTokens, itemIndex) => (
+                          <li key={`${index}-${itemIndex}`}>
+                            {renderRichTextTokens(itemTokens, `list-${index}-${itemIndex}`)}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }
+
+                  return <p key={index}>{renderRichTextTokens(block.tokens, `paragraph-${index}`)}</p>;
+                })}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <strong>说明预览为空。</strong>
+                <p>可直接输入正文，或使用上方按钮快速插入标题、列表、引用和强调格式。</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <p className={notesIssue ? "field-hint field-error" : "field-hint"}>
-          {notesIssue ? `${notesIssue.message}；` : ""}当前已输入 {draftNotes.length} / 2000 字。
+          {notesIssue ? `${notesIssue.message}；` : ""}
+          当前已输入 {draftNotes.length} / 2000 字。支持标题、列表、引用、加粗和代码样式。
         </p>
       </article>
 
@@ -596,7 +721,7 @@ export const MaintenancePage = () => {
         <div className="section-header">
           <div>
             <h2>维护范围</h2>
-            <p>当前已开放税率编辑；说明维护、版本管理和更细粒度失效策略仍在后续计划中。</p>
+            <p>当前已开放税率编辑、富文本说明维护、版本管理和作用域绑定；更细粒度优化仍在后续计划中。</p>
           </div>
         </div>
 

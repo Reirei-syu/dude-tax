@@ -791,6 +791,81 @@ textarea {
   line-height: 1.6;
 }
 
+.rich-text-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rich-text-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rich-text-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(202, 220, 241, 0.56);
+}
+
+.rich-text-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rich-text-preview h3,
+.rich-text-preview h4,
+.rich-text-preview h5,
+.rich-text-preview p,
+.rich-text-preview ul,
+.rich-text-preview blockquote {
+  margin: 0;
+}
+
+.rich-text-preview h3 {
+  font-size: 22px;
+  color: #1b4878;
+}
+
+.rich-text-preview h4 {
+  font-size: 18px;
+  color: #275889;
+}
+
+.rich-text-preview h5 {
+  font-size: 15px;
+  color: #3a6187;
+}
+
+.rich-text-preview ul {
+  padding-left: 20px;
+  color: #48627f;
+}
+
+.rich-text-preview blockquote {
+  padding: 10px 14px;
+  border-left: 4px solid rgba(84, 142, 233, 0.7);
+  background: rgba(232, 243, 255, 0.7);
+  color: #30516e;
+  border-radius: 0 14px 14px 0;
+}
+
+.rich-text-code {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(244, 247, 252, 0.95);
+  color: #2a5d9f;
+  font-size: 12px;
+}
+
 .preview-summary-line {
   display: flex;
   flex-direction: column;
@@ -864,6 +939,10 @@ textarea {
   }
 
   .export-template-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .rich-text-editor-grid {
     grid-template-columns: 1fr;
   }
 

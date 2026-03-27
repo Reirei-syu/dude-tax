@@ -60,12 +60,23 @@
   - 批量导入预览表格
   - 字段映射、冲突字段和值的细粒度展示
 
-### [ ] 系统维护：富文本说明维护
-- 类型：功能增强
-- 模块：config / service / ui
-- 描述：将当前纯文本说明升级为可控的富文本说明维护能力
+### [x] 系统维护：富文本说明维护
+- 完成时间：2026-03-27 12:50
+- 修改文件：
+  - `apps/desktop/src/pages/MaintenancePage.tsx`
+  - `apps/desktop/src/pages/maintenance-rich-text.tsx`
+  - `apps/desktop/src/pages/maintenance-rich-text.test.ts`
+  - `apps/desktop/src/styles.css`
+- 影响范围：
+  - 系统维护说明编辑区
+  - 富文本预览与格式工具栏
+
+### [ ] 结果中心：导出结果模板管理
+- 类型：体验增强
+- 模块：ui
+- 描述：增强结果中心导出模板的管理与切换体验，支持更清晰的模板语义和使用反馈
 - 依赖：无
-- 风险：中高
+- 风险：中低
 
 ## 状态
 - [ ] 未完成
