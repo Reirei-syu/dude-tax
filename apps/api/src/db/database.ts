@@ -61,6 +61,19 @@ database.exec(`
     updated_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS tax_policy_scopes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_type TEXT NOT NULL,
+    unit_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL,
+    tax_policy_version_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY(tax_policy_version_id) REFERENCES tax_policy_versions(id) ON DELETE CASCADE,
+    UNIQUE(scope_type, unit_id, tax_year)
+  );
+
   CREATE TABLE IF NOT EXISTS employees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     unit_id INTEGER NOT NULL,

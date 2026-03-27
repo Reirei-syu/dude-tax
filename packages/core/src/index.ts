@@ -175,6 +175,15 @@ export type TaxPolicyVersionSummary = {
   activatedAt: string | null;
 };
 
+export type TaxPolicyScopeBindingSummary = {
+  unitId: number;
+  taxYear: number;
+  versionId: number;
+  versionName: string;
+  policySignature: string;
+  isInherited: boolean;
+};
+
 export type TaxPolicyResponse = {
   currentSettings: TaxPolicySettings;
   defaultSettings: TaxPolicySettings;
@@ -182,6 +191,7 @@ export type TaxPolicyResponse = {
   currentVersionId: number;
   currentVersionName: string;
   versions: TaxPolicyVersionSummary[];
+  currentScopeBinding: TaxPolicyScopeBindingSummary | null;
 } & TaxPolicyMaintenanceNotes;
 
 export type TaxPolicySaveResponse = TaxPolicyResponse & {
@@ -190,6 +200,11 @@ export type TaxPolicySaveResponse = TaxPolicyResponse & {
 
 export type TaxPolicyUpdatePayload = TaxPolicySettingsInput & {
   maintenanceNotes?: string;
+};
+
+export type TaxPolicyBindScopePayload = {
+  unitId: number;
+  taxYear: number;
 };
 
 export type AnnualTaxSchemeResult = {

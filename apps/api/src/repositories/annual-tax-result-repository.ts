@@ -8,6 +8,7 @@ import type {
   TaxCalculationScheme,
 } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
+import { taxPolicyRepository } from "./tax-policy-repository.js";
 
 const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTaxResult => {
   const snapshot = JSON.parse(String(row.calculation_snapshot)) as AnnualTaxCalculation;
@@ -39,10 +40,7 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
 };
 
 export const annualTaxResultRepository = {
-  searchHistory(
-    filters: HistoryAnnualTaxQuery,
-    currentPolicySignature: string,
-  ): HistoryAnnualTaxResult[] {
+  searchHistory(filters: HistoryAnnualTaxQuery): HistoryAnnualTaxResult[] {
     const conditions: string[] = [];
     const params: Array<number | string> = [];
 
@@ -89,8 +87,19 @@ export const annualTaxResultRepository = {
       )
       .all(...params) as Record<string, unknown>[];
 
+    const effectivePolicySignatureMap = new Map<string, string>();
+
     return rows
       .map((row) => {
+        const unitId = Number(row.unit_id);
+        const taxYear = Number(row.tax_year);
+        const scopeKey = `${unitId}:${taxYear}`;
+        const currentPolicySignature =
+          effectivePolicySignatureMap.get(scopeKey) ??
+          taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear);
+
+        effectivePolicySignatureMap.set(scopeKey, currentPolicySignature);
+
         const isInvalidated = String(row.policy_signature ?? "") !== currentPolicySignature;
         const invalidatedReason: ResultInvalidationReason | null = isInvalidated
           ? "tax_policy_changed"

@@ -40,8 +40,17 @@ export const apiClient = {
   getContext() {
     return request<AppContext>("/api/context");
   },
-  getTaxPolicy() {
-    return request<TaxPolicyResponse>("/api/tax-policy");
+  getTaxPolicy(unitId?: number, taxYear?: number) {
+    const searchParams = new URLSearchParams();
+    if (unitId) {
+      searchParams.set("unitId", String(unitId));
+    }
+    if (taxYear) {
+      searchParams.set("taxYear", String(taxYear));
+    }
+
+    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<TaxPolicyResponse>(`/api/tax-policy${suffix}`);
   },
   updateTaxPolicy(payload: TaxPolicyUpdatePayload) {
     return request<TaxPolicySaveResponse>("/api/tax-policy", {
@@ -52,6 +61,15 @@ export const apiClient = {
   activateTaxPolicyVersion(versionId: number) {
     return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}/activate`, {
       method: "POST",
+    });
+  },
+  bindTaxPolicyVersionToScope(versionId: number, unitId: number, taxYear: number) {
+    return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}/bind-scope`, {
+      method: "POST",
+      body: JSON.stringify({
+        unitId,
+        taxYear,
+      }),
     });
   },
   updateContext(payload: Partial<Pick<AppContext, "currentUnitId" | "currentTaxYear">>) {

@@ -5,14 +5,17 @@ import {
   normalizeTaxPolicySettings,
   type TaxPolicyResponse,
   type TaxPolicySaveResponse,
+  type TaxPolicyScopeBindingSummary,
   type TaxPolicyVersionSummary,
   type TaxPolicySettingsInput,
+  type TaxPolicyBindScopePayload,
   type TaxPolicyUpdatePayload,
 } from "../../../../packages/core/src/index.js";
 import { database } from "../db/database.js";
 
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
 const DEFAULT_TAX_POLICY_MAINTENANCE_NOTES = "";
+const SCOPE_TYPE_UNIT_YEAR = "unit_year";
 
 const getPreference = (key: string): string | null => {
   const row = database
@@ -162,7 +165,96 @@ const activateVersionRecord = (versionId: number) => {
   activateTransaction();
 };
 
-const buildResponse = (): TaxPolicyResponse => {
+const getScopeBindingRow = (unitId: number, taxYear: number) =>
+  database
+    .prepare(
+      `
+        SELECT
+          scope.tax_policy_version_id,
+          version.version_name,
+          version.policy_signature
+        FROM tax_policy_scopes scope
+        INNER JOIN tax_policy_versions version
+          ON version.id = scope.tax_policy_version_id
+        WHERE scope.scope_type = ?
+          AND scope.unit_id = ?
+          AND scope.tax_year = ?
+        LIMIT 1
+      `,
+    )
+    .get(SCOPE_TYPE_UNIT_YEAR, unitId, taxYear) as
+    | {
+        tax_policy_version_id: number;
+        version_name: string;
+        policy_signature: string;
+      }
+    | undefined;
+
+const buildScopeBindingSummary = (
+  activeVersion: TaxPolicyVersionRow | null,
+  unitId?: number,
+  taxYear?: number,
+): TaxPolicyScopeBindingSummary | null => {
+  if (!unitId || !taxYear || !activeVersion) {
+    return null;
+  }
+
+  const scopeBinding = getScopeBindingRow(unitId, taxYear);
+  if (scopeBinding) {
+    return {
+      unitId,
+      taxYear,
+      versionId: Number(scopeBinding.tax_policy_version_id),
+      versionName: String(scopeBinding.version_name),
+      policySignature: String(scopeBinding.policy_signature),
+      isInherited: false,
+    };
+  }
+
+  return {
+    unitId,
+    taxYear,
+    versionId: activeVersion.id,
+    versionName: activeVersion.version_name,
+    policySignature: activeVersion.policy_signature,
+    isInherited: true,
+  };
+};
+
+const getEffectiveVersionRowForScope = (unitId?: number, taxYear?: number) => {
+  const activeVersion = getActiveVersionRow();
+  if (!unitId || !taxYear || !activeVersion) {
+    return activeVersion;
+  }
+
+  const scopeBinding = getScopeBindingRow(unitId, taxYear);
+  if (!scopeBinding) {
+    return activeVersion;
+  }
+
+  return (
+    database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE id = ?
+        `,
+      )
+      .get(Number(scopeBinding.tax_policy_version_id)) as TaxPolicyVersionRow | undefined
+  ) ?? activeVersion;
+};
+
+const buildResponse = (unitId?: number, taxYear?: number): TaxPolicyResponse => {
   const defaultSettings = buildDefaultTaxPolicySettings();
   const activeVersion = getActiveVersionRow();
   const versionRows = getVersionRows();
@@ -176,6 +268,7 @@ const buildResponse = (): TaxPolicyResponse => {
     currentVersionId: activeVersion?.id ?? 0,
     currentVersionName: activeVersion?.version_name ?? "默认税率版本",
     versions: versionRows.map(mapVersionSummary),
+    currentScopeBinding: buildScopeBindingSummary(activeVersion, unitId, taxYear),
     currentNotes,
     defaultNotes: DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
     notesCustomized: currentNotes !== DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
@@ -183,11 +276,23 @@ const buildResponse = (): TaxPolicyResponse => {
 };
 
 export const taxPolicyRepository = {
-  get(): TaxPolicyResponse {
-    return buildResponse();
+  get(unitId?: number, taxYear?: number): TaxPolicyResponse {
+    return buildResponse(unitId, taxYear);
   },
-  getCurrentPolicySignature() {
-    return buildTaxPolicySignature(buildResponse().currentSettings);
+  getCurrentPolicySignature(unitId?: number, taxYear?: number) {
+    const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
+    return effectiveVersion?.policy_signature ?? buildTaxPolicySignature(buildDefaultTaxPolicySettings());
+  },
+  getEffectiveSettingsForScope(unitId?: number, taxYear?: number) {
+    const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
+    if (!effectiveVersion) {
+      return buildDefaultTaxPolicySettings();
+    }
+
+    return parseSettingsJson(effectiveVersion.settings_json);
+  },
+  getCurrentScopeBinding(unitId: number, taxYear: number) {
+    return buildScopeBindingSummary(getActiveVersionRow(), unitId, taxYear);
   },
   activateVersion(versionId: number): TaxPolicySaveResponse | null {
     const targetRow = database
@@ -227,6 +332,76 @@ export const taxPolicyRepository = {
       ...buildResponse(),
       invalidatedResults:
         buildTaxPolicySignature(currentResponse.currentSettings) !== targetRow.policy_signature,
+    };
+  },
+  bindVersionToScope(payload: TaxPolicyBindScopePayload & { versionId: number }): TaxPolicySaveResponse | null {
+    const targetRow = database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE id = ?
+        `,
+      )
+      .get(payload.versionId) as TaxPolicyVersionRow | undefined;
+
+    if (!targetRow) {
+      return null;
+    }
+
+    const currentScopeBinding = buildScopeBindingSummary(
+      getActiveVersionRow(),
+      payload.unitId,
+      payload.taxYear,
+    );
+
+    if (currentScopeBinding && !currentScopeBinding.isInherited && currentScopeBinding.versionId === payload.versionId) {
+      return {
+        ...buildResponse(payload.unitId, payload.taxYear),
+        invalidatedResults: false,
+      };
+    }
+
+    const now = new Date().toISOString();
+    database
+      .prepare(
+        `
+          INSERT INTO tax_policy_scopes (
+            scope_type,
+            unit_id,
+            tax_year,
+            tax_policy_version_id,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(scope_type, unit_id, tax_year) DO UPDATE SET
+            tax_policy_version_id = excluded.tax_policy_version_id,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        SCOPE_TYPE_UNIT_YEAR,
+        payload.unitId,
+        payload.taxYear,
+        payload.versionId,
+        now,
+        now,
+      );
+
+    return {
+      ...buildResponse(payload.unitId, payload.taxYear),
+      invalidatedResults:
+        currentScopeBinding?.policySignature !== targetRow.policy_signature,
     };
   },
   save(payload: TaxPolicyUpdatePayload): TaxPolicySaveResponse {

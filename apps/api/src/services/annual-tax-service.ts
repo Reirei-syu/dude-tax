@@ -144,16 +144,13 @@ const recalculateReadyStatus = (
 
 export const annualTaxService = {
   searchHistory(filters: HistoryAnnualTaxQuery) {
-    return annualTaxResultRepository.searchHistory(
-      filters,
-      taxPolicyRepository.getCurrentPolicySignature(),
-    );
+    return annualTaxResultRepository.searchHistory(filters);
   },
   listResults(unitId: number, taxYear: number) {
     return annualTaxResultRepository.listByUnitAndYear(
       unitId,
       taxYear,
-      taxPolicyRepository.getCurrentPolicySignature(),
+      taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
     );
   },
   listExportPreview(unitId: number, taxYear: number) {
@@ -161,7 +158,7 @@ export const annualTaxService = {
     const unitName = unit?.unitName ?? "未知单位";
 
     return annualTaxResultRepository
-      .listByUnitAndYear(unitId, taxYear, taxPolicyRepository.getCurrentPolicySignature())
+      .listByUnitAndYear(unitId, taxYear, taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear))
       .map((result) => buildExportPreviewRow(unitName, result));
   },
   updateSelectedScheme(
@@ -174,7 +171,7 @@ export const annualTaxService = {
       unitId,
       employeeId,
       taxYear,
-      taxPolicyRepository.getCurrentPolicySignature(),
+      taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
     );
     if (!result) {
       throw new AnnualTaxResultNotFoundError();
@@ -194,12 +191,12 @@ export const annualTaxService = {
       unitId,
       employeeId,
       taxYear,
-      taxPolicyRepository.getCurrentPolicySignature(),
+      taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
     );
   },
   recalculate(unitId: number, taxYear: number, employeeId?: number) {
-    const taxPolicy = taxPolicyRepository.get();
-    const currentPolicySignature = taxPolicyRepository.getCurrentPolicySignature();
+    const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
+    const currentPolicySignature = taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear);
     const statuses = calculationRunRepository.listStatuses(unitId, taxYear, currentPolicySignature);
     const targetStatuses = employeeId
       ? statuses.filter((status) => status.employeeId === employeeId)
@@ -216,7 +213,7 @@ export const annualTaxService = {
           unitId,
           taxYear,
           status,
-          taxPolicy.currentSettings,
+          effectiveSettings,
           currentPolicySignature,
         );
       });

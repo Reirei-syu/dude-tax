@@ -50,6 +50,8 @@ const updateBonusBracketValue = (
 export const MaintenancePage = () => {
   const { context } = useAppContext();
   const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
+  const currentUnitId = context?.currentUnitId ?? null;
+  const currentTaxYear = context?.currentTaxYear ?? null;
   const [taxPolicy, setTaxPolicy] = useState<TaxPolicyResponse | null>(null);
   const [draftSettings, setDraftSettings] = useState<TaxPolicySettings | null>(null);
   const [draftNotes, setDraftNotes] = useState("");
@@ -62,7 +64,7 @@ export const MaintenancePage = () => {
     try {
       setLoading(true);
       setErrorMessage(null);
-      const nextTaxPolicy = await apiClient.getTaxPolicy();
+      const nextTaxPolicy = await apiClient.getTaxPolicy(currentUnitId ?? undefined, currentTaxYear ?? undefined);
       setTaxPolicy(nextTaxPolicy);
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
       setDraftNotes(nextTaxPolicy.currentNotes);
@@ -78,7 +80,7 @@ export const MaintenancePage = () => {
 
   useEffect(() => {
     void loadTaxPolicy();
-  }, []);
+  }, [currentUnitId, currentTaxYear]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!taxPolicy || !draftSettings) {
@@ -186,6 +188,32 @@ export const MaintenancePage = () => {
     }
   };
 
+  const bindTaxPolicyVersionToCurrentScope = async (versionId: number) => {
+    if (!currentUnitId || !currentTaxYear) {
+      setErrorMessage("请先选择单位和年份，再绑定作用域税率版本");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      const nextTaxPolicy = await apiClient.bindTaxPolicyVersionToScope(versionId, currentUnitId, currentTaxYear);
+      setTaxPolicy(nextTaxPolicy);
+      setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
+      setDraftNotes(nextTaxPolicy.currentNotes);
+      setSuccessMessage(
+        nextTaxPolicy.invalidatedResults
+          ? `已将税率版本「${nextTaxPolicy.currentScopeBinding?.versionName ?? nextTaxPolicy.currentVersionName}」绑定到当前单位 / 年度；当前作用域结果已重新判定有效性。`
+          : `已将税率版本绑定到当前单位 / 年度。`,
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "绑定作用域税率版本失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="page-grid">
       <article className="glass-card page-section placeholder-card">
@@ -204,7 +232,7 @@ export const MaintenancePage = () => {
           </div>
           <div className="summary-card">
             <span>当前年份</span>
-            <strong>{context?.currentTaxYear ?? "-"}</strong>
+            <strong>{currentTaxYear ?? "-"}</strong>
           </div>
           <div className="summary-card">
             <span>当前税率版本</span>
@@ -221,6 +249,10 @@ export const MaintenancePage = () => {
           <div className="summary-card">
             <span>税率版本数</span>
             <strong>{taxPolicy?.versions.length ?? 0}</strong>
+          </div>
+          <div className="summary-card">
+            <span>当前作用域税率</span>
+            <strong>{taxPolicy?.currentScopeBinding?.versionName ?? "未绑定"}</strong>
           </div>
         </div>
 
@@ -496,7 +528,7 @@ export const MaintenancePage = () => {
         <div className="section-header">
           <div>
             <h2>税率版本列表</h2>
-            <p>当前支持保留历史税率版本并回切激活；切换版本时会重新判定哪些年度结果仍然有效。</p>
+            <p>当前支持保留历史税率版本、回切全局活动版本，并将某个版本绑定到当前单位 / 年度作用域。</p>
           </div>
           <span className="tag">{taxPolicy?.versions.length ?? 0} 个版本</span>
         </div>
@@ -505,6 +537,17 @@ export const MaintenancePage = () => {
           <div className="maintenance-warning-card">
             <strong>版本切换限制</strong>
             <p>当前有未保存修改。请先保存、恢复已保存或恢复默认后，再切换历史税率版本。</p>
+          </div>
+        ) : null}
+
+        {taxPolicy?.currentScopeBinding ? (
+          <div className="maintenance-warning-card">
+            <strong>当前作用域</strong>
+            <p>
+              {currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear ?? "-"} 年当前使用
+              {taxPolicy.currentScopeBinding.isInherited ? "全局活动税率" : "专属绑定税率"}：
+              {taxPolicy.currentScopeBinding.versionName}
+            </p>
           </div>
         ) : null}
 
@@ -528,6 +571,20 @@ export const MaintenancePage = () => {
                   onClick={() => void activateTaxPolicyVersion(version.id)}
                 >
                   激活此版本
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={
+                    loading ||
+                    saving ||
+                    hasUnsavedChanges ||
+                    !currentUnitId ||
+                    !currentTaxYear ||
+                    taxPolicy?.currentScopeBinding?.versionId === version.id
+                  }
+                  onClick={() => void bindTaxPolicyVersionToCurrentScope(version.id)}
+                >
+                  绑定到当前单位 / 年度
                 </button>
               </div>
             </div>

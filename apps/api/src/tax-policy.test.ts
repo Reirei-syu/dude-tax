@@ -376,3 +376,119 @@ test("税率超过 100 时接口返回参数校验错误", async () => {
   await app.close();
 });
 
+test("绑定单位年度作用域后，仅该作用域结果切换到绑定版本语义", async () => {
+  const [
+    { registerCalculationRoutes },
+    { registerTaxPolicyRoutes },
+    { unitRepository },
+    { employeeRepository },
+    { monthRecordRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+  await registerTaxPolicyRoutes(app);
+
+  const unitA = unitRepository.create({
+    unitName: "作用域测试单位A",
+    remark: "",
+  });
+  const unitB = unitRepository.create({
+    unitName: "作用域测试单位B",
+    remark: "",
+  });
+
+  const employeeA = employeeRepository.create(unitA.id, {
+    employeeCode: "EMP-SCOPE-A",
+    employeeName: "作用域员工A",
+    idNumber: "110101199001017771",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+  const employeeB = employeeRepository.create(unitB.id, {
+    employeeCode: "EMP-SCOPE-B",
+    employeeName: "作用域员工B",
+    idNumber: "110101199001017772",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthRecordRepository.upsert(unitA.id, employeeA.id, 2026, 1, createMonthRecordPayload());
+  monthRecordRepository.upsert(unitB.id, employeeB.id, 2026, 1, createMonthRecordPayload());
+
+  await app.inject({
+    method: "POST",
+    url: `/api/units/${unitA.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+  await app.inject({
+    method: "POST",
+    url: `/api/units/${unitB.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+
+  const initialPolicyResponse = await app.inject({
+    method: "GET",
+    url: `/api/tax-policy?unitId=${unitA.id}&taxYear=2026`,
+  });
+  const initialPolicy = initialPolicyResponse.json() as Record<string, unknown>;
+  const initialVersionId = Number(initialPolicy.currentVersionId);
+
+  const saveResponse = await app.inject({
+    method: "PUT",
+    url: "/api/tax-policy",
+    payload: {
+      basicDeductionAmount: 6_000,
+      comprehensiveTaxBrackets: [
+        { level: 1, maxAnnualIncome: 36_000, rate: 3, quickDeduction: 0 },
+        { level: 2, maxAnnualIncome: 144_000, rate: 10, quickDeduction: 2520 },
+        { level: 3, maxAnnualIncome: 300_000, rate: 20, quickDeduction: 16920 },
+        { level: 4, maxAnnualIncome: 420_000, rate: 25, quickDeduction: 31920 },
+        { level: 5, maxAnnualIncome: 660_000, rate: 30, quickDeduction: 52920 },
+        { level: 6, maxAnnualIncome: 960_000, rate: 35, quickDeduction: 85920 },
+        { level: 7, maxAnnualIncome: null, rate: 45, quickDeduction: 181920 },
+      ],
+      bonusTaxBrackets: [
+        { level: 1, maxAverageMonthlyIncome: 3_000, rate: 3, quickDeduction: 0 },
+        { level: 2, maxAverageMonthlyIncome: 12_000, rate: 10, quickDeduction: 210 },
+        { level: 3, maxAverageMonthlyIncome: 25_000, rate: 20, quickDeduction: 1410 },
+        { level: 4, maxAverageMonthlyIncome: 35_000, rate: 25, quickDeduction: 2660 },
+        { level: 5, maxAverageMonthlyIncome: 55_000, rate: 30, quickDeduction: 4410 },
+        { level: 6, maxAverageMonthlyIncome: 80_000, rate: 35, quickDeduction: 7160 },
+        { level: 7, maxAverageMonthlyIncome: null, rate: 45, quickDeduction: 15160 },
+      ],
+    },
+  });
+  assert.equal(saveResponse.statusCode, 200);
+
+  const bindResponse = await app.inject({
+    method: "POST",
+    url: `/api/tax-policy/versions/${initialVersionId}/bind-scope`,
+    payload: {
+      unitId: unitA.id,
+      taxYear: 2026,
+    },
+  });
+  assert.equal(bindResponse.statusCode, 200);
+  const bindBody = bindResponse.json() as Record<string, unknown>;
+  const currentScopeBinding = bindBody.currentScopeBinding as Record<string, unknown>;
+  assert.equal(currentScopeBinding.versionId, initialVersionId);
+  assert.equal(currentScopeBinding.isInherited, false);
+
+  const resultsA = await app.inject({
+    method: "GET",
+    url: `/api/units/${unitA.id}/years/2026/annual-results`,
+  });
+  assert.equal((resultsA.json() as unknown[]).length, 1);
+
+  const resultsB = await app.inject({
+    method: "GET",
+    url: `/api/units/${unitB.id}/years/2026/annual-results`,
+  });
+  assert.equal((resultsB.json() as unknown[]).length, 0);
+
+  await app.close();
+});
+

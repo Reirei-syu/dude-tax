@@ -105,7 +105,13 @@ const taxPolicySchema = z
   });
 
 export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
-  app.get("/api/tax-policy", async () => taxPolicyRepository.get());
+  app.get("/api/tax-policy", async (request) => {
+    const query = request.query as { unitId?: string; taxYear?: string };
+    const unitId = query.unitId ? Number(query.unitId) : undefined;
+    const taxYear = query.taxYear ? Number(query.taxYear) : undefined;
+
+    return taxPolicyRepository.get(unitId, taxYear);
+  });
 
   app.post("/api/tax-policy/versions/:versionId/activate", async (request, reply) => {
     const versionId = Number((request.params as { versionId: string }).versionId);
@@ -115,6 +121,32 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
     }
 
     const response = taxPolicyRepository.activateVersion(versionId);
+    if (!response) {
+      return reply.status(404).send({ message: "目标税率版本不存在" });
+    }
+
+    return response;
+  });
+
+  app.post("/api/tax-policy/versions/:versionId/bind-scope", async (request, reply) => {
+    const versionId = Number((request.params as { versionId: string }).versionId);
+    const body = request.body as { unitId?: number; taxYear?: number } | undefined;
+    const unitId = Number(body?.unitId);
+    const taxYear = Number(body?.taxYear);
+
+    if (!Number.isInteger(versionId) || versionId <= 0) {
+      return reply.status(400).send({ message: "税率版本参数不合法" });
+    }
+
+    if (!Number.isInteger(unitId) || unitId <= 0 || !Number.isInteger(taxYear) || taxYear <= 0) {
+      return reply.status(400).send({ message: "税率作用域参数不合法" });
+    }
+
+    const response = taxPolicyRepository.bindVersionToScope({
+      versionId,
+      unitId,
+      taxYear,
+    });
     if (!response) {
       return reply.status(404).send({ message: "目标税率版本不存在" });
     }
