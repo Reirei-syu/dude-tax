@@ -16,6 +16,11 @@ const bonusBracketSchema = z.object({
   quickDeduction: z.number().min(0),
 });
 
+const scopePayloadSchema = z.object({
+  unitId: z.number().int().positive(),
+  taxYear: z.number().int().min(2000).max(2100),
+});
+
 const buildMonotonicValidator = <T>(
   brackets: T[],
   getMaxValue: (bracket: T) => number | null,
@@ -128,30 +133,65 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
     return response;
   });
 
-  app.post("/api/tax-policy/versions/:versionId/bind-scope", async (request, reply) => {
+  app.get("/api/tax-policy/versions/:versionId/impact-preview", async (request, reply) => {
     const versionId = Number((request.params as { versionId: string }).versionId);
-    const body = request.body as { unitId?: number; taxYear?: number } | undefined;
-    const unitId = Number(body?.unitId);
-    const taxYear = Number(body?.taxYear);
+    const query = request.query as { unitId?: string; taxYear?: string };
+    const unitId = Number(query.unitId);
+    const taxYear = Number(query.taxYear);
 
     if (!Number.isInteger(versionId) || versionId <= 0) {
       return reply.status(400).send({ message: "税率版本参数不合法" });
     }
 
     if (!Number.isInteger(unitId) || unitId <= 0 || !Number.isInteger(taxYear) || taxYear <= 0) {
-      return reply.status(400).send({ message: "税率作用域参数不合法" });
+      return reply.status(400).send({ message: "预览作用域参数不合法" });
+    }
+
+    const preview = taxPolicyRepository.previewVersionImpact(versionId, unitId, taxYear);
+    if (!preview) {
+      return reply.status(404).send({ message: "目标税率版本不存在" });
+    }
+
+    return preview;
+  });
+
+  app.post("/api/tax-policy/versions/:versionId/bind-scope", async (request, reply) => {
+    const versionId = Number((request.params as { versionId: string }).versionId);
+    const parsedBody = scopePayloadSchema.safeParse(request.body ?? {});
+
+    if (!Number.isInteger(versionId) || versionId <= 0) {
+      return reply.status(400).send({ message: "税率版本参数不合法" });
+    }
+
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "税率作用域参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
     }
 
     const response = taxPolicyRepository.bindVersionToScope({
       versionId,
-      unitId,
-      taxYear,
+      unitId: parsedBody.data.unitId,
+      taxYear: parsedBody.data.taxYear,
     });
     if (!response) {
       return reply.status(404).send({ message: "目标税率版本不存在" });
     }
 
     return response;
+  });
+
+  app.post("/api/tax-policy/scopes/current/unbind", async (request, reply) => {
+    const parsedBody = scopePayloadSchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "税率作用域参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
+    }
+
+    return taxPolicyRepository.clearScopeBinding(parsedBody.data.unitId, parsedBody.data.taxYear);
   });
 
   app.put("/api/tax-policy", async (request, reply) => {

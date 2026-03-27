@@ -1,10 +1,11 @@
-﻿import {
+import {
   buildDefaultTaxPolicySettings,
   type BonusTaxBracket,
   type ComprehensiveTaxBracket,
   type TaxPolicyResponse,
   type TaxPolicySettings,
-} from "../../../../packages/core/src/index";
+  type TaxPolicyVersionImpactPreview,
+} from "@dude-tax/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
@@ -17,15 +18,15 @@ import {
 import { validateTaxPolicyDraft } from "./tax-policy-validation";
 
 const maintenanceScopeItems = [
-  "当前版本支持编辑并保存全局税率，保存后会自动使年度结果与重算记录失效。",
+  "当前版本支持编辑并保存全局税率，保存后会按当前作用域重新判定结果有效性。",
   "保存后的税率会同步作用于首页展示、系统维护页面和后续年度计算逻辑。",
-  "当前已支持税率版本管理、富文本说明维护和作用域绑定，仍不包含变更审计。",
+  "当前已支持税率版本管理、作用域绑定、解绑恢复继承、差异与影响预览、审计日志。",
 ];
 
 const maintenanceRoadmapItems = [
-  "说明维护：全局提示说明与口径备注。",
-  "税率版本管理：支持保留和切换历史版本。",
-  "更精细的结果联动：按年度或按单位范围失效，而不是全量清空结果。",
+  "说明维护：继续增强结构化说明模板与标准口径复用。",
+  "税率版本管理：后续可扩展更丰富的批量治理视图。",
+  "更精细的结果联动：继续补足更多试点后的特殊税务口径。",
 ];
 
 const cloneTaxPolicySettings = (settings: TaxPolicySettings): TaxPolicySettings =>
@@ -63,8 +64,10 @@ export const MaintenancePage = () => {
   const [draftNotes, setDraftNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [impactPreview, setImpactPreview] = useState<TaxPolicyVersionImpactPreview | null>(null);
   const notesTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadTaxPolicy = async () => {
@@ -75,6 +78,7 @@ export const MaintenancePage = () => {
       setTaxPolicy(nextTaxPolicy);
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
       setDraftNotes(nextTaxPolicy.currentNotes);
+      setImpactPreview(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载税率失败");
       setTaxPolicy(null);
@@ -233,6 +237,7 @@ export const MaintenancePage = () => {
       setTaxPolicy(nextTaxPolicy);
       setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
       setDraftNotes(nextTaxPolicy.currentNotes);
+      setImpactPreview(null);
       setSuccessMessage(
         nextTaxPolicy.invalidatedResults
           ? `已将税率版本「${nextTaxPolicy.currentScopeBinding?.versionName ?? nextTaxPolicy.currentVersionName}」绑定到当前单位 / 年度；当前作用域结果已重新判定有效性。`
@@ -245,13 +250,60 @@ export const MaintenancePage = () => {
     }
   };
 
+  const previewTaxPolicyVersionImpact = async (versionId: number) => {
+    if (!currentUnitId || !currentTaxYear) {
+      setErrorMessage("请先选择单位和年份，再查看税率版本影响预览");
+      return;
+    }
+
+    try {
+      setPreviewLoading(true);
+      setErrorMessage(null);
+      setImpactPreview(
+        await apiClient.getTaxPolicyVersionImpactPreview(versionId, currentUnitId, currentTaxYear),
+      );
+    } catch (error) {
+      setImpactPreview(null);
+      setErrorMessage(error instanceof Error ? error.message : "加载税率版本影响预览失败");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const unbindCurrentScope = async () => {
+    if (!currentUnitId || !currentTaxYear) {
+      setErrorMessage("请先选择单位和年份，再恢复继承全局税率");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      const nextTaxPolicy = await apiClient.unbindCurrentScopeTaxPolicy(currentUnitId, currentTaxYear);
+      setTaxPolicy(nextTaxPolicy);
+      setDraftSettings(cloneTaxPolicySettings(nextTaxPolicy.currentSettings));
+      setDraftNotes(nextTaxPolicy.currentNotes);
+      setImpactPreview(null);
+      setSuccessMessage(
+        nextTaxPolicy.invalidatedResults
+          ? "已解除当前单位 / 年度的专属税率绑定，并恢复继承全局活动版本；当前作用域结果已重新判定有效性。"
+          : "已解除当前单位 / 年度的专属税率绑定，并恢复继承全局活动版本。",
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "恢复继承全局税率失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="page-grid">
       <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h1>系统维护</h1>
-            <p>当前可编辑并保存全局税率；保存后将清空年度结果与重算记录，保证后续计算口径一致。</p>
+            <p>当前可编辑并保存全局税率；保存后系统会按当前作用域重新判定结果和重算记录是否仍然有效。</p>
           </div>
           <span className="tag">{loading ? "加载中" : saving ? "保存中" : "可编辑"}</span>
         </div>
@@ -289,7 +341,7 @@ export const MaintenancePage = () => {
 
         <div className="maintenance-warning-card">
           <strong>保存影响</strong>
-          <p>税率保存成功后，将自动清空当前所有年度结果和重算记录，请在保存后重新执行年度重算。</p>
+          <p>税率保存成功后，不会直接删除历史数据；系统会按当前作用域税率重新判定结果和重算记录是否失效。</p>
         </div>
 
         {validationIssues.length ? (
@@ -673,6 +725,18 @@ export const MaintenancePage = () => {
               {taxPolicy.currentScopeBinding.isInherited ? "全局活动税率" : "专属绑定税率"}：
               {taxPolicy.currentScopeBinding.versionName}
             </p>
+            {!taxPolicy.currentScopeBinding.isInherited ? (
+              <div className="button-row compact">
+                <button
+                  className="ghost-button"
+                  disabled={loading || saving || hasUnsavedChanges}
+                  onClick={() => void unbindCurrentScope()}
+                  type="button"
+                >
+                  解除绑定并恢复继承
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -711,10 +775,132 @@ export const MaintenancePage = () => {
                 >
                   绑定到当前单位 / 年度
                 </button>
+                <button
+                  className="ghost-button"
+                  disabled={loading || saving || previewLoading || !currentUnitId || !currentTaxYear}
+                  onClick={() => void previewTaxPolicyVersionImpact(version.id)}
+                  type="button"
+                >
+                  查看差异与影响
+                </button>
               </div>
             </div>
           ))}
         </div>
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>版本差异与影响预览</h2>
+            <p>以当前单位 / 年度为作用域，对比目标税率版本与当前生效版本的关键差异和结果影响。</p>
+          </div>
+          <span className="tag">{previewLoading ? "预览中" : impactPreview ? "已加载" : "未选择版本"}</span>
+        </div>
+
+        {impactPreview ? (
+          <>
+            <div className="summary-grid results-summary-grid detail-summary-grid">
+              <div className="summary-card">
+                <span>当前版本</span>
+                <strong>{impactPreview.currentVersionName}</strong>
+              </div>
+              <div className="summary-card">
+                <span>目标版本</span>
+                <strong>{impactPreview.targetVersionName}</strong>
+              </div>
+              <div className="summary-card">
+                <span>结果记录数</span>
+                <strong>{impactPreview.affectedResultCount}</strong>
+              </div>
+              <div className="summary-card">
+                <span>将失效结果数</span>
+                <strong>{impactPreview.invalidatedResultCount}</strong>
+              </div>
+              <div className="summary-card">
+                <span>重算记录数</span>
+                <strong>{impactPreview.affectedRunCount}</strong>
+              </div>
+              <div className="summary-card">
+                <span>将失效重算记录数</span>
+                <strong>{impactPreview.invalidatedRunCount}</strong>
+              </div>
+            </div>
+
+            {impactPreview.diffItems.length ? (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>差异项</th>
+                    <th>当前版本</th>
+                    <th>目标版本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {impactPreview.diffItems.map((item) => (
+                    <tr key={item.label}>
+                      <td>{item.label}</td>
+                      <td>{item.baselineValue}</td>
+                      <td>{item.targetValue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <strong>目标版本与当前作用域版本没有配置差异。</strong>
+                <p>如果仍要切换，系统只会改变绑定关系，不会改变税率内容。</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="empty-state">
+            <strong>请选择一个税率版本查看影响。</strong>
+            <p>预览会基于当前单位 / 年度统计结果和重算记录的影响范围。</p>
+          </div>
+        )}
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>税率变更审计日志</h2>
+            <p>记录税率保存、版本激活、作用域绑定和解绑恢复继承等关键操作。</p>
+          </div>
+          <span className="tag">{taxPolicy?.auditLogs.length ?? 0} 条记录</span>
+        </div>
+
+        {taxPolicy?.auditLogs.length ? (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>操作</th>
+                <th>版本</th>
+                <th>作用域</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taxPolicy.auditLogs.map((log) => (
+                <tr key={log.id}>
+                  <td>{new Date(log.createdAt).toLocaleString("zh-CN", { hour12: false })}</td>
+                  <td>{log.actionType}</td>
+                  <td>{log.versionName ?? "-"}</td>
+                  <td>
+                    {log.unitId && log.taxYear ? `单位 ${log.unitId} / ${log.taxYear} 年` : "全局"}
+                  </td>
+                  <td>{log.summary}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            <strong>当前还没有税率变更审计记录。</strong>
+            <p>当你保存税率、激活历史版本、绑定或解绑作用域时，这里会自动追加日志。</p>
+          </div>
+        )}
       </article>
 
       <article className="glass-card page-section placeholder-card">

@@ -3,19 +3,57 @@ import {
   buildTaxPolicySignature,
   isSameTaxPolicySettings,
   normalizeTaxPolicySettings,
+  type TaxPolicyAuditAction,
+  type TaxPolicyAuditLog,
   type TaxPolicyResponse,
   type TaxPolicySaveResponse,
   type TaxPolicyScopeBindingSummary,
-  type TaxPolicyVersionSummary,
+  type TaxPolicySettings,
   type TaxPolicySettingsInput,
-  type TaxPolicyBindScopePayload,
   type TaxPolicyUpdatePayload,
-} from "../../../../packages/core/src/index.js";
+  type TaxPolicyVersionDiffItem,
+  type TaxPolicyVersionImpactPreview,
+  type TaxPolicyVersionSummary,
+  type TaxPolicyBindScopePayload,
+} from "@dude-tax/core";
 import { database } from "../db/database.js";
 
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
 const DEFAULT_TAX_POLICY_MAINTENANCE_NOTES = "";
+const DEFAULT_TAX_POLICY_VERSION_NAME = "默认税率版本";
+const DEFAULT_AUDIT_ACTOR_LABEL = "本地用户";
+const DEFAULT_AUDIT_LIMIT = 20;
 const SCOPE_TYPE_UNIT_YEAR = "unit_year";
+
+type TaxPolicyVersionRow = {
+  id: number;
+  version_name: string;
+  policy_signature: string;
+  settings_json: string;
+  maintenance_notes: string;
+  is_active: number;
+  created_at: string;
+  activated_at: string | null;
+  updated_at: string;
+};
+
+type TaxPolicyScopeBindingRow = {
+  tax_policy_version_id: number;
+  version_name: string;
+  policy_signature: string;
+};
+
+type TaxPolicyAuditLogRow = {
+  id: number;
+  action_type: TaxPolicyAuditAction;
+  actor_label: string;
+  tax_policy_version_id: number | null;
+  unit_id: number | null;
+  tax_year: number | null;
+  summary: string;
+  created_at: string;
+  version_name: string | null;
+};
 
 const getPreference = (key: string): string | null => {
   const row = database
@@ -37,17 +75,8 @@ const setPreference = (key: string, value: string) => {
     .run(key, value);
 };
 
-type TaxPolicyVersionRow = {
-  id: number;
-  version_name: string;
-  policy_signature: string;
-  settings_json: string;
-  maintenance_notes: string;
-  is_active: number;
-  created_at: string;
-  activated_at: string | null;
-  updated_at: string;
-};
+const parseSettingsJson = (settingsJson: string) =>
+  normalizeTaxPolicySettings(JSON.parse(settingsJson) as TaxPolicySettingsInput);
 
 const getVersionRows = (): TaxPolicyVersionRow[] =>
   database
@@ -69,38 +98,8 @@ const getVersionRows = (): TaxPolicyVersionRow[] =>
     )
     .all() as TaxPolicyVersionRow[];
 
-const parseSettingsJson = (settingsJson: string) =>
-  normalizeTaxPolicySettings(JSON.parse(settingsJson) as TaxPolicySettingsInput);
-
-const getActiveVersionRow = (): TaxPolicyVersionRow | null => {
-  const preferredActiveId = Number(getPreference(ACTIVE_TAX_POLICY_VERSION_ID_KEY) ?? 0);
-
-  if (preferredActiveId > 0) {
-    const preferredRow = database
-      .prepare(
-        `
-          SELECT
-            id,
-            version_name,
-            policy_signature,
-            settings_json,
-            maintenance_notes,
-            is_active,
-            created_at,
-            activated_at,
-            updated_at
-          FROM tax_policy_versions
-          WHERE id = ?
-        `,
-      )
-      .get(preferredActiveId) as TaxPolicyVersionRow | undefined;
-
-    if (preferredRow) {
-      return preferredRow;
-    }
-  }
-
-  const activeRow = database
+const getVersionRowById = (versionId: number): TaxPolicyVersionRow | null =>
+  ((database
     .prepare(
       `
         SELECT
@@ -114,14 +113,75 @@ const getActiveVersionRow = (): TaxPolicyVersionRow | null => {
           activated_at,
           updated_at
         FROM tax_policy_versions
-        WHERE is_active = 1
-        ORDER BY activated_at DESC, created_at DESC, id DESC
+        WHERE id = ?
+      `,
+    )
+    .get(versionId) as TaxPolicyVersionRow | undefined) ?? null);
+
+const getActiveVersionRow = (): TaxPolicyVersionRow | null => {
+  const preferredActiveId = Number(getPreference(ACTIVE_TAX_POLICY_VERSION_ID_KEY) ?? 0);
+  if (preferredActiveId > 0) {
+    const preferredRow = getVersionRowById(preferredActiveId);
+    if (preferredRow) {
+      return preferredRow;
+    }
+  }
+
+  return (
+    (database
+      .prepare(
+        `
+          SELECT
+            id,
+            version_name,
+            policy_signature,
+            settings_json,
+            maintenance_notes,
+            is_active,
+            created_at,
+            activated_at,
+            updated_at
+          FROM tax_policy_versions
+          WHERE is_active = 1
+          ORDER BY activated_at DESC, created_at DESC, id DESC
+          LIMIT 1
+        `,
+      )
+      .get() as TaxPolicyVersionRow | undefined) ?? null
+  );
+};
+
+const getScopeBindingRow = (unitId: number, taxYear: number): TaxPolicyScopeBindingRow | null =>
+  ((database
+    .prepare(
+      `
+        SELECT
+          scope.tax_policy_version_id,
+          version.version_name,
+          version.policy_signature
+        FROM tax_policy_scopes scope
+        INNER JOIN tax_policy_versions version
+          ON version.id = scope.tax_policy_version_id
+        WHERE scope.scope_type = ?
+          AND scope.unit_id = ?
+          AND scope.tax_year = ?
         LIMIT 1
       `,
     )
-    .get() as TaxPolicyVersionRow | undefined;
+    .get(SCOPE_TYPE_UNIT_YEAR, unitId, taxYear) as TaxPolicyScopeBindingRow | undefined) ?? null);
 
-  return activeRow ?? null;
+const getEffectiveVersionRowForScope = (unitId?: number, taxYear?: number): TaxPolicyVersionRow | null => {
+  const activeVersion = getActiveVersionRow();
+  if (!unitId || !taxYear || !activeVersion) {
+    return activeVersion;
+  }
+
+  const scopeBinding = getScopeBindingRow(unitId, taxYear);
+  if (!scopeBinding) {
+    return activeVersion;
+  }
+
+  return getVersionRowById(scopeBinding.tax_policy_version_id) ?? activeVersion;
 };
 
 const mapVersionSummary = (row: TaxPolicyVersionRow): TaxPolicyVersionSummary => ({
@@ -145,8 +205,7 @@ const buildVersionName = (date = new Date()) => {
 
 const activateVersionRecord = (versionId: number) => {
   const now = new Date().toISOString();
-
-  const activateTransaction = database.transaction(() => {
+  const transaction = database.transaction(() => {
     database.prepare("UPDATE tax_policy_versions SET is_active = 0").run();
     database
       .prepare(
@@ -162,33 +221,8 @@ const activateVersionRecord = (versionId: number) => {
     setPreference(ACTIVE_TAX_POLICY_VERSION_ID_KEY, String(versionId));
   });
 
-  activateTransaction();
+  transaction();
 };
-
-const getScopeBindingRow = (unitId: number, taxYear: number) =>
-  database
-    .prepare(
-      `
-        SELECT
-          scope.tax_policy_version_id,
-          version.version_name,
-          version.policy_signature
-        FROM tax_policy_scopes scope
-        INNER JOIN tax_policy_versions version
-          ON version.id = scope.tax_policy_version_id
-        WHERE scope.scope_type = ?
-          AND scope.unit_id = ?
-          AND scope.tax_year = ?
-        LIMIT 1
-      `,
-    )
-    .get(SCOPE_TYPE_UNIT_YEAR, unitId, taxYear) as
-    | {
-        tax_policy_version_id: number;
-        version_name: string;
-        policy_signature: string;
-      }
-    | undefined;
 
 const buildScopeBindingSummary = (
   activeVersion: TaxPolicyVersionRow | null,
@@ -204,9 +238,9 @@ const buildScopeBindingSummary = (
     return {
       unitId,
       taxYear,
-      versionId: Number(scopeBinding.tax_policy_version_id),
-      versionName: String(scopeBinding.version_name),
-      policySignature: String(scopeBinding.policy_signature),
+      versionId: scopeBinding.tax_policy_version_id,
+      versionName: scopeBinding.version_name,
+      policySignature: scopeBinding.policy_signature,
       isInherited: false,
     };
   }
@@ -221,54 +255,193 @@ const buildScopeBindingSummary = (
   };
 };
 
-const getEffectiveVersionRowForScope = (unitId?: number, taxYear?: number) => {
-  const activeVersion = getActiveVersionRow();
-  if (!unitId || !taxYear || !activeVersion) {
-    return activeVersion;
+const insertAuditLog = (input: {
+  actionType: TaxPolicyAuditAction;
+  versionId?: number | null;
+  unitId?: number | null;
+  taxYear?: number | null;
+  summary: string;
+}) => {
+  database
+    .prepare(
+      `
+        INSERT INTO tax_policy_audit_logs (
+          action_type,
+          actor_label,
+          tax_policy_version_id,
+          unit_id,
+          tax_year,
+          summary,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    )
+    .run(
+      input.actionType,
+      DEFAULT_AUDIT_ACTOR_LABEL,
+      input.versionId ?? null,
+      input.unitId ?? null,
+      input.taxYear ?? null,
+      input.summary,
+      new Date().toISOString(),
+    );
+};
+
+const listAuditLogs = (limit = DEFAULT_AUDIT_LIMIT): TaxPolicyAuditLog[] => {
+  const rows = database
+    .prepare(
+      `
+        SELECT
+          log.id,
+          log.action_type,
+          log.actor_label,
+          log.tax_policy_version_id,
+          log.unit_id,
+          log.tax_year,
+          log.summary,
+          log.created_at,
+          version.version_name
+        FROM tax_policy_audit_logs log
+        LEFT JOIN tax_policy_versions version
+          ON version.id = log.tax_policy_version_id
+        ORDER BY log.created_at DESC, log.id DESC
+        LIMIT ?
+      `,
+    )
+    .all(limit) as TaxPolicyAuditLogRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    actionType: row.action_type,
+    actorLabel: row.actor_label,
+    versionId: row.tax_policy_version_id,
+    versionName: row.version_name,
+    unitId: row.unit_id,
+    taxYear: row.tax_year,
+    summary: row.summary,
+    createdAt: row.created_at,
+  }));
+};
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatRangeMax = (value: number | null) => (value === null ? "不封顶" : `${formatCurrency(value)} 元`);
+
+const buildBracketText = (
+  bracket:
+    | TaxPolicySettings["comprehensiveTaxBrackets"][number]
+    | TaxPolicySettings["bonusTaxBrackets"][number],
+  maxValue: number | null,
+) => `封顶 ${formatRangeMax(maxValue)} / 税率 ${bracket.rate}% / 速算扣除 ${formatCurrency(bracket.quickDeduction)}`;
+
+const buildVersionDiffItems = (
+  baselineSettings: TaxPolicySettings,
+  targetSettings: TaxPolicySettings,
+): TaxPolicyVersionDiffItem[] => {
+  const items: TaxPolicyVersionDiffItem[] = [];
+
+  if (baselineSettings.basicDeductionAmount !== targetSettings.basicDeductionAmount) {
+    items.push({
+      label: "基本减除费用",
+      baselineValue: `${formatCurrency(baselineSettings.basicDeductionAmount)} 元 / 月`,
+      targetValue: `${formatCurrency(targetSettings.basicDeductionAmount)} 元 / 月`,
+    });
   }
 
-  const scopeBinding = getScopeBindingRow(unitId, taxYear);
-  if (!scopeBinding) {
-    return activeVersion;
-  }
+  baselineSettings.comprehensiveTaxBrackets.forEach((baselineBracket, index) => {
+    const targetBracket = targetSettings.comprehensiveTaxBrackets[index];
+    if (!targetBracket) {
+      return;
+    }
 
-  return (
-    database
-      .prepare(
-        `
-          SELECT
-            id,
-            version_name,
-            policy_signature,
-            settings_json,
-            maintenance_notes,
-            is_active,
-            created_at,
-            activated_at,
-            updated_at
-          FROM tax_policy_versions
-          WHERE id = ?
-        `,
-      )
-      .get(Number(scopeBinding.tax_policy_version_id)) as TaxPolicyVersionRow | undefined
-  ) ?? activeVersion;
+    const baselineText = buildBracketText(baselineBracket, baselineBracket.maxAnnualIncome);
+    const targetText = buildBracketText(targetBracket, targetBracket.maxAnnualIncome);
+    if (baselineText !== targetText) {
+      items.push({
+        label: `综合所得第 ${baselineBracket.level} 档`,
+        baselineValue: baselineText,
+        targetValue: targetText,
+      });
+    }
+  });
+
+  baselineSettings.bonusTaxBrackets.forEach((baselineBracket, index) => {
+    const targetBracket = targetSettings.bonusTaxBrackets[index];
+    if (!targetBracket) {
+      return;
+    }
+
+    const baselineText = buildBracketText(
+      baselineBracket,
+      baselineBracket.maxAverageMonthlyIncome,
+    );
+    const targetText = buildBracketText(targetBracket, targetBracket.maxAverageMonthlyIncome);
+    if (baselineText !== targetText) {
+      items.push({
+        label: `年终奖第 ${baselineBracket.level} 档`,
+        baselineValue: baselineText,
+        targetValue: targetText,
+      });
+    }
+  });
+
+  return items;
+};
+
+const countScopeRows = (
+  tableName: "annual_tax_results" | "annual_calculation_runs",
+  unitId: number,
+  taxYear: number,
+  targetPolicySignature: string,
+) => {
+  const total = Number(
+    (
+      database
+        .prepare(`SELECT COUNT(*) AS total FROM ${tableName} WHERE unit_id = ? AND tax_year = ?`)
+        .get(unitId, taxYear) as { total: number }
+    ).total,
+  );
+  const invalidated = Number(
+    (
+      database
+        .prepare(
+          `
+            SELECT COUNT(*) AS total
+            FROM ${tableName}
+            WHERE unit_id = ? AND tax_year = ? AND policy_signature <> ?
+          `,
+        )
+        .get(unitId, taxYear, targetPolicySignature) as { total: number }
+    ).total,
+  );
+
+  return {
+    total,
+    invalidated,
+  };
 };
 
 const buildResponse = (unitId?: number, taxYear?: number): TaxPolicyResponse => {
   const defaultSettings = buildDefaultTaxPolicySettings();
   const activeVersion = getActiveVersionRow();
-  const versionRows = getVersionRows();
-  const activeSettings = activeVersion ? parseSettingsJson(activeVersion.settings_json) : defaultSettings;
-  const currentNotes = activeVersion?.maintenance_notes ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
+  const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
+  const currentSettings = effectiveVersion ? parseSettingsJson(effectiveVersion.settings_json) : defaultSettings;
+  const currentNotes = effectiveVersion?.maintenance_notes ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
 
   return {
-    currentSettings: activeSettings,
+    currentSettings,
     defaultSettings,
-    isCustomized: !isSameTaxPolicySettings(activeSettings, defaultSettings),
-    currentVersionId: activeVersion?.id ?? 0,
-    currentVersionName: activeVersion?.version_name ?? "默认税率版本",
-    versions: versionRows.map(mapVersionSummary),
+    isCustomized: !isSameTaxPolicySettings(currentSettings, defaultSettings),
+    currentVersionId: effectiveVersion?.id ?? 0,
+    currentVersionName: effectiveVersion?.version_name ?? DEFAULT_TAX_POLICY_VERSION_NAME,
+    versions: getVersionRows().map(mapVersionSummary),
     currentScopeBinding: buildScopeBindingSummary(activeVersion, unitId, taxYear),
+    auditLogs: listAuditLogs(),
     currentNotes,
     defaultNotes: DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
     notesCustomized: currentNotes !== DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
@@ -294,67 +467,73 @@ export const taxPolicyRepository = {
   getCurrentScopeBinding(unitId: number, taxYear: number) {
     return buildScopeBindingSummary(getActiveVersionRow(), unitId, taxYear);
   },
-  activateVersion(versionId: number): TaxPolicySaveResponse | null {
-    const targetRow = database
-      .prepare(
-        `
-          SELECT
-            id,
-            version_name,
-            policy_signature,
-            settings_json,
-            maintenance_notes,
-            is_active,
-            created_at,
-            activated_at,
-            updated_at
-          FROM tax_policy_versions
-          WHERE id = ?
-        `,
-      )
-      .get(versionId) as TaxPolicyVersionRow | undefined;
-
-    if (!targetRow) {
+  previewVersionImpact(versionId: number, unitId: number, taxYear: number): TaxPolicyVersionImpactPreview | null {
+    const targetVersion = getVersionRowById(versionId);
+    const currentScopeBinding = buildScopeBindingSummary(getActiveVersionRow(), unitId, taxYear);
+    if (!targetVersion || !currentScopeBinding) {
       return null;
     }
 
-    const currentResponse = buildResponse();
-    if (currentResponse.currentVersionId === versionId) {
+    const currentSettings = this.getEffectiveSettingsForScope(unitId, taxYear);
+    const targetSettings = parseSettingsJson(targetVersion.settings_json);
+    const affectedResults = countScopeRows(
+      "annual_tax_results",
+      unitId,
+      taxYear,
+      targetVersion.policy_signature,
+    );
+    const affectedRuns = countScopeRows(
+      "annual_calculation_runs",
+      unitId,
+      taxYear,
+      targetVersion.policy_signature,
+    );
+
+    return {
+      unitId,
+      taxYear,
+      currentVersionId: currentScopeBinding.versionId,
+      currentVersionName: currentScopeBinding.versionName,
+      targetVersionId: targetVersion.id,
+      targetVersionName: targetVersion.version_name,
+      currentBindingMode: currentScopeBinding.isInherited ? "inherited" : "bound",
+      targetBindingMode: "bound",
+      affectedResultCount: affectedResults.total,
+      invalidatedResultCount: affectedResults.invalidated,
+      affectedRunCount: affectedRuns.total,
+      invalidatedRunCount: affectedRuns.invalidated,
+      diffItems: buildVersionDiffItems(currentSettings, targetSettings),
+    };
+  },
+  activateVersion(versionId: number): TaxPolicySaveResponse | null {
+    const targetVersion = getVersionRowById(versionId);
+    if (!targetVersion) {
+      return null;
+    }
+
+    const currentActiveVersion = getActiveVersionRow();
+    if (currentActiveVersion?.id === versionId) {
       return {
-        ...currentResponse,
+        ...buildResponse(),
         invalidatedResults: false,
       };
     }
 
     activateVersionRecord(versionId);
+    insertAuditLog({
+      actionType: "activate_version",
+      versionId,
+      summary: `激活税率版本「${targetVersion.version_name}」为全局活动版本`,
+    });
 
     return {
       ...buildResponse(),
-      invalidatedResults:
-        buildTaxPolicySignature(currentResponse.currentSettings) !== targetRow.policy_signature,
+      invalidatedResults: currentActiveVersion?.policy_signature !== targetVersion.policy_signature,
     };
   },
   bindVersionToScope(payload: TaxPolicyBindScopePayload & { versionId: number }): TaxPolicySaveResponse | null {
-    const targetRow = database
-      .prepare(
-        `
-          SELECT
-            id,
-            version_name,
-            policy_signature,
-            settings_json,
-            maintenance_notes,
-            is_active,
-            created_at,
-            activated_at,
-            updated_at
-          FROM tax_policy_versions
-          WHERE id = ?
-        `,
-      )
-      .get(payload.versionId) as TaxPolicyVersionRow | undefined;
-
-    if (!targetRow) {
+    const targetVersion = getVersionRowById(payload.versionId);
+    if (!targetVersion) {
       return null;
     }
 
@@ -363,8 +542,11 @@ export const taxPolicyRepository = {
       payload.unitId,
       payload.taxYear,
     );
-
-    if (currentScopeBinding && !currentScopeBinding.isInherited && currentScopeBinding.versionId === payload.versionId) {
+    if (
+      currentScopeBinding &&
+      !currentScopeBinding.isInherited &&
+      currentScopeBinding.versionId === payload.versionId
+    ) {
       return {
         ...buildResponse(payload.unitId, payload.taxYear),
         invalidatedResults: false,
@@ -398,10 +580,51 @@ export const taxPolicyRepository = {
         now,
       );
 
+    insertAuditLog({
+      actionType: "bind_scope",
+      versionId: payload.versionId,
+      unitId: payload.unitId,
+      taxYear: payload.taxYear,
+      summary: `将税率版本「${targetVersion.version_name}」绑定到单位 ${payload.unitId} / ${payload.taxYear} 年`,
+    });
+
     return {
       ...buildResponse(payload.unitId, payload.taxYear),
+      invalidatedResults: currentScopeBinding?.policySignature !== targetVersion.policy_signature,
+    };
+  },
+  clearScopeBinding(unitId: number, taxYear: number): TaxPolicySaveResponse {
+    const activeVersion = getActiveVersionRow();
+    const currentScopeBinding = buildScopeBindingSummary(activeVersion, unitId, taxYear);
+    if (!currentScopeBinding || currentScopeBinding.isInherited) {
+      return {
+        ...buildResponse(unitId, taxYear),
+        invalidatedResults: false,
+      };
+    }
+
+    database
+      .prepare(
+        `
+          DELETE FROM tax_policy_scopes
+          WHERE scope_type = ? AND unit_id = ? AND tax_year = ?
+        `,
+      )
+      .run(SCOPE_TYPE_UNIT_YEAR, unitId, taxYear);
+
+    insertAuditLog({
+      actionType: "unbind_scope",
+      versionId: activeVersion?.id ?? null,
+      unitId,
+      taxYear,
+      summary: `解除单位 ${unitId} / ${taxYear} 年的专属税率绑定，恢复继承「${activeVersion?.version_name ?? DEFAULT_TAX_POLICY_VERSION_NAME}」`,
+    });
+
+    return {
+      ...buildResponse(unitId, taxYear),
       invalidatedResults:
-        currentScopeBinding?.policySignature !== targetRow.policy_signature,
+        currentScopeBinding.policySignature !==
+        (activeVersion?.policy_signature ?? buildTaxPolicySignature(buildDefaultTaxPolicySettings())),
     };
   },
   save(payload: TaxPolicyUpdatePayload): TaxPolicySaveResponse {
@@ -409,9 +632,9 @@ export const taxPolicyRepository = {
     const nextSettings = normalizeTaxPolicySettings(payload);
     const nextNotes = payload.maintenanceNotes?.trim() ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
     const defaultSettings = buildDefaultTaxPolicySettings();
+    const activeVersion = getActiveVersionRow();
     const settingsChanged = !isSameTaxPolicySettings(currentResponse.currentSettings, nextSettings);
     const notesChanged = currentResponse.currentNotes !== nextNotes;
-    const nextPolicySignature = buildTaxPolicySignature(nextSettings);
 
     if (!settingsChanged && !notesChanged) {
       return {
@@ -419,8 +642,6 @@ export const taxPolicyRepository = {
         invalidatedResults: false,
       };
     }
-
-    const activeVersion = getActiveVersionRow();
 
     if (!settingsChanged && notesChanged && activeVersion) {
       database
@@ -434,33 +655,25 @@ export const taxPolicyRepository = {
         )
         .run(nextNotes, new Date().toISOString(), activeVersion.id);
 
+      insertAuditLog({
+        actionType: "update_notes",
+        versionId: activeVersion.id,
+        summary: `更新税率说明，当前版本为「${activeVersion.version_name}」`,
+      });
+
       return {
         ...buildResponse(),
         invalidatedResults: false,
       };
     }
 
-    const existingVersion = database
-      .prepare(
-        `
-          SELECT
-            id,
-            version_name,
-            policy_signature,
-            settings_json,
-            maintenance_notes,
-            is_active,
-            created_at,
-            activated_at,
-            updated_at
-          FROM tax_policy_versions
-          WHERE policy_signature = ?
-        `,
-      )
-      .get(nextPolicySignature) as TaxPolicyVersionRow | undefined;
+    const nextPolicySignature = buildTaxPolicySignature(nextSettings);
+    const existingVersion = getVersionRows().find(
+      (version) => version.policy_signature === nextPolicySignature,
+    );
 
     if (existingVersion) {
-      const reuseTransaction = database.transaction(() => {
+      const transaction = database.transaction(() => {
         if (existingVersion.maintenance_notes !== nextNotes) {
           database
             .prepare(
@@ -473,20 +686,27 @@ export const taxPolicyRepository = {
             )
             .run(nextNotes, new Date().toISOString(), existingVersion.id);
         }
-
         activateVersionRecord(existingVersion.id);
       });
 
-      reuseTransaction();
+      transaction();
+      insertAuditLog({
+        actionType: "save_settings",
+        versionId: existingVersion.id,
+        summary: `复用已有税率版本「${existingVersion.version_name}」并设为全局活动版本`,
+      });
 
       return {
         ...buildResponse(),
-        invalidatedResults: settingsChanged,
+        invalidatedResults: activeVersion?.policy_signature !== existingVersion.policy_signature,
       };
     }
 
-    const saveTransaction = database.transaction(() => {
-      const now = new Date();
+    const now = new Date();
+    const versionName = isSameTaxPolicySettings(defaultSettings, nextSettings)
+      ? DEFAULT_TAX_POLICY_VERSION_NAME
+      : buildVersionName(now);
+    const transaction = database.transaction(() => {
       const insertResult = database
         .prepare(
           `
@@ -504,9 +724,7 @@ export const taxPolicyRepository = {
           `,
         )
         .run(
-          isSameTaxPolicySettings(defaultSettings, nextSettings)
-            ? "默认税率版本"
-            : buildVersionName(now),
+          versionName,
           nextPolicySignature,
           JSON.stringify(nextSettings),
           nextNotes,
@@ -517,11 +735,17 @@ export const taxPolicyRepository = {
       activateVersionRecord(Number(insertResult.lastInsertRowid));
     });
 
-    saveTransaction();
+    transaction();
+    const createdVersion = getVersionRows().find((version) => version.policy_signature === nextPolicySignature);
+    insertAuditLog({
+      actionType: "save_settings",
+      versionId: createdVersion?.id ?? null,
+      summary: `创建并启用税率版本「${versionName}」`,
+    });
 
     return {
       ...buildResponse(),
-      invalidatedResults: settingsChanged,
+      invalidatedResults: activeVersion?.policy_signature !== nextPolicySignature,
     };
   },
 };

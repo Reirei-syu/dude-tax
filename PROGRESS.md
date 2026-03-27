@@ -1,6 +1,6 @@
 ﻿# 项目进度与记忆 (PROGRESS.md)
 
-- **更新时间**：2026-03-27 14:25
+- **更新时间**：2026-03-28 01:05
 - **项目标识**：dude-tax
 - **产品显示名**：工资薪金个税计算器
 - **当前版本阶段**：v0.1.0-alpha
@@ -16,6 +16,7 @@
   - `/docs/plans/2026-03-27_remaining-modules_completion-plan.md`
   - `/docs/plans/2026-03-27_quick-calculate_template-and-supplementary-plan.md`
   - `/docs/plans/2026-03-27_cross-unit-cross-year-bridging-plan.md`
+  - `/docs/plans/2026-03-28_real-business-pilot-hardening-plan.md`
 - **已完成模块**：
   - 项目基础文档：`AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
   - 工程骨架：npm workspaces、`apps/api`、`apps/desktop`、`packages/core`、`packages/config`
@@ -28,6 +29,13 @@
   - 前端基础能力：首页、单位管理、全局单位/年份上下文栏、模块导航占位页
   - 首页税率表静态展示：与后续计算核心同源配置
 - **本次更新**：
+  - 落地“真实业务试点上线边界”的第一轮工程收口：桌面端改为运行时注入 API 基地址，桌面壳尝试自启本地 API，并将数据库默认目录迁移到用户数据目录
+  - 新增 `tax_policy_audit_logs`，系统维护现已支持税率变更审计日志、作用域解绑恢复继承、版本差异与结果影响预览
+  - 结果中心与历史查询新增规则来源摘要，可提示当前结果是否引用了跨单位 / 跨年度规则上下文
+  - 历史查询中“失效快照对比当前结果”已改为按当前作用域税率重算，避免全局税率误判
+  - `apps/*` 对 `packages/*/src` 的深相对路径已收口到 workspace 包名，`npm audit --omit=dev` 当前为 0 漏洞
+  - 新增 `npm run package:win`，可生成 `dist-electron/` Windows 测试包目录
+  - 已完成测试、类型检查、桌面前端构建和打包脚本验证；但 Windows 测试包 smoke 仍卡在 `better-sqlite3` 的 Electron ABI 不匹配，桌面壳尚未成功拉起打包后的本地 API
   - 完成“跨单位 / 跨年衔接”的第二小步：核心算法开始消费 `carryInCompletedRecords`
   - 跨单位前置月份现已可参与当前单位累计预扣轨迹计算，但不会直接并入当前单位摘要中的实际已预扣金额
   - 补充核心层与 API 层测试，验证跨单位前置月份会影响当前单位预扣轨迹摘要
@@ -237,12 +245,10 @@
   - 项目内容已迁移到 `D:\coding\dude-tax`，原 `D:\coding\salary-tax` 目录已清空；由于当前会话策略限制，未在本轮自动删除空目录
   - 当前仓库无远程仓库，且本地已只保留 `master`；后续如需协作，需先补远程与分支规范
   - 当前税率失效策略已从“全量清空”升级为基于 `policy_signature` 的逻辑失效
-  - `npm audit --omit=dev` 当前仍有 9 个中危漏洞，集中在 `exceljs -> archiver -> brace-expansion` 依赖链；`npm audit fix` 无法无损收敛，需要后续评估替换导出库或等待上游修复
-  - `apps/api` 与 `apps/desktop` 当前仍大量通过深相对路径直接引用 `packages/*/src`，会削弱 workspace 包边界与长期可维护性
   - 补发补扣字段当前已完成“支付当月补发 / 补扣”的输入闭环，但仍未覆盖往期更正申报、跨单位 / 跨年衔接和更细粒度月度追溯
-  - 跨单位 / 跨年衔接已进入核心算法，但结果页尚未明确提示“当前结果引用了哪些外部规则上下文”
-  - 系统维护模块虽已形成当前最小闭环，但仍缺少变更审计、作用域绑定解除 / 恢复继承，以及税率版本差异 / 影响预览子功能
+  - Windows 测试包当前已可生成，但 smoke 仍失败；根因已定位为 `better-sqlite3` 的 Electron ABI 不匹配，需继续完成原生模块重编
+  - 引入 `@electron/rebuild` 后，整体 `npm audit` 仍有 dev 依赖告警；当前试点验收以 `npm audit --omit=dev = 0` 为准
 - **下一步开发计划**：
-  - 按“未完成功能优先”的顺序，下一步优先推进跨单位 / 跨年衔接规则
-  - 随后进入跨单位 / 跨年衔接规则，再回头处理 `exceljs` 依赖链与跨包导入收口
+  - 下一步优先处理 `better-sqlite3` 的 Electron ABI 重编，打通 Windows 测试包 smoke 验证
+  - smoke 通过后，再继续收口真实业务试点范围内的复杂税务口径与显式警示
 

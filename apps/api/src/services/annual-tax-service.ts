@@ -1,4 +1,5 @@
 import {
+  type AnnualTaxRuleSourceSummary,
   type AnnualTaxExportPreviewRow,
   calculateEmployeeAnnualTax,
   type AnnualTaxCalculation,
@@ -10,7 +11,7 @@ import {
   type HistoryAnnualTaxQuery,
   type TaxSettlementDirection,
   type TaxCalculationScheme,
-} from "../../../../packages/core/src/index.js";
+} from "@dude-tax/core";
 import { annualTaxResultRepository } from "../repositories/annual-tax-result-repository.js";
 import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
 import { employeeRepository } from "../repositories/employee-repository.js";
@@ -124,6 +125,7 @@ const recalculateReadyStatus = (
   currentSettings: ReturnType<typeof taxPolicyRepository.get>["currentSettings"],
   currentPolicySignature: string,
   withholdingContext: AnnualTaxWithholdingContext,
+  ruleSourceSummary: AnnualTaxRuleSourceSummary,
 ) => {
   const records = monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear);
   const calculation = calculateEmployeeAnnualTax(records, currentSettings, withholdingContext);
@@ -142,7 +144,10 @@ const recalculateReadyStatus = (
     unitId,
     status.employeeId,
     taxYear,
-    nextCalculation,
+    {
+      ...nextCalculation,
+      ruleSourceSummary,
+    },
     currentPolicySignature,
   );
   calculationRunRepository.markCalculated(
@@ -215,6 +220,25 @@ const resolveWithholdingContext = (
   firstSalaryMonthInYear:
     explicitContext.firstSalaryMonthInYear ??
     bridgeContext.derivedFirstSalaryMonthInYear,
+});
+
+const buildRuleSourceSummary = (
+  bridgeContext: AnnualTaxWithholdingBridgeContext,
+  resolvedContext: AnnualTaxWithholdingContext,
+): AnnualTaxRuleSourceSummary => ({
+  hasCrossUnitCarryIn: bridgeContext.carryInCompletedRecords.length > 0,
+  crossUnitRecordCount: bridgeContext.carryInCompletedRecords.length,
+  crossUnitUnitCount: new Set(
+    bridgeContext.carryInCompletedRecords.map((record) => record.unitId),
+  ).size,
+  usedPreviousYearIncomeReference:
+    resolvedContext.previousYearIncomeUnder60k !== undefined ||
+    bridgeContext.derivedPreviousYearIncomeUnder60k,
+  previousYearIncomeUnder60k: resolvedContext.previousYearIncomeUnder60k ?? null,
+  usedFirstSalaryMonthReference:
+    resolvedContext.firstSalaryMonthInYear !== undefined &&
+    resolvedContext.firstSalaryMonthInYear !== null,
+  firstSalaryMonthInYear: resolvedContext.firstSalaryMonthInYear ?? null,
 });
 
 export const annualTaxService = {
@@ -303,13 +327,18 @@ export const annualTaxService = {
           taxYear,
           status.employeeId,
         );
+        const resolvedWithholdingContext = resolveWithholdingContext(
+          bridgeContext,
+          withholdingContext,
+        );
         recalculateReadyStatus(
           unitId,
           taxYear,
           status,
           effectiveSettings,
           currentPolicySignature,
-          resolveWithholdingContext(bridgeContext, withholdingContext),
+          resolvedWithholdingContext,
+          buildRuleSourceSummary(bridgeContext, resolvedWithholdingContext),
         );
       });
 

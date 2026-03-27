@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   AnnualTaxCalculation,
   AnnualTaxResultVersion,
   Employee,
@@ -7,12 +7,12 @@
   HistoryResultStatus,
   TaxCalculationScheme,
   TaxSettlementDirection,
-} from "../../../../packages/core/src/index";
-import { getSelectableYears } from "../../../../packages/config/src/index";
+} from "@dude-tax/core";
+import { getSelectableYears } from "@dude-tax/config";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
-import { calculateEmployeeAnnualTax } from "../../../../packages/core/src/index";
+import { calculateEmployeeAnnualTax } from "@dude-tax/core";
 import {
   buildHistoryQueryExportCsv,
   buildHistoryQueryExportFilename,
@@ -25,6 +25,7 @@ import {
   annualTaxWithholdingModeLabelMap,
   buildAnnualTaxWithholdingExplanation,
 } from "./annual-tax-withholding-summary";
+import { buildAnnualTaxRuleSourceExplanation } from "./annual-tax-rule-source-summary";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
@@ -186,7 +187,7 @@ export const HistoryQueryPage = () => {
             selectedResult.taxYear,
             selectedResult.employeeId,
           ),
-          apiClient.getTaxPolicy(),
+          apiClient.getTaxPolicy(selectedResult.unitId, selectedResult.taxYear),
         ]);
         const nextComparison = calculateEmployeeAnnualTax(records, taxPolicy.currentSettings);
         setComparisonResult(nextComparison);
@@ -232,6 +233,9 @@ export const HistoryQueryPage = () => {
       : [];
   const selectedWithholdingExplanation = selectedResult
     ? buildAnnualTaxWithholdingExplanation(selectedResult.withholdingSummary)
+    : null;
+  const selectedRuleSourceExplanation = selectedResult
+    ? buildAnnualTaxRuleSourceExplanation(selectedResult)
     : null;
   const yearSummaries = useMemo(() => buildHistoryQueryYearSummaries(results), [results]);
 
@@ -625,6 +629,21 @@ export const HistoryQueryPage = () => {
             <p>左侧列表点击任意结果后，可在这里查看只读详情。</p>
           </div>
         )}
+
+        {selectedResult && selectedRuleSourceExplanation ? (
+          <div className="subsection-block">
+            <h3>规则来源说明</h3>
+            <div className="maintenance-note-card">
+              <strong>{selectedRuleSourceExplanation.title}</strong>
+              <p>{selectedRuleSourceExplanation.summary}</p>
+              <div className="validation-list compact-validation-list">
+                {selectedRuleSourceExplanation.detailLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {selectedResult && selectedWithholdingExplanation ? (
           <div className="subsection-block">

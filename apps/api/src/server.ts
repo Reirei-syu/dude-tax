@@ -11,6 +11,8 @@ import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
 import { registerUnitRoutes } from "./routes/units.js";
 
 const app = Fastify({ logger: false });
+const serverHost = process.env.HOST ?? "127.0.0.1";
+const serverPort = Number(process.env.PORT ?? "3001");
 const allowedOrigins = new Set(["http://127.0.0.1:5173", "http://localhost:5173"]);
 const isAllowedOrigin = (origin?: string) =>
   !origin || origin === "null" || allowedOrigins.has(origin);
@@ -46,8 +48,8 @@ await registerUnitRoutes(app);
 const start = async () => {
   try {
     await app.listen({
-      host: "127.0.0.1",
-      port: 3001,
+      host: serverHost,
+      port: serverPort,
     });
 
     process.on("SIGINT", async () => {

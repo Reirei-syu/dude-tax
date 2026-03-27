@@ -168,6 +168,16 @@ export type AnnualTaxWithholdingSummary = {
   traceCount: number;
 };
 
+export type AnnualTaxRuleSourceSummary = {
+  hasCrossUnitCarryIn: boolean;
+  crossUnitRecordCount: number;
+  crossUnitUnitCount: number;
+  usedPreviousYearIncomeReference: boolean;
+  previousYearIncomeUnder60k: boolean | null;
+  usedFirstSalaryMonthReference: boolean;
+  firstSalaryMonthInYear: number | null;
+};
+
 export type AnnualTaxWithholdingTrace = {
   mode: AnnualTaxWithholdingMode;
   items: AnnualTaxWithholdingTraceItem[];
@@ -225,6 +235,47 @@ export type TaxPolicyVersionSummary = {
   activatedAt: string | null;
 };
 
+export type TaxPolicyAuditAction =
+  | "save_settings"
+  | "update_notes"
+  | "activate_version"
+  | "bind_scope"
+  | "unbind_scope";
+
+export type TaxPolicyAuditLog = {
+  id: number;
+  actionType: TaxPolicyAuditAction;
+  actorLabel: string;
+  versionId: number | null;
+  versionName: string | null;
+  unitId: number | null;
+  taxYear: number | null;
+  summary: string;
+  createdAt: string;
+};
+
+export type TaxPolicyVersionDiffItem = {
+  label: string;
+  baselineValue: string;
+  targetValue: string;
+};
+
+export type TaxPolicyVersionImpactPreview = {
+  unitId: number;
+  taxYear: number;
+  currentVersionId: number;
+  currentVersionName: string;
+  targetVersionId: number;
+  targetVersionName: string;
+  currentBindingMode: "bound" | "inherited";
+  targetBindingMode: "bound" | "inherited";
+  affectedResultCount: number;
+  invalidatedResultCount: number;
+  affectedRunCount: number;
+  invalidatedRunCount: number;
+  diffItems: TaxPolicyVersionDiffItem[];
+};
+
 export type TaxPolicyScopeBindingSummary = {
   unitId: number;
   taxYear: number;
@@ -242,6 +293,7 @@ export type TaxPolicyResponse = {
   currentVersionName: string;
   versions: TaxPolicyVersionSummary[];
   currentScopeBinding: TaxPolicyScopeBindingSummary | null;
+  auditLogs: TaxPolicyAuditLog[];
 } & TaxPolicyMaintenanceNotes;
 
 export type TaxPolicySaveResponse = TaxPolicyResponse & {
@@ -338,6 +390,7 @@ export type AnnualTaxCalculation = {
   annualTaxSettlement: number;
   settlementDirection: TaxSettlementDirection;
   withholdingSummary: AnnualTaxWithholdingSummary;
+  ruleSourceSummary?: AnnualTaxRuleSourceSummary | null;
   schemeResults: {
     separateBonus: AnnualTaxSchemeResult;
     combinedBonus: AnnualTaxSchemeResult;

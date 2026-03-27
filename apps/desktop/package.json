@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 tcp:3001 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron electron/main.cjs\"",
+    "dev": "cross-env VITE_API_BASE_URL=http://127.0.0.1:3001 concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 tcp:3001 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron electron/main.cjs\"",
     "build": "vite build",
     "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"

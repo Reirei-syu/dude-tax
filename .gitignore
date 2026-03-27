@@ -1,8 +1,8 @@
 node_modules/
 dist/
+dist-electron/
 build/
 .vite/
 coverage/
 data/
 *.log
-

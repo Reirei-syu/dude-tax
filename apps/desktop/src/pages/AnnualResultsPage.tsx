@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   AnnualTaxExportPreviewRow,
   AnnualTaxResultVersion,
   AnnualTaxSchemeResult,
@@ -6,7 +6,7 @@
   EmployeeCalculationStatus,
   EmployeeAnnualTaxResult,
   TaxCalculationScheme,
-} from "../../../../packages/core/src/index";
+} from "@dude-tax/core";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
@@ -31,6 +31,7 @@ import {
   annualTaxWithholdingModeLabelMap,
   buildAnnualTaxWithholdingExplanation,
 } from "./annual-tax-withholding-summary";
+import { buildAnnualTaxRuleSourceExplanation } from "./annual-tax-rule-source-summary";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
@@ -133,6 +134,9 @@ export const AnnualResultsPage = () => {
   const selectedExplanation = selectedResult ? buildAnnualTaxExplanation(selectedResult) : null;
   const selectedWithholdingExplanation = selectedResult
     ? buildAnnualTaxWithholdingExplanation(selectedResult.withholdingSummary)
+    : null;
+  const selectedRuleSourceExplanation = selectedResult
+    ? buildAnnualTaxRuleSourceExplanation(selectedResult)
     : null;
   const selectedExportPreviewRow =
     exportPreviewRows.find((row) => row.employeeId === selectedEmployeeId) ??
@@ -577,6 +581,21 @@ export const AnnualResultsPage = () => {
                   <strong>{selectedResult.withholdingSummary.traceCount}</strong>
                 </div>
               </div>
+            </div>
+
+            <div className="subsection-block">
+              <h3>规则来源说明</h3>
+              {selectedRuleSourceExplanation ? (
+                <div className="maintenance-note-card">
+                  <strong>{selectedRuleSourceExplanation.title}</strong>
+                  <p>{selectedRuleSourceExplanation.summary}</p>
+                  <div className="validation-list compact-validation-list">
+                    {selectedRuleSourceExplanation.detailLines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="subsection-block">

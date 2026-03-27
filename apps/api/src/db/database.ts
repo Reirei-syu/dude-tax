@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -7,15 +8,21 @@ import {
   buildTaxPolicySignature,
   normalizeTaxPolicySettings,
   type TaxPolicySettingsInput,
-} from "../../../../packages/core/src/index.js";
+} from "@dude-tax/core";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(currentDir, "../../../../");
-const dataDir = path.join(repoRoot, "data");
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
+const fallbackDataDir =
+  process.platform === "win32"
+    ? path.join(
+        process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"),
+        "dude-tax",
+        "data",
+      )
+    : path.join(os.homedir(), ".dude-tax", "data");
 const databaseFile = process.env.DUDE_TAX_DB_PATH
   ? path.resolve(process.env.DUDE_TAX_DB_PATH)
-  : path.join(dataDir, "dude-tax.db");
+  : path.join(fallbackDataDir, "dude-tax.db");
 
 fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 
@@ -185,6 +192,19 @@ database.exec(`
     updated_at TEXT NOT NULL,
     FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS tax_policy_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action_type TEXT NOT NULL,
+    actor_label TEXT NOT NULL DEFAULT '鏈湴鐢ㄦ埛',
+    tax_policy_version_id INTEGER DEFAULT NULL,
+    unit_id INTEGER DEFAULT NULL,
+    tax_year INTEGER DEFAULT NULL,
+    summary TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(tax_policy_version_id) REFERENCES tax_policy_versions(id) ON DELETE SET NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE SET NULL
+  );
 `);
 
 ensureColumnExists(
@@ -309,7 +329,7 @@ const ensureActiveTaxPolicyVersion = () => {
         `,
       )
       .run(
-        "初始税率版本",
+        "鍒濆绋庣巼鐗堟湰",
         buildTaxPolicySignature(initialSettings),
         JSON.stringify(initialSettings),
         initialNotes,

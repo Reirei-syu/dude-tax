@@ -25,12 +25,16 @@ import type {
   Unit,
   QuickCalculatePayload,
   UpsertEmployeeMonthRecordPayload,
-} from "../../../../packages/core/src/index";
+  TaxPolicyVersionImpactPreview,
+} from "@dude-tax/core";
 
-const API_BASE_URL = "http://127.0.0.1:3001";
+const resolveApiBaseUrl = () =>
+  window.salaryTaxDesktop?.runtimeConfig.apiBaseUrl ||
+  import.meta.env.VITE_API_BASE_URL ||
+  window.location.origin;
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     headers: {
       "Content-Type": "application/json",
     },
@@ -74,6 +78,24 @@ export const apiClient = {
   },
   bindTaxPolicyVersionToScope(versionId: number, unitId: number, taxYear: number) {
     return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}/bind-scope`, {
+      method: "POST",
+      body: JSON.stringify({
+        unitId,
+        taxYear,
+      }),
+    });
+  },
+  getTaxPolicyVersionImpactPreview(versionId: number, unitId: number, taxYear: number) {
+    const searchParams = new URLSearchParams({
+      unitId: String(unitId),
+      taxYear: String(taxYear),
+    });
+    return request<TaxPolicyVersionImpactPreview>(
+      `/api/tax-policy/versions/${versionId}/impact-preview?${searchParams.toString()}`,
+    );
+  },
+  unbindCurrentScopeTaxPolicy(unitId: number, taxYear: number) {
+    return request<TaxPolicySaveResponse>("/api/tax-policy/scopes/current/unbind", {
       method: "POST",
       body: JSON.stringify({
         unitId,
@@ -158,7 +180,7 @@ export const apiClient = {
     });
   },
   downloadImportTemplate(importType: ImportType) {
-    return fetch(`${API_BASE_URL}/api/import/templates/${importType}`).then((response) => {
+    return fetch(`${resolveApiBaseUrl()}/api/import/templates/${importType}`).then((response) => {
       if (!response.ok) {
         throw new Error("下载导入模板失败");
       }
