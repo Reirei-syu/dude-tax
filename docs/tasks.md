@@ -39,12 +39,15 @@
   - 结果中心版本差异对比区块
   - 双版本选择与关键字段差异展示
 
-### [ ] 批量导入：Excel 解析支持
-- 类型：功能增强
-- 模块：service / ui
-- 描述：在保留 CSV 能力的基础上支持 Excel 文件解析导入
-- 依赖：无
-- 风险：中
+### [x] 批量导入：Excel 解析支持
+- 完成时间：2026-03-27 12:31
+- 修改文件：
+  - `apps/desktop/src/pages/ImportPage.tsx`
+  - `apps/desktop/src/pages/import-file-parser.ts`
+  - `apps/desktop/src/pages/import-file-parser.test.ts`
+- 影响范围：
+  - 批量导入文件选择入口
+  - Excel 到 CSV 的前端解析复用链路
 
 ### [ ] 批量导入：更细粒度的预览字段展示
 - 类型：体验增强

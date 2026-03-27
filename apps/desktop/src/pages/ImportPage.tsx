@@ -7,6 +7,7 @@ import type {
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { parseImportFileToCsvText } from "./import-file-parser";
 
 const importTypeLabelMap: Record<ImportType, string> = {
   employee: "员工基础信息",
@@ -26,7 +27,7 @@ export const ImportPage = () => {
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
   const [importType, setImportType] = useState<ImportType>("employee");
-  const [csvText, setCsvText] = useState("");
+  const [importText, setImportText] = useState("");
   const [conflictStrategy, setConflictStrategy] = useState<ImportConflictStrategy>("skip");
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
   const [commitResult, setCommitResult] = useState<ImportCommitResponse | null>(null);
@@ -49,7 +50,7 @@ export const ImportPage = () => {
       setLoadingTemplate(true);
       setErrorMessage(null);
       const templateText = await apiClient.downloadImportTemplate(importType);
-      setCsvText(templateText);
+      setImportText(templateText);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "下载模板失败");
     } finally {
@@ -57,7 +58,7 @@ export const ImportPage = () => {
     }
   };
 
-  const handleCsvFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -65,8 +66,8 @@ export const ImportPage = () => {
 
     try {
       setErrorMessage(null);
-      const fileText = await file.text();
-      setCsvText(fileText);
+      const fileText = await parseImportFileToCsvText(file);
+      setImportText(fileText);
       setPreview(null);
       setCommitResult(null);
     } catch (error) {
@@ -89,7 +90,7 @@ export const ImportPage = () => {
       const nextPreview = await apiClient.previewImport(
         importType,
         currentUnitId,
-        csvText,
+        importText,
         importType === "month_record" ? currentTaxYear ?? undefined : undefined,
       );
       setPreview(nextPreview);
@@ -113,7 +114,7 @@ export const ImportPage = () => {
       const nextCommitResult = await apiClient.commitImport(
         importType,
         currentUnitId,
-        csvText,
+        importText,
         conflictStrategy,
         importType === "month_record" ? currentTaxYear ?? undefined : undefined,
       );
@@ -121,7 +122,7 @@ export const ImportPage = () => {
       const nextPreview = await apiClient.previewImport(
         importType,
         currentUnitId,
-        csvText,
+        importText,
         importType === "month_record" ? currentTaxYear ?? undefined : undefined,
       );
       setPreview(nextPreview);
@@ -158,9 +159,7 @@ export const ImportPage = () => {
             <span>冲突处理策略</span>
             <select
               value={conflictStrategy}
-              onChange={(event) =>
-                setConflictStrategy(event.target.value as ImportConflictStrategy)
-              }
+              onChange={(event) => setConflictStrategy(event.target.value as ImportConflictStrategy)}
             >
               <option value="skip">跳过冲突行</option>
               <option value="overwrite">覆盖冲突记录</option>
@@ -170,30 +169,42 @@ export const ImportPage = () => {
         </div>
 
         <label className="form-field">
-          <span>CSV 内容</span>
+          <span>导入内容</span>
           <textarea
             className="maintenance-textarea"
-            placeholder="可直接粘贴 CSV 内容，或先下载模板再填写。"
-            value={csvText}
-            onChange={(event) => setCsvText(event.target.value)}
+            placeholder="可直接粘贴 CSV 内容，或选择 CSV / XLSX / XLSM 文件自动读取。"
+            value={importText}
+            onChange={(event) => setImportText(event.target.value)}
           />
         </label>
 
         <label className="form-field">
-          <span>CSV 文件</span>
-          <input accept=".csv,text/csv" type="file" onChange={(event) => void handleCsvFileSelect(event)} />
+          <span>导入文件</span>
+          <input
+            accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
+            type="file"
+            onChange={(event) => void handleImportFileSelect(event)}
+          />
         </label>
 
         <div className="button-row">
-          <button className="ghost-button" disabled={loadingTemplate || !canOperate} onClick={() => void downloadTemplate()}>
+          <button
+            className="ghost-button"
+            disabled={loadingTemplate || !canOperate}
+            onClick={() => void downloadTemplate()}
+          >
             {loadingTemplate ? "下载中" : "下载模板"}
           </button>
-          <button className="ghost-button" disabled={!csvText.trim() || !canOperate || previewing} onClick={() => void previewImport()}>
+          <button
+            className="ghost-button"
+            disabled={!importText.trim() || !canOperate || previewing}
+            onClick={() => void previewImport()}
+          >
             导入预览
           </button>
           <button
             className="primary-button"
-            disabled={!csvText.trim() || !canOperate || committing || !preview}
+            disabled={!importText.trim() || !canOperate || committing || !preview}
             onClick={() => void commitImport()}
           >
             执行导入
@@ -207,7 +218,7 @@ export const ImportPage = () => {
         <div className="section-header">
           <div>
             <h2>导入预览</h2>
-            <p>当前仅支持 CSV；首版先走预览 + 冲突处理 + 直接落库的最小闭环。</p>
+            <p>当前支持 CSV、XLSX、XLSM；仍沿用现有预览、冲突处理和直接落库链路。</p>
           </div>
           <span className="tag">{previewSummary ?? "尚未预览"}</span>
         </div>
@@ -269,7 +280,7 @@ export const ImportPage = () => {
         ) : (
           <div className="empty-state">
             <strong>请先执行导入预览。</strong>
-            <p>下载模板或粘贴 CSV 后，系统会在这里展示冲突和错误。</p>
+            <p>下载模板、粘贴内容或选择文件后，系统会在这里展示冲突和错误。</p>
           </div>
         )}
       </article>
