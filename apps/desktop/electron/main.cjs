@@ -120,15 +120,15 @@ const startManagedApi = async () => {
   const port = await findAvailablePort(3001);
   const apiBaseUrl = `http://127.0.0.1:${port}`;
   const databasePath = path.join(app.getPath("userData"), "data", "dude-tax.db");
-  const apiEntryPath = path.join(app.getAppPath(), "apps", "api", "src", "server.ts");
-  const tsxCliPath = path.join(app.getAppPath(), "node_modules", "tsx", "dist", "cli.mjs");
+  const apiEntryPath = path.join(app.getAppPath(), "apps", "api", "dist", "server.mjs");
   const logPath = path.join(app.getPath("userData"), "logs", "managed-api.log");
 
-  managedApiProcess = spawn(process.execPath, [tsxCliPath, apiEntryPath], {
+  managedApiProcess = spawn(process.execPath, [apiEntryPath], {
     cwd: app.getAppPath(),
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
+      NODE_ENV: "production",
       HOST: "127.0.0.1",
       PORT: String(port),
       DUDE_TAX_DB_PATH: databasePath,

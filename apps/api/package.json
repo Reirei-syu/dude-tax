@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node build.mjs",
     "dev": "tsx watch src/server.ts",
+    "start:dist": "node dist/server.mjs",
     "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },

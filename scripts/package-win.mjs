@@ -1,8 +1,11 @@
+import { execFile } from "node:child_process";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { promisify } from "node:util";
 import packager from "@electron/packager";
-import { rebuild } from "@electron/rebuild";
+
+const execFileAsync = promisify(execFile);
 
 const projectRoot = process.cwd();
 const outputDir = path.join(projectRoot, "dist-electron");
@@ -15,37 +18,71 @@ const electronVersion =
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
-await rebuild({
-  buildPath: projectRoot,
-  electronVersion,
-  onlyModules: ["better-sqlite3"],
-});
+const prebuildInstallCli = path.join(
+  projectRoot,
+  "node_modules",
+  "prebuild-install",
+  "bin.js",
+);
+const npmCliPath = process.env.npm_execpath;
 
-await packager({
-  dir: projectRoot,
-  name: "dude-tax",
-  executableName: "dude-tax",
-  out: outputDir,
-  overwrite: true,
-  platform: "win32",
-  arch: "x64",
-  asar: false,
-  derefSymlinks: true,
-  prune: false,
-  electronVersion,
-  ignore: [
-    /^\/dist-electron($|\/)/,
-    /^\/\.git($|\/)/,
-    /^\/coverage($|\/)/,
-    /^\/tmp($|\/)/,
-    /^\/data\/test($|\/)/,
-    /^\/docs\/plans($|\/)/,
-  ],
-  win32metadata: {
-    CompanyName: "dude-tax",
-    FileDescription: "工资薪金个税计算器",
-    ProductName: "工资薪金个税计算器",
-  },
-});
+try {
+  await execFileAsync(process.execPath, [
+    prebuildInstallCli,
+    "--runtime",
+    "electron",
+    "--target",
+    electronVersion,
+    "--arch",
+    "x64",
+    "--platform",
+    "win32",
+    "--force",
+  ], {
+    cwd: path.join(projectRoot, "node_modules", "better-sqlite3"),
+  });
 
-process.stdout.write(`Windows 测试包已生成到 ${outputDir}\n`);
+  await packager({
+    dir: projectRoot,
+    name: "dude-tax",
+    executableName: "dude-tax",
+    out: outputDir,
+    overwrite: true,
+    platform: "win32",
+    arch: "x64",
+    asar: false,
+    derefSymlinks: true,
+    prune: false,
+    electronVersion,
+    ignore: [
+      /^\/dist-electron($|\/)/,
+      /^\/\.git($|\/)/,
+      /^\/coverage($|\/)/,
+      /^\/tmp($|\/)/,
+      /^\/data\/test($|\/)/,
+      /^\/docs\/plans($|\/)/,
+      /^\/apps\/api\/src($|\/)/,
+      /^\/packages\/core($|\/)/,
+      /^\/packages\/config($|\/)/,
+    ],
+    win32metadata: {
+      CompanyName: "dude-tax",
+      FileDescription: "dude-tax desktop",
+      ProductName: "dude-tax",
+    },
+  });
+
+  process.stdout.write(`Windows test package output: ${outputDir}\n`);
+} finally {
+  if (npmCliPath) {
+    await execFileAsync(process.execPath, [
+      npmCliPath,
+      "rebuild",
+      "better-sqlite3",
+      "--workspace",
+      "@dude-tax/api",
+    ], {
+      cwd: projectRoot,
+    });
+  }
+}
