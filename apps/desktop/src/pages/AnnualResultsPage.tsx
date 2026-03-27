@@ -2,6 +2,7 @@
   AnnualTaxExportPreviewRow,
   AnnualTaxResultVersion,
   AnnualTaxSchemeResult,
+  AnnualTaxWithholdingMode,
   EmployeeCalculationStatus,
   EmployeeAnnualTaxResult,
   TaxCalculationScheme,
@@ -26,6 +27,7 @@ import {
 import { buildAnnualTaxExplanation } from "./annual-tax-explanation";
 import { buildAnnualTaxExportSelectionSummary } from "./annual-tax-export-template-manager";
 import { buildAnnualResultVersionComparisonItems } from "./annual-result-version-diff";
+import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 
 const schemeLabelMap: Record<TaxCalculationScheme, string> = {
@@ -530,6 +532,44 @@ export const AnnualResultsPage = () => {
               <div className="summary-card">
                 <span>当前税额合计</span>
                 <strong>{formatCurrency(selectedSchemeResult.finalTax)}</strong>
+              </div>
+            </div>
+
+            <div className="subsection-block">
+              <h3>预扣轨迹摘要</h3>
+              <div className="summary-grid results-summary-grid detail-summary-grid">
+                <div className="summary-card">
+                  <span>预扣模式</span>
+                  <strong>
+                    {
+                      annualTaxWithholdingModeLabelMap[
+                        selectedResult.withholdingSummary.withholdingMode as AnnualTaxWithholdingMode
+                      ]
+                    }
+                  </strong>
+                </div>
+                <div className="summary-card">
+                  <span>规则应预扣</span>
+                  <strong>
+                    {formatCurrency(selectedResult.withholdingSummary.expectedWithheldTaxTotal)}
+                  </strong>
+                </div>
+                <div className="summary-card">
+                  <span>实际已预扣</span>
+                  <strong>
+                    {formatCurrency(selectedResult.withholdingSummary.actualWithheldTaxTotal)}
+                  </strong>
+                </div>
+                <div className="summary-card">
+                  <span>预扣差异额</span>
+                  <strong>
+                    {formatCurrency(selectedResult.withholdingSummary.withholdingVariance)}
+                  </strong>
+                </div>
+                <div className="summary-card">
+                  <span>轨迹月份数</span>
+                  <strong>{selectedResult.withholdingSummary.traceCount}</strong>
+                </div>
               </div>
             </div>
 
