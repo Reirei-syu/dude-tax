@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { importSummaryRepository } from "../repositories/import-summary-repository.js";
 import { importService } from "../services/import-service.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 
@@ -14,6 +15,21 @@ const importCommitSchema = importPreviewSchema.extend({
 });
 
 export const registerImportRoutes = async (app: FastifyInstance) => {
+  app.get("/api/import/summary", async (request, reply) => {
+    const unitId = Number((request.query as { unitId?: string }).unitId);
+
+    if (!Number.isInteger(unitId) || unitId <= 0) {
+      return reply.status(400).send({ message: "导入摘要参数不合法" });
+    }
+
+    const unitExists = unitRepository.list().some((unit) => unit.id === unitId);
+    if (!unitExists) {
+      return reply.status(404).send({ message: "目标单位不存在" });
+    }
+
+    return importSummaryRepository.getByUnitId(unitId);
+  });
+
   app.get("/api/import/templates/:importType", async (request, reply) => {
     const importType = importTypeSchema.safeParse(
       (request.params as { importType: string }).importType,

@@ -12,6 +12,7 @@ import type {
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
   ImportCommitResponse,
+  ImportSummary,
   ImportPreviewResponse,
   ImportType,
   ImportConflictStrategy,
@@ -187,6 +188,9 @@ export const apiClient = {
         conflictStrategy,
       }),
     });
+  },
+  getImportSummary(unitId: number) {
+    return request<ImportSummary | null>(`/api/import/summary?unitId=${unitId}`);
   },
   listCalculationStatuses(unitId: number, taxYear: number) {
     return request<EmployeeCalculationStatus[]>(

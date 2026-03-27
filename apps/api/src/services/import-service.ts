@@ -8,6 +8,7 @@ import type {
   UpsertEmployeeMonthRecordPayload,
 } from "../../../../packages/core/src/index.js";
 import { employeeRepository } from "../repositories/employee-repository.js";
+import { importSummaryRepository } from "../repositories/import-summary-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 
 const employeeTemplateHeader = [
@@ -358,7 +359,9 @@ export const importService = {
       return buildMonthRecordPreviewRow(unitId, row.rowNumber, payload, errors, parsedData);
     });
 
-    return summarizePreview(importType, previewRows);
+    const preview = summarizePreview(importType, previewRows);
+    importSummaryRepository.savePreview(unitId, importType, preview);
+    return preview;
   },
   commit(
     importType: ImportType,
@@ -469,7 +472,7 @@ export const importService = {
       successCount += 1;
     });
 
-    return {
+    const result = {
       importType,
       totalRows: preview.totalRows,
       successCount,
@@ -477,5 +480,10 @@ export const importService = {
       failureCount: failures.length,
       failures,
     };
+
+    const latestPreview = this.preview(importType, unitId, csvText);
+    importSummaryRepository.savePreview(unitId, importType, latestPreview);
+
+    return result;
   },
 };

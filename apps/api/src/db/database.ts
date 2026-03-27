@@ -152,6 +152,17 @@ database.exec(`
     FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE,
     UNIQUE(unit_id, employee_id, tax_year)
   );
+
+  CREATE TABLE IF NOT EXISTS import_preview_summaries (
+    unit_id INTEGER PRIMARY KEY,
+    import_type TEXT NOT NULL,
+    total_rows INTEGER NOT NULL DEFAULT 0,
+    ready_rows INTEGER NOT NULL DEFAULT 0,
+    conflict_rows INTEGER NOT NULL DEFAULT 0,
+    error_rows INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE
+  );
 `);
 
 ensureColumnExists(

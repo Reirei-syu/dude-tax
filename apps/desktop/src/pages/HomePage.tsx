@@ -1,6 +1,7 @@
 ﻿import {
   buildDefaultTaxPolicySettings,
   type EmployeeCalculationStatus,
+  type ImportSummary,
   type TaxPolicyResponse,
 } from "../../../../packages/core/src/index";
 import { Link } from "react-router-dom";
@@ -26,6 +27,7 @@ export const HomePage = () => {
   const [taxPolicy, setTaxPolicy] = useState<TaxPolicyResponse | null>(null);
   const [taxPolicyLoading, setTaxPolicyLoading] = useState(false);
   const [taxPolicyErrorMessage, setTaxPolicyErrorMessage] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
   useEffect(() => {
     const loadTaxPolicy = async () => {
@@ -45,6 +47,20 @@ export const HomePage = () => {
   }, []);
 
   useEffect(() => {
+    const loadImportSummary = async () => {
+      if (!currentUnitId) {
+        setImportSummary(null);
+        return;
+      }
+
+      try {
+        const nextImportSummary = await apiClient.getImportSummary(currentUnitId);
+        setImportSummary(nextImportSummary);
+      } catch {
+        setImportSummary(null);
+      }
+    };
+
     const loadReminderStatuses = async () => {
       if (!currentUnitId || !currentTaxYear) {
         setStatuses([]);
@@ -65,6 +81,7 @@ export const HomePage = () => {
     };
 
     void loadReminderStatuses();
+    void loadImportSummary();
   }, [currentTaxYear, currentUnitId]);
 
   const reminderItems = useMemo(
@@ -92,10 +109,10 @@ export const HomePage = () => {
         title: "导入冲突待处理",
         description: "点击前往批量导入查看冲突预览。",
         path: "/import",
-        count: 0,
+        count: importSummary?.conflictRows ?? 0,
       },
     ],
-    [statuses],
+    [importSummary?.conflictRows, statuses],
   );
 
   const employeeCount = statuses.length;

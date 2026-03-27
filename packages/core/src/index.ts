@@ -244,6 +244,16 @@ export type ImportCommitResponse = {
   }>;
 };
 
+export type ImportSummary = {
+  unitId: number;
+  importType: ImportType;
+  totalRows: number;
+  readyRows: number;
+  conflictRows: number;
+  errorRows: number;
+  updatedAt: string;
+};
+
 export type TaxPolicyBindScopePayload = {
   unitId: number;
   taxYear: number;

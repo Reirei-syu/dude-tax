@@ -1,0 +1,74 @@
+import type { ImportPreviewResponse, ImportSummary, ImportType } from "../../../../packages/core/src/index.js";
+import { database } from "../db/database.js";
+
+export const importSummaryRepository = {
+  getByUnitId(unitId: number): ImportSummary | null {
+    const row = database
+      .prepare(
+        `
+          SELECT unit_id, import_type, total_rows, ready_rows, conflict_rows, error_rows, updated_at
+          FROM import_preview_summaries
+          WHERE unit_id = ?
+        `,
+      )
+      .get(unitId) as
+      | {
+          unit_id: number;
+          import_type: ImportType;
+          total_rows: number;
+          ready_rows: number;
+          conflict_rows: number;
+          error_rows: number;
+          updated_at: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      unitId: row.unit_id,
+      importType: row.import_type,
+      totalRows: row.total_rows,
+      readyRows: row.ready_rows,
+      conflictRows: row.conflict_rows,
+      errorRows: row.error_rows,
+      updatedAt: row.updated_at,
+    };
+  },
+  savePreview(unitId: number, importType: ImportType, preview: ImportPreviewResponse) {
+    const now = new Date().toISOString();
+    database
+      .prepare(
+        `
+          INSERT INTO import_preview_summaries (
+            unit_id,
+            import_type,
+            total_rows,
+            ready_rows,
+            conflict_rows,
+            error_rows,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(unit_id) DO UPDATE SET
+            import_type = excluded.import_type,
+            total_rows = excluded.total_rows,
+            ready_rows = excluded.ready_rows,
+            conflict_rows = excluded.conflict_rows,
+            error_rows = excluded.error_rows,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        unitId,
+        importType,
+        preview.totalRows,
+        preview.readyRows,
+        preview.conflictRows,
+        preview.errorRows,
+        now,
+      );
+  },
+};

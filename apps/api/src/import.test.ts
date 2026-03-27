@@ -96,6 +96,14 @@ test("预览接口可识别员工工号冲突", async () => {
   assert.equal(rows[0]?.status, "conflict");
   assert.equal(rows[0]?.conflictType, "employee_code_conflict");
 
+  const summaryResponse = await app.inject({
+    method: "GET",
+    url: `/api/import/summary?unitId=${unit.id}`,
+  });
+  assert.equal(summaryResponse.statusCode, 200);
+  const summaryBody = summaryResponse.json() as Record<string, unknown>;
+  assert.equal(summaryBody.conflictRows, 1);
+
   await app.close();
 });
 
