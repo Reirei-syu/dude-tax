@@ -120,7 +120,9 @@ export const buildMonthlyWithholdingTrace = (
   let previousCumulativeExpectedWithheldTax = 0;
 
   const items = completedRecords.map((record, index) => {
-    cumulativeSalaryIncome = roundCurrency(cumulativeSalaryIncome + record.salaryIncome);
+    cumulativeSalaryIncome = roundCurrency(
+      cumulativeSalaryIncome + getSalaryIncomeForWithholding(record),
+    );
     cumulativeInsuranceAndHousingFund = roundCurrency(
       cumulativeInsuranceAndHousingFund + getInsuranceAndHousingFundTotal(record),
     );
@@ -168,8 +170,8 @@ export const buildMonthlyWithholdingTrace = (
     const item: AnnualTaxWithholdingTraceItem = {
       taxMonth: record.taxMonth,
       withholdingMode: mode,
-      salaryIncome: roundCurrency(record.salaryIncome),
-      actualWithheldTax: roundCurrency(record.withheldTax),
+      salaryIncome: getSalaryIncomeForWithholding(record),
+      actualWithheldTax: getActualWithheldTaxForWithholding(record),
       cumulativeSalaryIncome,
       cumulativeBasicDeduction,
       cumulativeInsuranceAndHousingFund,
@@ -180,7 +182,7 @@ export const buildMonthlyWithholdingTrace = (
       cumulativeExpectedWithheldTax,
       currentMonthExpectedWithheldTax,
       currentMonthWithholdingVariance: roundCurrency(
-        record.withheldTax - currentMonthExpectedWithheldTax,
+        getActualWithheldTaxForWithholding(record) - currentMonthExpectedWithheldTax,
       ),
     };
 
@@ -305,7 +307,7 @@ export const calculateEmployeeAnnualTax = (
 
   const completedMonthCount = completedRecords.length;
   const salaryIncomeTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + record.salaryIncome, 0),
+    completedRecords.reduce((sum, record) => sum + getSalaryIncomeForWithholding(record), 0),
   );
   const annualBonusTotal = roundCurrency(
     completedRecords.reduce((sum, record) => sum + record.annualBonus, 0),

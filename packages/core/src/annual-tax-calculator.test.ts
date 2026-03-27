@@ -411,3 +411,41 @@ test("未填写补发补扣字段时辅助函数保持兼容默认值", () => {
   assert.equal(hasSupplementaryAdjustments(record), false);
 });
 
+test("补发工资与补扣税会并入预扣轨迹", () => {
+  const buildMonthlyWithholdingTrace = getWithholdingTraceBuilder();
+
+  const trace = buildMonthlyWithholdingTrace([
+    createMonthRecord(1, {
+      salaryIncome: 10_000,
+      withheldTax: 100,
+      supplementarySalaryIncome: 2_000,
+      supplementaryWithheldTaxAdjustment: 50,
+    }),
+  ]);
+
+  assert.equal(trace.items[0]?.salaryIncome, 12_000);
+  assert.equal(trace.items[0]?.actualWithheldTax, 150);
+  assert.equal(trace.items[0]?.cumulativeSalaryIncome, 12_000);
+  assert.equal(trace.summary.actualWithheldTaxTotal, 150);
+});
+
+test("补发工资会并入年度汇算收入，补扣税会并入年度已预扣税额", () => {
+  const calculateEmployeeAnnualTax = getCalculator();
+
+  const result = calculateEmployeeAnnualTax([
+    createMonthRecord(1, {
+      salaryIncome: 10_000,
+      withheldTax: 100,
+      supplementarySalaryIncome: 2_000,
+      supplementaryWithheldTaxAdjustment: 50,
+    }),
+  ]);
+
+  assert.equal(result.salaryIncomeTotal, 12_000);
+  assert.equal(result.annualTaxWithheld, 150);
+  assert.equal(result.withholdingSummary.actualWithheldTaxTotal, 150);
+  assert.equal(result.withholdingSummary.expectedWithheldTaxTotal, 210);
+  assert.equal(result.annualTaxPayable, 210);
+  assert.equal(result.annualTaxSettlement, 60);
+});
+
