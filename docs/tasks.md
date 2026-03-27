@@ -49,12 +49,16 @@
   - 批量导入文件选择入口
   - Excel 到 CSV 的前端解析复用链路
 
-### [ ] 批量导入：更细粒度的预览字段展示
-- 类型：体验增强
-- 模块：ui
-- 描述：在导入预览中细化展示字段映射、冲突字段和值
-- 依赖：无
-- 风险：中低
+### [x] 批量导入：更细粒度的预览字段展示
+- 完成时间：2026-03-27 12:40
+- 修改文件：
+  - `apps/desktop/src/pages/ImportPage.tsx`
+  - `apps/desktop/src/pages/import-preview-details.ts`
+  - `apps/desktop/src/pages/import-preview-details.test.ts`
+  - `apps/desktop/src/styles.css`
+- 影响范围：
+  - 批量导入预览表格
+  - 字段映射、冲突字段和值的细粒度展示
 
 ### [ ] 系统维护：富文本说明维护
 - 类型：功能增强

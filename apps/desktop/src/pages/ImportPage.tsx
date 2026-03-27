@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
 import { parseImportFileToCsvText } from "./import-file-parser";
+import { buildImportPreviewDetail } from "./import-preview-details";
 
 const importTypeLabelMap: Record<ImportType, string> = {
   employee: "员工基础信息",
@@ -18,6 +19,12 @@ const conflictStrategyLabelMap: Record<ImportConflictStrategy, string> = {
   skip: "跳过冲突行",
   overwrite: "覆盖冲突记录",
   abort: "遇冲突即终止",
+};
+
+const conflictTypeLabelMap: Record<string, string> = {
+  employee_code_conflict: "工号冲突",
+  id_number_conflict: "证件号冲突",
+  month_record_conflict: "月份记录冲突",
 };
 
 export const ImportPage = () => {
@@ -218,7 +225,7 @@ export const ImportPage = () => {
         <div className="section-header">
           <div>
             <h2>导入预览</h2>
-            <p>当前支持 CSV、XLSX、XLSM；仍沿用现有预览、冲突处理和直接落库链路。</p>
+            <p>当前支持 CSV、XLSX、XLSM；这里会细化展示字段映射、冲突字段和值。</p>
           </div>
           <span className="tag">{previewSummary ?? "尚未预览"}</span>
         </div>
@@ -253,34 +260,78 @@ export const ImportPage = () => {
                 <tr>
                   <th>行号</th>
                   <th>状态</th>
-                  <th>冲突类型</th>
+                  <th>关键字段</th>
+                  <th>字段明细</th>
                   <th>错误 / 说明</th>
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((row) => (
-                  <tr key={row.rowNumber}>
-                    <td>{row.rowNumber}</td>
-                    <td>
-                      {row.status === "ready" ? (
-                        <span className="tag">可导入</span>
-                      ) : row.status === "conflict" ? (
-                        <span className="tag tag-warning">冲突</span>
-                      ) : (
-                        <span className="tag tag-diff">错误</span>
-                      )}
-                    </td>
-                    <td>{row.conflictType ?? "-"}</td>
-                    <td>{row.errors.length ? row.errors.join("；") : "通过校验"}</td>
-                  </tr>
-                ))}
+                {preview.rows.map((row) => {
+                  const detail = buildImportPreviewDetail(importType, row);
+
+                  return (
+                    <tr key={row.rowNumber}>
+                      <td>{row.rowNumber}</td>
+                      <td>
+                        {row.status === "ready" ? (
+                          <span className="tag">可导入</span>
+                        ) : row.status === "conflict" ? (
+                          <span className="tag tag-warning">冲突</span>
+                        ) : (
+                          <span className="tag tag-diff">错误</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="preview-summary-line">
+                          <strong>{detail.primaryText}</strong>
+                          {detail.secondaryText ? <small>{detail.secondaryText}</small> : null}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="preview-detail-list">
+                          {detail.fields.map((field) => (
+                            <span
+                              className={
+                                field.isHighlighted
+                                  ? "preview-field-chip is-highlighted"
+                                  : "preview-field-chip"
+                              }
+                              key={field.key}
+                            >
+                              {field.label}：{field.value}
+                            </span>
+                          ))}
+                          {detail.foldedFieldCount ? (
+                            <span className="preview-field-chip is-folded">
+                              另有 {detail.foldedFieldCount} 个字段已折叠
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        {row.errors.length ? (
+                          row.errors.join("；")
+                        ) : row.status === "conflict" ? (
+                          <>
+                            {conflictTypeLabelMap[row.conflictType ?? ""] ?? row.conflictType ?? "冲突"}
+                            {detail.conflictFieldLabels.length
+                              ? `，冲突字段：${detail.conflictFieldLabels.join("、")}`
+                              : ""}
+                          </>
+                        ) : (
+                          "通过校验"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </>
         ) : (
           <div className="empty-state">
             <strong>请先执行导入预览。</strong>
-            <p>下载模板、粘贴内容或选择文件后，系统会在这里展示冲突和错误。</p>
+            <p>下载模板、粘贴内容或选择文件后，系统会在这里展示冲突、错误和字段明细。</p>
           </div>
         )}
       </article>
