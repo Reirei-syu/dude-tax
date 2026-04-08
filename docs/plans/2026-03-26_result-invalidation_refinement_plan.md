@@ -1,4 +1,4 @@
-﻿# 税率变更后的细粒度结果失效方案
+# 税率变更后的细粒度结果失效方案
 
 ## 1. 背景
 - 当前系统维护在保存税率时，会直接清空 `annual_tax_results` 与 `annual_calculation_runs`。

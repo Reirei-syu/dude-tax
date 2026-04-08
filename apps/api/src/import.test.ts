@@ -60,7 +60,8 @@ test("导入模板接口返回员工 CSV 模板", async () => {
 });
 
 test("预览接口可识别员工工号冲突", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+    await modulesPromise;
 
   const app = Fastify({ logger: false });
   await registerImportRoutes(app);
@@ -85,7 +86,8 @@ test("预览接口可识别员工工号冲突", async () => {
     payload: {
       importType: "employee",
       unitId: unit.id,
-      csvText: "employeeCode,employeeName,idNumber,hireDate,leaveDate,remark\nEMP001,张三,110101199001012222,,,",
+      csvText:
+        "employeeCode,employeeName,idNumber,hireDate,leaveDate,remark\nEMP001,张三,110101199001012222,,,",
     },
   });
 
@@ -191,6 +193,97 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
   assert.equal(firstMonthRecord?.supplementaryRemark, "补发绩效");
   assert.equal(firstMonthRecord?.remark, "覆盖导入");
 
+  const summaryResponse = await app.inject({
+    method: "GET",
+    url: `/api/import/summary?unitId=${unit.id}`,
+  });
+  assert.equal(summaryResponse.statusCode, 200);
+  assert.equal(summaryResponse.body, "null");
+
+  await app.close();
+});
+
+test("存在冲突时提交不会部分成功写入其他月度记录", async () => {
+  const [
+    { registerImportRoutes },
+    ,
+    { registerMonthRecordRoutes },
+    { unitRepository },
+    { employeeRepository },
+    { monthRecordRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+  await registerMonthRecordRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "全成功提交测试单位",
+    remark: "",
+  });
+
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP600",
+    employeeName: "全成功提交员工",
+    idNumber: "110101199001019191",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthRecordRepository.upsert(unit.id, employee.id, 2026, 1, {
+    status: "completed",
+    salaryIncome: 5000,
+    annualBonus: 0,
+    pensionInsurance: 0,
+    medicalInsurance: 0,
+    occupationalAnnuity: 0,
+    housingFund: 0,
+    supplementaryHousingFund: 0,
+    unemploymentInsurance: 0,
+    workInjuryInsurance: 0,
+    withheldTax: 0,
+    infantCareDeduction: 0,
+    childEducationDeduction: 0,
+    continuingEducationDeduction: 0,
+    housingLoanInterestDeduction: 0,
+    housingRentDeduction: 0,
+    elderCareDeduction: 0,
+    otherDeduction: 0,
+    taxReductionExemption: 0,
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/commit",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      csvText:
+        "employeeCode,taxYear,taxMonth,status,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,supplementarySalaryIncome,supplementaryWithheldTaxAdjustment,supplementarySourcePeriodLabel,supplementaryRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP600,2026,1,completed,8000,0,0,0,0,0,0,0,0,100,0,0,,,0,0,0,0,0,0,0,0,冲突记录\nEMP600,2026,2,completed,9000,0,0,0,0,0,0,0,0,120,0,0,,,0,0,0,0,0,0,0,0,本应成功但需回滚",
+      conflictStrategy: "skip",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  assert.equal(body.successCount, 0);
+  assert.equal(body.failureCount, 1);
+  assert.equal(body.skippedCount, 0);
+
+  const listResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records`,
+  });
+  assert.equal(listResponse.statusCode, 200);
+  const records = listResponse.json() as Array<Record<string, unknown>>;
+  const firstMonthRecord = records.find((record) => record.taxMonth === 1);
+  const secondMonthRecord = records.find((record) => record.taxMonth === 2);
+  assert.equal(firstMonthRecord?.salaryIncome, 5000);
+  assert.equal(secondMonthRecord?.id, null);
+  assert.equal(secondMonthRecord?.salaryIncome, 0);
+
   await app.close();
 });
 
@@ -227,7 +320,8 @@ test("预览接口可识别同一份员工 CSV 内的重复工号", async () => 
 });
 
 test("月度导入预览会限制在当前年份作用域内", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+    await modulesPromise;
 
   const app = Fastify({ logger: false });
   await registerImportRoutes(app);
@@ -269,7 +363,8 @@ test("月度导入预览会限制在当前年份作用域内", async () => {
 });
 
 test("月度导入预览可识别同一文件内重复月份记录", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+    await modulesPromise;
 
   const app = Fastify({ logger: false });
   await registerImportRoutes(app);
@@ -311,7 +406,8 @@ test("月度导入预览可识别同一文件内重复月份记录", async () =>
 });
 
 test("执行导入可正确解析带引号、逗号和换行的员工字段", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] = await modulesPromise;
+  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+    await modulesPromise;
 
   const app = Fastify({ logger: false });
   await registerImportRoutes(app);

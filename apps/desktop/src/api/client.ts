@@ -13,6 +13,7 @@ import type {
   EmployeeMonthRecord,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
+  HistoryResultRecalculationResponse,
   ImportCommitResponse,
   ImportSummary,
   ImportPreviewResponse,
@@ -242,7 +243,9 @@ export const apiClient = {
     );
   },
   listAnnualResults(unitId: number, taxYear: number) {
-    return request<EmployeeAnnualTaxResult[]>(`/api/units/${unitId}/years/${taxYear}/annual-results`);
+    return request<EmployeeAnnualTaxResult[]>(
+      `/api/units/${unitId}/years/${taxYear}/annual-results`,
+    );
   },
   listAnnualResultVersions(unitId: number, taxYear: number, employeeId: number) {
     return request<AnnualTaxResultVersion[]>(
@@ -274,6 +277,16 @@ export const apiClient = {
 
     const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
     return request<HistoryAnnualTaxResult[]>(`/api/history-results${suffix}`);
+  },
+  recalculateHistoryResult(unitId: number, taxYear: number, employeeId: number) {
+    return request<HistoryResultRecalculationResponse>("/api/history-results/recalculate", {
+      method: "POST",
+      body: JSON.stringify({
+        unitId,
+        taxYear,
+        employeeId,
+      }),
+    });
   },
   updateAnnualResultSelectedScheme(
     unitId: number,

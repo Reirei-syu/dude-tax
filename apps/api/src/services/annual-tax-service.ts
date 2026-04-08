@@ -1,23 +1,30 @@
 import {
   type AnnualTaxRuleSourceSummary,
   type AnnualTaxExportPreviewRow,
+  taxCalculationSchemeLabelMap,
+  taxSettlementDirectionLabelMap,
   calculateEmployeeAnnualTax,
   type AnnualTaxCalculation,
   type AnnualTaxWithholdingContext,
-  getSalaryIncomeForWithholding,
   type EmployeeCalculationStatus,
-  type EmployeeMonthRecord,
   type EmployeeAnnualTaxResult,
   type HistoryAnnualTaxQuery,
-  type TaxSettlementDirection,
+  type HistoryResultRecalculationResponse,
   type TaxCalculationScheme,
 } from "@dude-tax/core";
 import { annualTaxResultRepository } from "../repositories/annual-tax-result-repository.js";
 import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
-import { employeeRepository } from "../repositories/employee-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
+import {
+  buildAnnualTaxDataSignatureFromRecords,
+  buildRuleSourceSummary,
+  buildWithholdingBridgeContext,
+  resolveWithholdingContext,
+  type AnnualTaxWithholdingBridgeContext,
+} from "../domain/annual-tax-calculation-context.js";
+import { buildHistoryResultRecalculationComparisonItems } from "../domain/history-result-recalculation.js";
 
 export class EmployeeCalculationNotReadyError extends Error {
   constructor() {
@@ -30,24 +37,6 @@ export class AnnualTaxResultNotFoundError extends Error {
     super("目标员工当前还没有可切换的年度结果");
   }
 }
-
-export type AnnualTaxWithholdingBridgeContext = {
-  carryInCompletedRecords: EmployeeMonthRecord[];
-  derivedPreviousYearIncomeUnder60k: boolean;
-  derivedFirstSalaryMonthInYear: number | null;
-  relatedEmployeeIds: number[];
-};
-
-const schemeLabelMap: Record<TaxCalculationScheme, string> = {
-  separate_bonus: "年终奖单独计税",
-  combined_bonus: "并入综合所得",
-};
-
-const settlementDirectionLabelMap: Record<TaxSettlementDirection, string> = {
-  payable: "应补税",
-  refund: "应退税",
-  balanced: "已平",
-};
 
 const getSelectedTaxAmount = (
   calculation: AnnualTaxCalculation,
@@ -62,10 +51,9 @@ const applySelectedScheme = (
   selectedScheme: TaxCalculationScheme,
 ): AnnualTaxCalculation => {
   const annualTaxPayable = getSelectedTaxAmount(calculation, selectedScheme);
-  const annualTaxSettlement = Math.round(
-    (annualTaxPayable - calculation.annualTaxWithheld + Number.EPSILON) * 100,
-  ) / 100;
-  const settlementDirection: TaxSettlementDirection =
+  const annualTaxSettlement =
+    Math.round((annualTaxPayable - calculation.annualTaxWithheld + Number.EPSILON) * 100) / 100;
+  const settlementDirection =
     annualTaxSettlement > 0 ? "payable" : annualTaxSettlement < 0 ? "refund" : "balanced";
 
   return {
@@ -96,7 +84,7 @@ const buildExportPreviewRow = (
     employeeName: result.employeeName,
     completedMonthCount: result.completedMonthCount,
     selectedScheme: result.selectedScheme,
-    selectedSchemeLabel: schemeLabelMap[result.selectedScheme],
+    selectedSchemeLabel: taxCalculationSchemeLabelMap[result.selectedScheme],
     salaryIncomeTotal: result.salaryIncomeTotal,
     annualBonusTotal: result.annualBonusTotal,
     insuranceAndHousingFundTotal: result.insuranceAndHousingFundTotal,
@@ -108,7 +96,7 @@ const buildExportPreviewRow = (
     annualTaxWithheld: result.annualTaxWithheld,
     annualTaxSettlement: result.annualTaxSettlement,
     settlementDirection: result.settlementDirection,
-    settlementDirectionLabel: settlementDirectionLabelMap[result.settlementDirection],
+    settlementDirectionLabel: taxSettlementDirectionLabelMap[result.settlementDirection],
     selectedTaxableComprehensiveIncome: selectedSchemeResult.taxableComprehensiveIncome,
     selectedComprehensiveIncomeTax: selectedSchemeResult.comprehensiveIncomeTax,
     selectedAnnualBonusTax: selectedSchemeResult.annualBonusTax,
@@ -125,10 +113,12 @@ const recalculateReadyStatus = (
   currentSettings: ReturnType<typeof taxPolicyRepository.get>["currentSettings"],
   currentPolicySignature: string,
   withholdingContext: AnnualTaxWithholdingContext,
+  bridgeContext: AnnualTaxWithholdingBridgeContext,
   ruleSourceSummary: AnnualTaxRuleSourceSummary,
 ) => {
   const records = monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear);
   const calculation = calculateEmployeeAnnualTax(records, currentSettings, withholdingContext);
+  const dataSignature = buildAnnualTaxDataSignatureFromRecords(records, bridgeContext);
   const existingResult = annualTaxResultRepository.getByEmployeeAndYear(
     unitId,
     status.employeeId,
@@ -149,6 +139,7 @@ const recalculateReadyStatus = (
       ruleSourceSummary,
     },
     currentPolicySignature,
+    dataSignature,
   );
   calculationRunRepository.markCalculated(
     unitId,
@@ -156,90 +147,9 @@ const recalculateReadyStatus = (
     taxYear,
     status.preparationStatus,
     currentPolicySignature,
+    dataSignature,
   );
 };
-
-const buildWithholdingBridgeContext = (
-  unitId: number,
-  taxYear: number,
-  employeeId: number,
-): AnnualTaxWithholdingBridgeContext => {
-  const currentEmployee = employeeRepository.getById(employeeId);
-  if (!currentEmployee) {
-    return {
-      carryInCompletedRecords: [],
-      derivedPreviousYearIncomeUnder60k: false,
-      derivedFirstSalaryMonthInYear: null,
-      relatedEmployeeIds: [],
-    };
-  }
-
-  const relatedEmployees = employeeRepository.listByIdNumber(currentEmployee.idNumber);
-  const relatedEmployeeIds = relatedEmployees.map((employee) => employee.id);
-  const currentYearCompletedRecords = monthRecordRepository.listCompletedByEmployeeIdsAndYear(
-    relatedEmployeeIds,
-    taxYear,
-  );
-  const previousYearCompletedRecords = monthRecordRepository.listCompletedByEmployeeIdsAndYear(
-    relatedEmployeeIds,
-    taxYear - 1,
-  );
-
-  const carryInCompletedRecords = currentYearCompletedRecords.filter(
-    (record) => record.unitId !== unitId,
-  );
-  const derivedFirstSalaryMonthInYear =
-    currentYearCompletedRecords[0]?.taxMonth ?? null;
-  const previousYearIncome = previousYearCompletedRecords.reduce(
-    (sum, record) => sum + getSalaryIncomeForWithholding(record),
-    0,
-  );
-  const previousYearDistinctMonths = new Set(
-    previousYearCompletedRecords.map((record) => record.taxMonth),
-  ).size;
-  const derivedPreviousYearIncomeUnder60k =
-    previousYearDistinctMonths === 12 && previousYearIncome > 0 && previousYearIncome <= 60_000;
-
-  return {
-    carryInCompletedRecords,
-    derivedPreviousYearIncomeUnder60k,
-    derivedFirstSalaryMonthInYear,
-    relatedEmployeeIds,
-  };
-};
-
-const resolveWithholdingContext = (
-  bridgeContext: AnnualTaxWithholdingBridgeContext,
-  explicitContext: AnnualTaxWithholdingContext,
-): AnnualTaxWithholdingContext => ({
-  ...explicitContext,
-  carryInCompletedRecords: bridgeContext.carryInCompletedRecords,
-  previousYearIncomeUnder60k:
-    explicitContext.previousYearIncomeUnder60k ??
-    bridgeContext.derivedPreviousYearIncomeUnder60k,
-  firstSalaryMonthInYear:
-    explicitContext.firstSalaryMonthInYear ??
-    bridgeContext.derivedFirstSalaryMonthInYear,
-});
-
-const buildRuleSourceSummary = (
-  bridgeContext: AnnualTaxWithholdingBridgeContext,
-  resolvedContext: AnnualTaxWithholdingContext,
-): AnnualTaxRuleSourceSummary => ({
-  hasCrossUnitCarryIn: bridgeContext.carryInCompletedRecords.length > 0,
-  crossUnitRecordCount: bridgeContext.carryInCompletedRecords.length,
-  crossUnitUnitCount: new Set(
-    bridgeContext.carryInCompletedRecords.map((record) => record.unitId),
-  ).size,
-  usedPreviousYearIncomeReference:
-    resolvedContext.previousYearIncomeUnder60k !== undefined ||
-    bridgeContext.derivedPreviousYearIncomeUnder60k,
-  previousYearIncomeUnder60k: resolvedContext.previousYearIncomeUnder60k ?? null,
-  usedFirstSalaryMonthReference:
-    resolvedContext.firstSalaryMonthInYear !== undefined &&
-    resolvedContext.firstSalaryMonthInYear !== null,
-  firstSalaryMonthInYear: resolvedContext.firstSalaryMonthInYear ?? null,
-});
 
 export const annualTaxService = {
   buildWithholdingBridgeContext,
@@ -261,12 +171,50 @@ export const annualTaxService = {
       taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
     );
   },
+  recalculateHistoryResult(
+    unitId: number,
+    taxYear: number,
+    employeeId: number,
+  ): HistoryResultRecalculationResponse {
+    const snapshotResult = annualTaxResultRepository.getHistoryByEmployeeAndYear(
+      unitId,
+      employeeId,
+      taxYear,
+    );
+
+    if (!snapshotResult) {
+      throw new AnnualTaxResultNotFoundError();
+    }
+
+    const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
+    const currentRecords = monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear);
+    const bridgeContext = buildWithholdingBridgeContext(unitId, taxYear, employeeId);
+    const resolvedWithholdingContext = resolveWithholdingContext(bridgeContext, {});
+    const recalculatedResult = {
+      ...calculateEmployeeAnnualTax(currentRecords, effectiveSettings, resolvedWithholdingContext),
+      ruleSourceSummary: buildRuleSourceSummary(bridgeContext, resolvedWithholdingContext),
+    };
+
+    return {
+      snapshotResult,
+      recalculatedResult,
+      comparisonItems: buildHistoryResultRecalculationComparisonItems(
+        snapshotResult,
+        recalculatedResult,
+      ),
+      invalidatedReason: snapshotResult.invalidatedReason,
+    };
+  },
   listExportPreview(unitId: number, taxYear: number) {
     const unit = unitRepository.getById(unitId);
     const unitName = unit?.unitName ?? "未知单位";
 
     return annualTaxResultRepository
-      .listByUnitAndYear(unitId, taxYear, taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear))
+      .listByUnitAndYear(
+        unitId,
+        taxYear,
+        taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear),
+      )
       .map((result) => buildExportPreviewRow(unitName, result));
   },
   updateSelectedScheme(
@@ -322,11 +270,7 @@ export const annualTaxService = {
     targetStatuses
       .filter((status) => status.preparationStatus === "ready")
       .forEach((status) => {
-        const bridgeContext = buildWithholdingBridgeContext(
-          unitId,
-          taxYear,
-          status.employeeId,
-        );
+        const bridgeContext = buildWithholdingBridgeContext(unitId, taxYear, status.employeeId);
         const resolvedWithholdingContext = resolveWithholdingContext(
           bridgeContext,
           withholdingContext,
@@ -338,6 +282,7 @@ export const annualTaxService = {
           effectiveSettings,
           currentPolicySignature,
           resolvedWithholdingContext,
+          bridgeContext,
           buildRuleSourceSummary(bridgeContext, resolvedWithholdingContext),
         );
       });

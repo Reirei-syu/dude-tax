@@ -1,6 +1,6 @@
-﻿# 项目进度与记忆 (PROGRESS.md)
+# 项目进度与记忆 (PROGRESS.md)
 
-- **更新时间**：2026-03-28 02:00
+- **更新时间**：2026-04-08 14:28
 - **项目标识**：dude-tax
 - **产品显示名**：工资薪金个税计算器
 - **当前版本阶段**：v0.1.0-alpha
@@ -19,6 +19,12 @@
   - `/docs/plans/2026-03-28_real-business-pilot-hardening-plan.md`
   - `/docs/plans/2026-03-28_release-readiness_fix-checklist-plan.md`
   - `/docs/plans/2026-03-28_p0_desktop-runtime-fix-plan.md`
+  - `/docs/plans/2026-04-02_result-invalidation_data-signature-plan.md`
+  - `/docs/plans/2026-04-02_history-query-recalculate-api-plan.md`
+  - `/docs/plans/2026-04-02_sqlite-check-constraints-plan.md`
+  - `/docs/plans/2026-04-02_import-service-transaction-performance-plan.md`
+  - `/docs/plans/2026-04-02_annual-history-page-splitting-plan.md`
+  - `/docs/plans/2026-04-08_copy-mapping-explanation-unification-plan.md`
 - **已完成模块**：
   - 项目基础文档：`AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
   - 工程骨架：npm workspaces、`apps/api`、`apps/desktop`、`packages/core`、`packages/config`
@@ -31,6 +37,118 @@
   - 前端基础能力：首页、单位管理、全局单位/年份上下文栏、模块导航占位页
   - 首页税率表静态展示：与后续计算核心同源配置
 - **本次更新**：
+  - 当前阶段：Execution
+  - 当前任务：P3 第三项“统一文案映射与结果解释逻辑”
+  - 任务进度百分比：Release Readiness 主线约 100%，P3 已完成 3 / 3
+  - 方案路径：`/docs/plans/2026-04-08_copy-mapping-explanation-unification-plan.md`
+  - 已新增 `packages/core/src/display-mappings.ts`，统一提供方案标签、结算方向标签和预扣模式标签
+  - 前端 `annual-results/constants.ts`、`history-query/constants.ts`、`annual-tax-withholding-summary.ts`、`history-query-export.ts`、`annual-result-version-diff.ts` 已切换到共享映射来源
+  - API `history-result-recalculation.ts` 与 `annual-tax-service.ts` 已切换到共享映射来源，不再维护局部标签常量
+  - explanation helper 保留原有业务语义，仅切换到共享标签来源，未改接口字段和计算口径
+  - 验证结果：
+    - `npm run typecheck`
+    - `npm run test --workspace @dude-tax/api`
+  - 风险备注：
+    - 当前主线功能已全部收口，但仓库中仍存在部分历史测试/工具文件的 `packages/core/src` 直引与个别一行文件
+    - 这些遗留问题不影响当前试点主线闭环，但会影响后续维护体验
+  - Lessons Learned：
+    - 页面拆分之后立刻做共享映射收口，能显著降低后续标签漂移风险
+    - 统一展示来源时，优先只改“标签来源”而不是 explanation 业务逻辑，更容易验证也更可回退
+  - 当前阶段：Execution
+  - 当前任务：P3 第二项“拆分超大页面组件”
+  - 任务进度百分比：Release Readiness 主线约 95%，P3 已完成 2 / 3
+  - 方案路径：`/docs/plans/2026-04-02_annual-history-page-splitting-plan.md`
+  - `AnnualResultsPage.tsx` 已拆为 `annual-results/` 目录下的 `hooks / components / constants` 结构，主文件现约 55 行
+  - `HistoryQueryPage.tsx` 已拆为 `history-query/` 目录下的 `hooks / components / constants` 结构，主文件现约 57 行
+  - 两个主页面已不再保留 `useState / useEffect / useMemo`，页面层只负责 section 组装
+  - 本轮复用了现有导出、解释、差异对比 helper，没有顺手改动业务口径或 API 行为
+  - 验证结果：
+    - `npm run typecheck`
+    - `npm run test --workspace @dude-tax/api`
+  - 风险备注：
+    - 页面拆分虽然完成，但标签映射和解释逻辑仍分散在局部常量与旧 helper 中，下一步需要统一收口
+    - 仓库中仍存在其他历史遗留的一行文件，不属于本轮拆分页面的范围
+  - Lessons Learned：
+    - 先抽 hook 再拆 JSX section，能显著降低页面重构时的副作用回归风险
+    - 对超大页面做收口时，先让主页面变成“纯组装层”，后续再统一常量和解释逻辑会顺很多
+  - 当前阶段：Execution
+  - 当前任务：P3 第一项“修复导入服务事务与性能问题”
+  - 任务进度百分比：Release Readiness 主线约 92%，P3 已完成 1 / 3
+  - 方案路径：`/docs/plans/2026-04-02_import-service-transaction-performance-plan.md`
+  - `import-service.ts` 已改为一次解析 CSV、一次预加载上下文、一次构建执行计划，提交阶段通过单事务执行
+  - 导入提交策略已正式收口为“全成功才提交”；存在冲突或错误时不会再部分成功写入其他行
+  - `monthRecordRepository` 新增按单位+年度批量读取现有记录能力，移除月度导入循环内 `listByEmployeeAndYear(...)`
+  - `import-service.ts` 已去掉对 `packages/core/src` 的源码级引用，改回 `@dude-tax/core`
+  - 成功提交后会清理 `import_preview_summaries`，避免首页继续显示过期冲突摘要
+  - 补充导入回归测试，覆盖“成功提交后摘要清空”和“存在冲突时不再部分成功”
+  - 验证结果：
+    - `npm run test --workspace @dude-tax/api`
+    - `npm run typecheck`
+  - 风险备注：
+    - 导入策略从隐式“部分成功”收紧为“全成功才提交”，后续若用户反馈强依赖旧行为，需要单独评估是否保留兼容开关
+    - 仓库内仍存在其他超大文件和个别源码级引用，不属于本轮收口范围
+  - Lessons Learned：
+    - 在数据库约束补齐之后，导入服务最先需要补的是事务边界，否则失败路径会立刻变成数据一致性问题
+    - 对导入链路做性能优化时，先把“预加载上下文”结构设计好，比零散替换单个查询更稳
+  - 当前阶段：Execution
+  - 当前任务：P2 第三项“SQLite 增加 CHECK 约束”
+  - 任务进度百分比：Release Readiness 主线约 88%，P2 已完成 3 / 3
+  - 方案路径：`/docs/plans/2026-04-02_sqlite-check-constraints-plan.md`
+  - 已为 `employee_month_records`、`annual_calculation_runs`、`annual_tax_results`、`annual_tax_result_versions` 增加数据库级 `CHECK` 约束
+  - 数据库初始化链路新增“旧数据预检查 + 影子表重建迁移”，不合法旧数据会阻止自动迁移，合法旧数据会保留原值完成重建
+  - 新增 [db-constraints.test.ts](/D:/coding/dude-tax/apps/api/src/db-constraints.test.ts)，验证旧版 `employee_month_records` 表可自动迁移，且非法月份/负金额/非法状态与结果写入会被 SQLite 直接拒绝
+  - 验证结果：
+    - `npm run test --workspace @dude-tax/api`
+    - `npm run typecheck`
+  - 风险备注：
+    - 约束迁移目前只覆盖结构化列，不覆盖 `tax_policy_versions.settings_json` 内部 JSON 字段
+    - 导入服务仍缺事务边界与批量预加载，数据库约束补齐后，这部分失败路径会更容易暴露
+  - Lessons Learned：
+    - 对 SQLite 做约束补强时，重建表比尝试“就地补约束”更可控，尤其在单机旧库升级场景下
+    - 先用数据库测试锁住“旧表迁移成功 + 非法写入失败”两类行为，能显著降低后续结构调整的回归风险
+  - 当前阶段：Execution
+  - 当前任务：P2 第二项“将历史结果重算对比迁移到 API”
+  - 任务进度百分比：Release Readiness 主线约 82%，P2 已完成 2 / 3
+  - 方案路径：`/docs/plans/2026-04-02_history-query-recalculate-api-plan.md`
+  - 新增 `POST /api/history-results/recalculate`，由 API 统一返回历史快照、当前重算结果和格式化差异项
+  - 新增 `apps/api/src/domain/history-result-recalculation.ts`，将差异解释逻辑从前端 helper 收回到 API 域层
+  - `HistoryQueryPage.tsx` 已删除对核心计算函数的直接调用，改为通过 `apiClient.recalculateHistoryResult(...)` 取数
+  - `apps/api/src/routes/calculations.ts` 已去除本轮涉及的 `packages/core/src` 源码级引用，改回 workspace 包入口
+  - 为历史重算对比链路补充 API 回归测试，覆盖税率变化后重算结果与差异项输出
+  - 验证结果：
+    - `npm run test --workspace @dude-tax/api`
+    - `npm run typecheck`
+  - 风险备注：
+    - 历史结果对比已完成 API 收口，但仓库内仍有其他模块保留 `packages/core/src` 源码级引用，后续需继续治理
+    - SQLite 数据约束仍未补齐，数据库最后防线缺口依然存在
+  - Lessons Learned：
+    - 差异解释这类用户可见逻辑如果留在前端，极易跟正式计算口径漂移；优先放到服务层统一生成更稳
+    - 方案文档先行能明显压缩接口改造时的返工范围，尤其是前后端同时改动的任务
+  - 当前阶段：Execution
+  - 当前任务：P2 第一项“结果失效判定改为 `policy_signature + data_signature`”
+  - 任务进度百分比：Release Readiness 主线约 75%，P2 已完成 1 / 3
+  - 方案路径：`/docs/plans/2026-04-02_result-invalidation_data-signature-plan.md`
+  - 完成 `data_signature` 落地：`annual_tax_results`、`annual_tax_result_versions`、`annual_calculation_runs` 已新增签名字段并接入写入链路
+  - 新增共享签名构造模块，签名同时覆盖当前年度记录、跨单位结转记录和派生预扣上下文，避免失效判定与真实计算输入脱节
+  - 历史版本、历史查询与重算状态现已支持区分 `tax_policy_changed` 和 `month_record_changed`
+  - 旧库兼容策略采用“空签名即需要重算”，升级后旧结果不会被误判为当前有效
+  - 验证结果：
+    - `npm run test --workspace @dude-tax/api`
+    - `npm run typecheck`
+  - 风险备注：
+    - 当前月度数据编辑仍会删除“当前结果 / 当前重算状态”行，因此本轮重点修复的是历史版本、历史查询与旧库兼容语义，而不是把当前状态改成显式 `month_record_changed`
+    - 历史结果重算对比仍在前端直接调用核心计算，下一步必须先收回到 API，避免继续扩大分层偏差
+  - Lessons Learned：
+    - `data_signature` 不能只基于当前单位的 `employee_month_records` 做签名，否则会漏掉跨单位结转和上一年收入参考带来的结果变化
+    - 旧库迁移不能盲目补签名；先按“空签名需重算”处理，语义更安全，也更符合试点阶段的可回退原则
+  - 完成 P1 第二项：恢复首批 5 个高优先级单行源码文件的可读结构，覆盖 `import-service.ts`、`annual-tax-result-repository.ts`、`month-record-repository.ts`、`MonthRecordEntryPage.tsx` 和 `AppLayout.tsx`
+  - 在根 `package.json` 增加 `lint-staged` 与 `lint-staged` 配置，提交前可自动运行 Prettier
+  - 执行 `npm run typecheck`、`npm run test --workspace @dude-tax/api`、`npm run test --workspace @dude-tax/desktop` 验证格式恢复未引入行为回归
+  - 完成 P1 第一项：核实大部分“乱码”来自 PowerShell 显示而非源码内容，真实损坏范围主要集中在数据库默认中文字符串
+  - 修复 `apps/api/src/db/database.ts` 中审计日志默认 `actor_label` 与初始税率版本名的损坏中文
+  - 新增 `.editorconfig`、`.prettierrc.json`、`.prettierignore`，建立 UTF-8（无 BOM）与 Prettier 基础防线
+  - 清理仓库中现存 BOM 文件，确认源码与文档已统一为 UTF-8 无 BOM
+  - 执行 `npm run typecheck`、`npm run test --workspace @dude-tax/api`、`npm run test --workspace @dude-tax/desktop`、`npm audit --omit=dev`，验证本轮修复未引入回归
   - 按 Release Readiness 修复清单完成 P0：`apps/api` 已新增生产构建链，产出 `dist/server.mjs`
   - Electron 生产运行链路已切换到编译后的 API 入口，不再依赖 `tsx + apps/api/src/server.ts`
   - `scripts/package-win.mjs` 已改为先构建 API / 桌面前端，再下载 Electron 目标 ABI 的 `better-sqlite3` 预编译二进制进行打包
@@ -241,7 +359,7 @@
   - 跨单位 / 跨年衔接核心算法接入
   - 跨单位 / 跨年衔接方案拆解
 - **当前版本状态补充**：
-  - 项目已初步完成，主要业务模块、前后台数据勾连和模块联动均已跑通；后续重点转向导出模板策略、复杂税务口径、数据围栏和边界收口
+  - 项目已初步完成，主要业务模块、前后台数据勾连和模块联动均已跑通；当前 Release Readiness 主线任务已全部完成
 - **当前上下文/已知问题**：
   - 当前个税计算引擎已支持“月度已预扣税额 -> 年度应补/应退”最小闭环，并已接入年度预扣轨迹摘要；快速计算与计算中心均可显式选择预扣模式，结果中心 / 历史查询已可解释模式含义，但仍未提供规则切换能力
   - 快速计算当前已补齐补发补扣输入与模板化批量输入，但仍不支持文件导入或更复杂模板库
@@ -249,15 +367,16 @@
   - 系统维护当前已支持税率编辑、富文本说明维护、版本列表、历史版本激活以及按单位 / 年度作用域绑定
   - 当前税率版本表采用 `policy_signature` 唯一约束；仅修改说明时会更新当前活动版本，而不会新增重复税率版本
   - 删除单位已对员工表生效级联删除，后续接入更多业务表后仍需继续补齐
+  - 当前仓库仍存在多份被压成单行的源码文件，严重影响可维护性；后续仍需在 P3 按页面和模块继续拆分收口
+  - 当前仍有更多单行源码文件未恢复；但最高优先级的 5 个文件已处理完毕，后续拆分工作将在 P3 继续推进
   - 月度录入增强项当前已补齐复制上月、月份完成度提示、整年视图、批量编辑、批量保存和数据差异提示，已形成当前最小闭环
   - 当前导出链路已补齐基础交付体验，但结果模板管理和更细粒度财务模板策略仍未落地
   - 引入 `exceljs` 后桌面端 bundle 体积明显增大，后续需要考虑代码拆分或按需加载
   - 项目内容已迁移到 `D:\coding\dude-tax`，原 `D:\coding\salary-tax` 目录已清空；由于当前会话策略限制，未在本轮自动删除空目录
   - 当前仓库无远程仓库，且本地已只保留 `master`；后续如需协作，需先补远程与分支规范
-  - 当前税率失效策略已从“全量清空”升级为基于 `policy_signature` 的逻辑失效
+  - 当前结果失效策略已从仅基于 `policy_signature` 升级为同时判断 `policy_signature + data_signature`
   - 补发补扣字段当前已完成“支付当月补发 / 补扣”的输入闭环，但仍未覆盖往期更正申报、跨单位 / 跨年衔接和更细粒度月度追溯
   - 引入 `@electron/rebuild` 后，整体 `npm audit` 仍有 dev 依赖告警；当前试点验收以 `npm audit --omit=dev = 0` 为准
 - **下一步开发计划**：
-  - 下一步按修复清单进入 P1：全量修复中文乱码
-  - 乱码修复完成并验证后，再进入 P1 第二项：恢复被压扁的一行源码文件
-
+  - 下一步建议做一次整体收口 review，确认是否还需要继续清理遗留一行文件与剩余 `packages/core/src` 直引
+  - 如不继续扩展功能，后续可转入试点前回归与交付清单复核

@@ -112,7 +112,7 @@ export type UpsertEmployeeMonthRecordPayload = {
 
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
 
-export type ResultInvalidationReason = "tax_policy_changed";
+export type ResultInvalidationReason = "tax_policy_changed" | "month_record_changed";
 export type HistoryResultStatus = "current" | "invalidated" | "all";
 
 export type EmployeeCalculationStatus = {
@@ -454,6 +454,20 @@ export type HistoryAnnualTaxResult = EmployeeAnnualTaxResult & {
   invalidatedReason: ResultInvalidationReason | null;
 };
 
+export type HistoryResultRecalculationComparisonItem = {
+  label: string;
+  snapshotValue: string;
+  currentValue: string;
+  deltaValue: string;
+};
+
+export type HistoryResultRecalculationResponse = {
+  snapshotResult: HistoryAnnualTaxResult;
+  recalculatedResult: AnnualTaxCalculation;
+  comparisonItems: HistoryResultRecalculationComparisonItem[];
+  invalidatedReason: ResultInvalidationReason | null;
+};
+
 export type HistoryAnnualTaxQuery = {
   unitId?: number;
   taxYear?: number;
@@ -469,6 +483,12 @@ export {
   getSalaryIncomeForWithholding,
   hasSupplementaryAdjustments,
 } from "./annual-tax-calculator.js";
+export { buildMonthRecordDataSignature } from "./month-record-data-signature.js";
+export {
+  annualTaxWithholdingModeLabelMap,
+  taxCalculationSchemeLabelMap,
+  taxSettlementDirectionLabelMap,
+} from "./display-mappings.js";
 export {
   buildDefaultTaxPolicySettings,
   buildTaxPolicySignature,

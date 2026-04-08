@@ -1,4 +1,4 @@
-﻿import type { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 
