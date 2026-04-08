@@ -6,6 +6,60 @@
 
 ## 任务列表
 
+### [ ] 清理首页税率表的 whitespace 文本节点警告
+
+- 类型：Fix / Refactor
+- 模块：`apps/desktop`
+- 描述：清理首页税率表及同类页面中 `table/thead/tbody/tr` 下的多余空白文本节点，消除浏览器控制台 hydration warning
+- 依赖：无
+- 风险：低
+- 优先级：4
+
+### [x] UI 巡检：创建空 Body 请求修复方案并同步执行入口
+
+- 完成时间：2026-04-08 15:52
+- 修改文件：
+  - `docs/plans/2026-04-08_ui-full-smoke-and-empty-body-fix-plan.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 建立本轮 UI 全量巡检与空 Body 请求缺陷修复的执行入口
+  - 将方案、上下文、任务清单同步到当前状态
+
+### [x] 修复前端无 Body 请求头并补桌面端回归测试
+
+- 完成时间：2026-04-08 16:16
+- 修改文件：
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/api/client.test.ts`
+- 影响范围：
+  - `request()` 改为仅在存在 body 时自动附带 `Content-Type: application/json`
+  - 修复无 body 的 `POST / DELETE` 请求误触发 Fastify `FST_ERR_CTP_EMPTY_JSON_BODY`
+  - 为请求层补齐桌面端回归测试
+
+### [x] 补充 API 无 Body 路由回归测试
+
+- 完成时间：2026-04-08 16:16
+- 修改文件：
+  - `apps/api/src/empty-json-body.test.ts`
+- 影响范围：
+  - 为 `delete-challenge`、`delete employee`、`activate tax policy version` 三条无 body 路由补齐回归测试
+  - 锁定后端对无 body 请求的合同语义
+
+### [x] 执行隔离数据库 UI 冒烟巡检并输出缺陷清单
+
+- 完成时间：2026-04-08 16:16
+- 修改文件：
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 使用隔离数据库 `C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-ui-smoke\\ui-smoke.db`
+  - 对 `main.tsx` 中实际 10 个路由执行最小正向流程
+  - 主路径全部通过：`/`、`/units`、`/employees`、`/import`、`/entry`、`/quick-calc`、`/calculation`、`/maintenance`、`/history`、`/results`
+  - 记录非阻断问题：首页税率表等位置存在 whitespace / hydration warning
+
 ### [x] P0：修复 Electron + API 生产运行链路
 
 - 完成时间：2026-03-28 02:00

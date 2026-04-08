@@ -34,12 +34,21 @@ const resolveApiBaseUrl = () =>
   import.meta.env.VITE_API_BASE_URL ||
   window.location.origin;
 
+const buildRequestHeaders = (init?: RequestInit) => {
+  const headers = new Headers(init?.headers);
+  const hasBody = init?.body !== undefined && init?.body !== null;
+
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return headers;
+};
+
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-    },
     ...init,
+    headers: buildRequestHeaders(init),
   });
 
   if (!response.ok) {

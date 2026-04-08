@@ -1,6 +1,6 @@
 # 项目进度与记忆 (PROGRESS.md)
 
-- **更新时间**：2026-04-08 14:28
+- **更新时间**：2026-04-08 16:16
 - **项目标识**：dude-tax
 - **产品显示名**：工资薪金个税计算器
 - **当前版本阶段**：v0.1.0-alpha
@@ -25,6 +25,7 @@
   - `/docs/plans/2026-04-02_import-service-transaction-performance-plan.md`
   - `/docs/plans/2026-04-02_annual-history-page-splitting-plan.md`
   - `/docs/plans/2026-04-08_copy-mapping-explanation-unification-plan.md`
+  - `/docs/plans/2026-04-08_ui-full-smoke-and-empty-body-fix-plan.md`
 - **已完成模块**：
   - 项目基础文档：`AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
   - 工程骨架：npm workspaces、`apps/api`、`apps/desktop`、`packages/core`、`packages/config`
@@ -37,6 +38,34 @@
   - 前端基础能力：首页、单位管理、全局单位/年份上下文栏、模块导航占位页
   - 首页税率表静态展示：与后续计算核心同源配置
 - **本次更新**：
+  - 当前阶段：Execution
+  - 当前任务：UI 全量巡检与空 Body 请求缺陷修复
+  - 任务进度百分比：100%
+  - 方案路径：`/docs/plans/2026-04-08_ui-full-smoke-and-empty-body-fix-plan.md`
+  - 已修复根因：`apps/desktop/src/api/client.ts` 现改为仅在存在 body 时附带 `Content-Type: application/json`，无 body 的 `POST / DELETE` 不再触发 Fastify `FST_ERR_CTP_EMPTY_JSON_BODY`
+  - 已确认并修复的受影响动作：
+    - 单位管理：生成删除认证
+    - 员工信息：删除员工
+    - 系统维护：激活历史税率版本
+  - 新增回归测试：
+    - `apps/desktop/src/api/client.test.ts`
+    - `apps/api/src/empty-json-body.test.ts`
+  - 代码级验证结果：
+    - `npm run test --workspace @dude-tax/desktop`
+    - `npm run test --workspace @dude-tax/api`
+    - `npm run typecheck`
+    - `npm run build --workspace @dude-tax/desktop`
+  - UI 冒烟巡检结果：
+    - 使用隔离数据库 `C:\Users\11441\AppData\Local\Temp\dude-tax-ui-smoke\ui-smoke.db`
+    - 按 `apps/desktop/src/main.tsx` 实际 10 个路由执行主路径巡检，10 / 10 通过
+    - 已覆盖关键动作：新增单位、进入工作、删除单位、员工新增/编辑/删除、导入预览/提交、单月保存、快速计算、重算全部、税率保存、影响预览、作用域绑定、解绑恢复继承、激活历史版本、历史失效结果查询、结果中心加载
+  - 风险备注：
+    - 未发现新的运行阻断
+    - 发现非阻断问题：首页税率表等位置仍会在浏览器控制台输出 whitespace / hydration warning，需后续清理
+  - Lessons Learned：
+    - 对“空 body + application/json”这类框架级报错，必须先做可重复复现，再定位到共性封装层，不能只修单一按钮
+    - `main.tsx` 中实际是 10 个路由而不是 9 个，后续巡检计划必须以代码入口为准
+    - 隔离数据库 + 浏览器注入式 `apiBaseUrl` 适合在不干扰现有开发进程的前提下做桌面前端冒烟
   - 当前阶段：Execution
   - 当前任务：P3 第三项“统一文案映射与结果解释逻辑”
   - 任务进度百分比：Release Readiness 主线约 100%，P3 已完成 3 / 3

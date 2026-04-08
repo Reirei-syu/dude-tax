@@ -3,19 +3,27 @@
 ## 当前阶段
 
 - 项目处于 `v0.1.0-alpha`
-- Release Readiness 修复清单已启用
-- P0 已全部完成
-- P1 已全部完成
-- P2 第一项已完成
-- P2 第二项已完成
-- P2 第三项已完成
-- P3 第一项已完成
-- P3 第二项已完成
-- P3 第三项已完成
-- 当前主线任务已全部完成
+- 当前任务 `UI 全量巡检与空 Body 请求缺陷修复` 已完成
+- Release Readiness 主线已完成，当前进入收口巡检后的遗留问题整理阶段
 
 ## 本轮已完成
 
+- 已创建方案文档：`/docs/plans/2026-04-08_ui-full-smoke-and-empty-body-fix-plan.md`
+- 已修复根因：`apps/desktop/src/api/client.ts` 仅在存在 body 时附带 JSON 头，避免无 body 的 `POST / DELETE` 命中 Fastify `FST_ERR_CTP_EMPTY_JSON_BODY`
+- 已修复受影响动作：
+  - 单位管理：生成删除认证
+  - 员工信息：删除员工
+  - 系统维护：激活历史税率版本
+- 已新增回归测试：
+  - `apps/desktop/src/api/client.test.ts`
+  - `apps/api/src/empty-json-body.test.ts`
+- 已完成代码级验证：
+  - `npm run test --workspace @dude-tax/desktop`
+  - `npm run test --workspace @dude-tax/api`
+  - `npm run typecheck`
+- 已完成 UI 冒烟巡检：
+  - 使用隔离数据库 `C:\Users\11441\AppData\Local\Temp\dude-tax-ui-smoke\ui-smoke.db`
+  - 按 `main.tsx` 实际 10 个路由执行最小正向流程，10 / 10 通过
 - 完成 P2 第一项：结果失效判定改为 `policy_signature + data_signature`
 - 为 `annual_tax_results`、`annual_tax_result_versions`、`annual_calculation_runs` 增加 `data_signature`
 - 新增共享签名构造：当前年度月度记录 + 跨单位结转记录 + 派生预扣上下文共同参与签名
@@ -37,6 +45,8 @@
 
 ## 当前阻塞
 
+- 当前无新的运行阻断
+- 存在非阻断遗留：首页税率表等位置仍有 whitespace / hydration warning
 - `apps/api/src/import-summary-repository.ts` 之外的其他一行文件仍待后续治理
 - 仍有部分历史测试与工具文件保留 `packages/core/src` 直引，但不影响当前主线功能闭环
 
@@ -54,7 +64,11 @@
 - 主页面本身不再保留 `useState / useEffect / useMemo`，只负责组装 section
 - 统一映射时优先提升展示标签来源，不顺手重写 explanation helper 业务语义
 - 当前主线收口后，后续优化任务默认转向遗留一行文件治理与剩余源码级直引清理
+- 本轮先修共性请求封装，再做 UI 冒烟；新发现缺陷只登记，不与本次共性修复混改
+- 浏览器冒烟计划要以 `main.tsx` 的实际路由数为准，不能沿用口头估计
+- 在现有 5173 开发服务器上，可通过浏览器注入 `window.salaryTaxDesktop.runtimeConfig.apiBaseUrl` 指向隔离 API 完成不扰动的 UI 巡检
 
 ## 下一步
 
-- 当前主线任务已完成，可进入整体收口 review 或遗留技术债清理
+- 继续清理首页税率表等页面中的 whitespace / hydration warning
+- 视需要继续清理遗留一行源码文件与剩余 `packages/core/src` 直引
