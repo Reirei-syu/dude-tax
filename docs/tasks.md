@@ -60,6 +60,19 @@
   - 主路径全部通过：`/`、`/units`、`/employees`、`/import`、`/entry`、`/quick-calc`、`/calculation`、`/maintenance`、`/history`、`/results`
   - 记录非阻断问题：首页税率表等位置存在 whitespace / hydration warning
 
+### [x] 优化单位创建页的起始年份体验
+
+- 完成时间：2026-04-08 16:31
+- 修改文件：
+  - `apps/desktop/src/pages/UnitManagementPage.tsx`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 单位创建表单新增“起始年份”选择
+  - 创建单位成功后会同步写入 `currentUnitId + currentTaxYear`
+  - 定点 UI 冒烟已验证创建单位后年份栏会切换到所选年份
+
 ### [x] P0：修复 Electron + API 生产运行链路
 
 - 完成时间：2026-03-28 02:00

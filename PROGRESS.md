@@ -1,6 +1,6 @@
 # 项目进度与记忆 (PROGRESS.md)
 
-- **更新时间**：2026-04-08 16:16
+- **更新时间**：2026-04-08 16:31
 - **项目标识**：dude-tax
 - **产品显示名**：工资薪金个税计算器
 - **当前版本阶段**：v0.1.0-alpha
@@ -38,6 +38,22 @@
   - 前端基础能力：首页、单位管理、全局单位/年份上下文栏、模块导航占位页
   - 首页税率表静态展示：与后续计算核心同源配置
 - **本次更新**：
+  - 当前阶段：Execution
+  - 当前任务：优化单位创建页的起始年份体验
+  - 任务进度百分比：100%
+  - 本次修改：
+    - `apps/desktop/src/pages/UnitManagementPage.tsx` 新增“起始年份”下拉
+    - 新建单位成功后同步写入 `currentUnitId + currentTaxYear`
+    - 保持现有后端接口、数据库结构和分层不变，仅调整前端创建流程
+  - 验证结果：
+    - `npm run test --workspace @dude-tax/desktop`
+    - `npm run typecheck`
+    - `npm run build --workspace @dude-tax/desktop`
+    - 定点 UI 冒烟：使用隔离数据库创建新单位并选择 `2028`，创建成功后顶部年份栏正确切换到 `2028`
+  - 风险备注：
+    - 当前仅优化“创建单位”路径；已有单位通过“进入工作”切换时，年份仍沿用当前全局上下文
+  - Lessons Learned：
+    - 这个问题本质不在默认年份常量，而在“创建单位成功后只更新了 `currentUnitId`，没有同时更新 `currentTaxYear`”
   - 当前阶段：Execution
   - 当前任务：UI 全量巡检与空 Body 请求缺陷修复
   - 任务进度百分比：100%
@@ -407,5 +423,5 @@
   - 补发补扣字段当前已完成“支付当月补发 / 补扣”的输入闭环，但仍未覆盖往期更正申报、跨单位 / 跨年衔接和更细粒度月度追溯
   - 引入 `@electron/rebuild` 后，整体 `npm audit` 仍有 dev 依赖告警；当前试点验收以 `npm audit --omit=dev = 0` 为准
 - **下一步开发计划**：
-  - 下一步建议做一次整体收口 review，确认是否还需要继续清理遗留一行文件与剩余 `packages/core/src` 直引
-  - 如不继续扩展功能，后续可转入试点前回归与交付清单复核
+  - 下一步建议优先清理首页税率表等页面中的 whitespace / hydration warning
+  - 然后继续处理遗留一行源码文件与剩余 `packages/core/src` 直引

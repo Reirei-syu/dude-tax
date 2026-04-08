@@ -3,11 +3,16 @@
 ## 当前阶段
 
 - 项目处于 `v0.1.0-alpha`
-- 当前任务 `UI 全量巡检与空 Body 请求缺陷修复` 已完成
+- 当前任务 `优化单位创建页的起始年份体验` 已完成
 - Release Readiness 主线已完成，当前进入收口巡检后的遗留问题整理阶段
 
 ## 本轮已完成
 
+- `apps/desktop/src/pages/UnitManagementPage.tsx` 新增“起始年份”下拉
+- 创建单位成功后会同步写入 `currentUnitId + currentTaxYear`
+- 已完成定点 UI 冒烟：
+  - 使用隔离数据库创建新单位并将起始年份选为 `2028`
+  - 创建成功后顶部年份栏正确切换到 `2028`
 - 已创建方案文档：`/docs/plans/2026-04-08_ui-full-smoke-and-empty-body-fix-plan.md`
 - 已修复根因：`apps/desktop/src/api/client.ts` 仅在存在 body 时附带 JSON 头，避免无 body 的 `POST / DELETE` 命中 Fastify `FST_ERR_CTP_EMPTY_JSON_BODY`
 - 已修复受影响动作：
@@ -47,6 +52,7 @@
 
 - 当前无新的运行阻断
 - 存在非阻断遗留：首页税率表等位置仍有 whitespace / hydration warning
+- “进入工作”仍只切换单位，不会自动切到某个单位专属默认年份；当前只优化了“创建单位”路径
 - `apps/api/src/import-summary-repository.ts` 之外的其他一行文件仍待后续治理
 - 仍有部分历史测试与工具文件保留 `packages/core/src` 直引，但不影响当前主线功能闭环
 
@@ -71,4 +77,5 @@
 ## 下一步
 
 - 继续清理首页税率表等页面中的 whitespace / hydration warning
+- 如需更进一步，可评估是否为单位引入“单位级默认年份”语义，而不只是在创建时设置当前上下文
 - 视需要继续清理遗留一行源码文件与剩余 `packages/core/src` 直引
