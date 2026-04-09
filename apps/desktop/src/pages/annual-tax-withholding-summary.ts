@@ -30,7 +30,7 @@ export const buildAnnualTaxWithholdingExplanation = (
   summary: AnnualTaxWithholdingSummary,
 ): AnnualTaxWithholdingExplanation => {
   const commonDetailLines = [
-    `当前结果按「${annualTaxWithholdingModeLabelMap[summary.withholdingMode]}」生成预扣摘要。`,
+    `当前结果按“${annualTaxWithholdingModeLabelMap[summary.withholdingMode]}”生成预扣摘要。`,
     `规则应预扣合计 ${formatCurrency(summary.expectedWithheldTaxTotal)} 元，实际已预扣合计 ${formatCurrency(summary.actualWithheldTaxTotal)} 元。`,
     buildVarianceLine(summary),
   ];

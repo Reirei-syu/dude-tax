@@ -1,13 +1,5 @@
 export const DEFAULT_TAX_YEAR = new Date().getFullYear();
 
-export const getSelectableYears = () => {
-  const years: number[] = [];
-  for (let year = DEFAULT_TAX_YEAR - 3; year <= DEFAULT_TAX_YEAR + 2; year += 1) {
-    years.push(year);
-  }
-  return years;
-};
-
 export const MODULE_NAV_ITEMS = [
   { path: "/", label: "首页", isPlaceholder: false },
   { path: "/units", label: "单位管理", isPlaceholder: false },
@@ -18,6 +10,7 @@ export const MODULE_NAV_ITEMS = [
   { path: "/calculation", label: "计算中心", isPlaceholder: false },
   { path: "/results", label: "结果中心", isPlaceholder: false },
   { path: "/history", label: "历史查询", isPlaceholder: false },
+  { path: "/policy", label: "当前政策", isPlaceholder: false },
   { path: "/maintenance", label: "系统维护", isPlaceholder: false },
 ] as const;
 

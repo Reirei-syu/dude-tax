@@ -1,43 +1,40 @@
-import { MODULE_NAV_ITEMS, getSelectableYears } from "../../../../packages/config/src/index";
+import { MODULE_NAV_ITEMS } from "@dude-tax/config";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAppContext } from "../context/AppContextProvider";
+
 export const AppLayout = () => {
   const { context, loading, updateContext } = useAppContext();
-  const years = getSelectableYears();
+  const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
+  const availableTaxYears = currentUnit?.availableTaxYears ?? [];
+
   return (
     <div className="app-shell">
-      {" "}
       <aside className="sidebar">
-        {" "}
         <div className="brand-card">
-          {" "}
-          <div className="brand-title">工资薪金个税计算器</div>{" "}
-          <div className="brand-subtitle">v0.1.0-alpha</div>{" "}
-        </div>{" "}
+          <div className="brand-title">工资薪金个税计算器</div>
+          <div className="brand-subtitle">v0.1.0-alpha</div>
+        </div>
+
         <nav className="nav-list">
-          {" "}
           {MODULE_NAV_ITEMS.map((item) => (
             <NavLink
               key={item.path}
               className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
               to={item.path}
             >
-              {" "}
-              <span>{item.label}</span> {item.isPlaceholder ? <small>规划中</small> : null}{" "}
+              <span>{item.label}</span>
+              {item.isPlaceholder ? <small>规划中</small> : null}
             </NavLink>
-          ))}{" "}
-        </nav>{" "}
-      </aside>{" "}
+          ))}
+        </nav>
+      </aside>
+
       <main className="main-panel">
-        {" "}
         <header className="context-bar glass-card">
-          {" "}
           <div className="context-group">
-            {" "}
             <label className="field-label" htmlFor="unit-select">
-              {" "}
-              当前单位{" "}
-            </label>{" "}
+              当前单位
+            </label>
             <select
               id="unit-select"
               disabled={loading || !context?.units.length}
@@ -47,52 +44,46 @@ export const AppLayout = () => {
                 void updateContext({ currentUnitId: nextValue });
               }}
             >
-              {" "}
-              {!context?.units.length ? <option value="">请先创建单位</option> : null}{" "}
+              {!context?.units.length ? <option value="">请先创建单位</option> : null}
               {context?.units.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {" "}
-                  {unit.unitName}{" "}
+                  {unit.unitName}
                 </option>
-              ))}{" "}
-            </select>{" "}
-          </div>{" "}
+              ))}
+            </select>
+          </div>
+
           <div className="context-group">
-            {" "}
             <label className="field-label" htmlFor="tax-year-select">
-              {" "}
-              当前年份{" "}
-            </label>{" "}
+              当前年份
+            </label>
             <select
               id="tax-year-select"
-              disabled={loading}
-              value={context?.currentTaxYear ?? years[0]}
+              disabled={loading || !availableTaxYears.length}
+              value={context?.currentTaxYear ?? availableTaxYears[0] ?? ""}
               onChange={(event) => {
                 void updateContext({ currentTaxYear: Number(event.target.value) });
               }}
             >
-              {" "}
-              {years.map((year) => (
+              {!availableTaxYears.length ? <option value="">请先在单位中新增年份</option> : null}
+              {availableTaxYears.map((year) => (
                 <option key={year} value={year}>
-                  {" "}
-                  {year} 年度{" "}
+                  {year} 年度
                 </option>
-              ))}{" "}
-            </select>{" "}
-          </div>{" "}
+              ))}
+            </select>
+          </div>
+
           <div className="context-summary">
-            {" "}
-            <div>先选单位和年份，再进入后续工作模块。</div>{" "}
+            <div>先选单位和年份，再进入后续工作模块。</div>
             <strong>
-              {" "}
-              {context?.units.find((item) => item.id === context.currentUnitId)?.unitName ??
-                "未选择单位"}{" "}
-              / {context?.currentTaxYear ?? "-"} 年{" "}
-            </strong>{" "}
-          </div>{" "}
-        </header>{" "}
-        <Outlet />{" "}
-      </main>{" "}
+              {currentUnit?.unitName ?? "未选择单位"} / {context?.currentTaxYear ?? "-"} 年
+            </strong>
+          </div>
+        </header>
+
+        <Outlet />
+      </main>
     </div>
   );
 };

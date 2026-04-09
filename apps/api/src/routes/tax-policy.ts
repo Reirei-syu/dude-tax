@@ -18,7 +18,7 @@ const bonusBracketSchema = z.object({
 
 const scopePayloadSchema = z.object({
   unitId: z.number().int().positive(),
-  taxYear: z.number().int().min(2000).max(2100),
+  taxYear: z.number().int().min(1900),
 });
 
 const buildMonotonicValidator = <T>(
@@ -55,6 +55,9 @@ const taxPolicySchema = z
     comprehensiveTaxBrackets: z.array(comprehensiveBracketSchema).min(1),
     bonusTaxBrackets: z.array(bonusBracketSchema).min(1),
     maintenanceNotes: z.string().max(2000).optional(),
+    policyTitle: z.string().max(100).optional(),
+    policyBody: z.string().max(2000).optional(),
+    policyIllustrationDataUrl: z.string().max(2_000_000).optional(),
   })
   .superRefine((value, context) => {
     const comprehensiveLevels = value.comprehensiveTaxBrackets.map((bracket) => bracket.level);
@@ -143,7 +146,7 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
       return reply.status(400).send({ message: "税率版本参数不合法" });
     }
 
-    if (!Number.isInteger(unitId) || unitId <= 0 || !Number.isInteger(taxYear) || taxYear <= 0) {
+    if (!Number.isInteger(unitId) || unitId <= 0 || !Number.isInteger(taxYear) || taxYear < 1900) {
       return reply.status(400).send({ message: "预览作用域参数不合法" });
     }
 
@@ -207,4 +210,3 @@ export const registerTaxPolicyRoutes = async (app: FastifyInstance) => {
     return taxPolicyRepository.save(parsedBody.data);
   });
 };
-

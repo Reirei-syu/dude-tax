@@ -60,6 +60,7 @@ test("有 body 的请求仍会自动附带 JSON Content-Type", async () => {
   await apiClient.createUnit({
     unitName: "测试单位",
     remark: "",
+    startYear: 2026,
   });
 
   assert.equal(requests.length, 1);

@@ -31,6 +31,8 @@ export const database = new Database(databaseFile);
 database.pragma("journal_mode = WAL");
 database.pragma("foreign_keys = ON");
 
+const DEFAULT_SEEDED_UNIT_YEAR = new Date().getFullYear();
+
 const ensureColumnExists = (tableName: string, columnName: string, columnSql: string) => {
   const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
     name: string;
@@ -404,6 +406,16 @@ database.exec(`
     updated_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS unit_years (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL CHECK(tax_year >= 1900),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    UNIQUE(unit_id, tax_year)
+  );
+
   CREATE TABLE IF NOT EXISTS app_preferences (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -700,6 +712,67 @@ const ensureActiveTaxPolicyVersion = () => {
 };
 
 ensureActiveTaxPolicyVersion();
+
+const ensureUnitYearsSeeded = () => {
+  const units = database.prepare("SELECT id FROM units ORDER BY id ASC").all() as Array<{ id: number }>;
+
+  const insertStatement = database.prepare(
+    `
+      INSERT OR IGNORE INTO unit_years (unit_id, tax_year, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+    `,
+  );
+
+  const collectCandidateYears = (unitId: number) => {
+    const years = new Set<number>();
+    const sources = [
+      "SELECT DISTINCT tax_year FROM employee_month_records WHERE unit_id = ?",
+      "SELECT DISTINCT tax_year FROM annual_calculation_runs WHERE unit_id = ?",
+      "SELECT DISTINCT tax_year FROM annual_tax_results WHERE unit_id = ?",
+      "SELECT DISTINCT tax_year FROM annual_tax_result_versions WHERE unit_id = ?",
+      "SELECT DISTINCT tax_year FROM tax_policy_scopes WHERE unit_id = ?",
+    ];
+
+    sources.forEach((sql) => {
+      const rows = database.prepare(sql).all(unitId) as Array<{ tax_year: number }>;
+      rows.forEach((row) => {
+        if (Number.isInteger(row.tax_year)) {
+          years.add(Number(row.tax_year));
+        }
+      });
+    });
+
+    return years;
+  };
+
+  const seedTransaction = database.transaction(() => {
+    units.forEach((unit) => {
+      const existingCount = Number(
+        (
+          database
+            .prepare("SELECT COUNT(*) AS total FROM unit_years WHERE unit_id = ?")
+            .get(unit.id) as { total: number }
+        ).total,
+      );
+
+      if (existingCount > 0) {
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const candidateYears = Array.from(collectCandidateYears(unit.id)).sort((left, right) => left - right);
+      const yearsToSeed = candidateYears.length ? candidateYears : [DEFAULT_SEEDED_UNIT_YEAR];
+
+      yearsToSeed.forEach((taxYear) => {
+        insertStatement.run(unit.id, taxYear, now, now);
+      });
+    });
+  });
+
+  seedTransaction();
+};
+
+ensureUnitYearsSeeded();
 
 const getCurrentPolicySignature = () => {
   const activeVersion = database

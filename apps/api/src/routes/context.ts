@@ -5,7 +5,7 @@ import { unitRepository } from "../repositories/unit-repository.js";
 
 const updateContextSchema = z.object({
   currentUnitId: z.number().int().positive().nullable().optional(),
-  currentTaxYear: z.number().int().min(2000).max(2100).optional(),
+  currentTaxYear: z.number().int().min(1900).optional(),
 });
 
 export const registerContextRoutes = async (app: FastifyInstance) => {
@@ -21,11 +21,21 @@ export const registerContextRoutes = async (app: FastifyInstance) => {
     }
 
     const { currentUnitId, currentTaxYear } = parsedBody.data;
+    const fallbackUnitId = contextRepository.get().currentUnitId;
+    const targetUnitId =
+      typeof currentUnitId !== "undefined" ? currentUnitId : fallbackUnitId;
 
     if (typeof currentUnitId !== "undefined" && currentUnitId !== null) {
       const unitExists = unitRepository.list().some((unit) => unit.id === currentUnitId);
       if (!unitExists) {
         return reply.status(404).send({ message: "目标单位不存在" });
+      }
+    }
+
+    if (typeof currentTaxYear !== "undefined" && targetUnitId !== null) {
+      const availableTaxYears = unitRepository.listAvailableTaxYears(targetUnitId);
+      if (!availableTaxYears.includes(currentTaxYear)) {
+        return reply.status(409).send({ message: "该单位下不存在目标年份，请先新增年份" });
       }
     }
 
@@ -40,4 +50,3 @@ export const registerContextRoutes = async (app: FastifyInstance) => {
     return contextRepository.get();
   });
 };
-

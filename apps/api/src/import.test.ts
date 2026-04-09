@@ -54,7 +54,7 @@ test("导入模板接口返回员工 CSV 模板", async () => {
   });
 
   assert.equal(response.statusCode, 200);
-  assert.match(response.body, /employeeCode,employeeName,idNumber/);
+  assert.match(response.body, /工号,姓名,证件号/);
 
   await app.close();
 });

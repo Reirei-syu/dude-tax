@@ -12,6 +12,7 @@ import { HistoryQueryPage } from "./pages/HistoryQueryPage";
 import { ImportPage } from "./pages/ImportPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { MonthRecordEntryPage } from "./pages/MonthRecordEntryPage";
+import { CurrentPolicyPage } from "./pages/CurrentPolicyPage";
 import { QuickCalculatePage } from "./pages/QuickCalculatePage";
 import { UnitManagementPage } from "./pages/UnitManagementPage";
 import "./styles.css";
@@ -35,6 +36,10 @@ const router = createHashRouter([
       {
         path: "history",
         element: <HistoryQueryPage />,
+      },
+      {
+        path: "policy",
+        element: <CurrentPolicyPage />,
       },
       {
         path: "maintenance",

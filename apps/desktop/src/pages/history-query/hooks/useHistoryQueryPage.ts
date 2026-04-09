@@ -8,7 +8,6 @@ import type {
   HistoryResultStatus,
   TaxSettlementDirection,
 } from "@dude-tax/core";
-import { getSelectableYears } from "@dude-tax/config";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../../../api/client";
 import {
@@ -24,7 +23,11 @@ import { saveFileWithDesktopFallback } from "../../../utils/file-save";
 import { buildHistoryQueryExportScopeLabel } from "../constants";
 
 export const useHistoryQueryPage = (context: AppContext | null) => {
-  const years = getSelectableYears();
+  const years = useMemo(() => {
+    const unitId = context?.currentUnitId ?? null;
+    const currentUnit = context?.units.find((unit) => unit.id === unitId) ?? null;
+    return currentUnit?.availableTaxYears ?? [];
+  }, [context?.currentUnitId, context?.units]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [results, setResults] = useState<HistoryAnnualTaxResult[]>([]);
   const [versionHistory, setVersionHistory] = useState<AnnualTaxResultVersion[]>([]);

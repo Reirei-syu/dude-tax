@@ -4,12 +4,12 @@ import { employeeRepository } from "../repositories/employee-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 
 const employeePayloadSchema = z.object({
-  employeeCode: z.string().trim().min(1, "工号不能为空").max(50, "工号不能超过50个字符"),
-  employeeName: z.string().trim().min(1, "姓名不能为空").max(100, "姓名不能超过100个字符"),
-  idNumber: z.string().trim().min(1, "证件号不能为空").max(50, "证件号不能超过50个字符"),
+  employeeCode: z.string().trim().min(1, "工号不能为空").max(50, "工号不能超过 50 个字符"),
+  employeeName: z.string().trim().min(1, "姓名不能为空").max(100, "姓名不能超过 100 个字符"),
+  idNumber: z.string().trim().min(1, "证件号不能为空").max(50, "证件号不能超过 50 个字符"),
   hireDate: z.string().trim().optional().nullable(),
   leaveDate: z.string().trim().optional().nullable(),
-  remark: z.string().trim().max(300, "备注不能超过300个字符").optional(),
+  remark: z.string().trim().max(300, "备注不能超过 300 个字符").optional(),
 });
 
 export const registerEmployeeRoutes = async (app: FastifyInstance) => {

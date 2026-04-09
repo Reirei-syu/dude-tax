@@ -5,6 +5,8 @@ import {
   normalizeTaxPolicySettings,
   type TaxPolicyAuditAction,
   type TaxPolicyAuditLog,
+  type TaxPolicyBindScopePayload,
+  type TaxPolicyContent,
   type TaxPolicyResponse,
   type TaxPolicySaveResponse,
   type TaxPolicyScopeBindingSummary,
@@ -14,16 +16,19 @@ import {
   type TaxPolicyVersionDiffItem,
   type TaxPolicyVersionImpactPreview,
   type TaxPolicyVersionSummary,
-  type TaxPolicyBindScopePayload,
 } from "@dude-tax/core";
 import { database } from "../db/database.js";
 
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
-const DEFAULT_TAX_POLICY_MAINTENANCE_NOTES = "";
 const DEFAULT_TAX_POLICY_VERSION_NAME = "默认税率版本";
 const DEFAULT_AUDIT_ACTOR_LABEL = "本地用户";
 const DEFAULT_AUDIT_LIMIT = 20;
 const SCOPE_TYPE_UNIT_YEAR = "unit_year";
+const DEFAULT_POLICY_CONTENT: TaxPolicyContent = {
+  policyTitle: "",
+  policyBody: "",
+  policyIllustrationDataUrl: "",
+};
 
 type TaxPolicyVersionRow = {
   id: number;
@@ -77,6 +82,41 @@ const setPreference = (key: string, value: string) => {
 
 const parseSettingsJson = (settingsJson: string) =>
   normalizeTaxPolicySettings(JSON.parse(settingsJson) as TaxPolicySettingsInput);
+
+const parsePolicyContent = (rawValue: string | null | undefined): TaxPolicyContent => {
+  const normalized = rawValue?.trim() ?? "";
+  if (!normalized) {
+    return { ...DEFAULT_POLICY_CONTENT };
+  }
+
+  if (normalized.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(normalized) as Partial<TaxPolicyContent>;
+      return {
+        policyTitle: String(parsed.policyTitle ?? "").trim(),
+        policyBody: String(parsed.policyBody ?? "").trim(),
+        policyIllustrationDataUrl: String(parsed.policyIllustrationDataUrl ?? "").trim(),
+      };
+    } catch {
+      return {
+        ...DEFAULT_POLICY_CONTENT,
+        policyBody: normalized,
+      };
+    }
+  }
+
+  return {
+    ...DEFAULT_POLICY_CONTENT,
+    policyBody: normalized,
+  };
+};
+
+const serializePolicyContent = (content: TaxPolicyContent) =>
+  JSON.stringify({
+    policyTitle: content.policyTitle.trim(),
+    policyBody: content.policyBody.trim(),
+    policyIllustrationDataUrl: content.policyIllustrationDataUrl.trim(),
+  });
 
 const getVersionRows = (): TaxPolicyVersionRow[] =>
   database
@@ -431,7 +471,12 @@ const buildResponse = (unitId?: number, taxYear?: number): TaxPolicyResponse => 
   const activeVersion = getActiveVersionRow();
   const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
   const currentSettings = effectiveVersion ? parseSettingsJson(effectiveVersion.settings_json) : defaultSettings;
-  const currentNotes = effectiveVersion?.maintenance_notes ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
+  const currentPolicyContent = parsePolicyContent(effectiveVersion?.maintenance_notes ?? "");
+  const policyCustomized = Boolean(
+    currentPolicyContent.policyTitle ||
+      currentPolicyContent.policyBody ||
+      currentPolicyContent.policyIllustrationDataUrl,
+  );
 
   return {
     currentSettings,
@@ -442,9 +487,16 @@ const buildResponse = (unitId?: number, taxYear?: number): TaxPolicyResponse => 
     versions: getVersionRows().map(mapVersionSummary),
     currentScopeBinding: buildScopeBindingSummary(activeVersion, unitId, taxYear),
     auditLogs: listAuditLogs(),
-    currentNotes,
-    defaultNotes: DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
-    notesCustomized: currentNotes !== DEFAULT_TAX_POLICY_MAINTENANCE_NOTES,
+    currentNotes: currentPolicyContent.policyBody,
+    defaultNotes: DEFAULT_POLICY_CONTENT.policyBody,
+    notesCustomized: policyCustomized,
+    policyTitle: currentPolicyContent.policyTitle,
+    policyBody: currentPolicyContent.policyBody,
+    policyIllustrationDataUrl: currentPolicyContent.policyIllustrationDataUrl,
+    defaultPolicyTitle: DEFAULT_POLICY_CONTENT.policyTitle,
+    defaultPolicyBody: DEFAULT_POLICY_CONTENT.policyBody,
+    defaultPolicyIllustrationDataUrl: DEFAULT_POLICY_CONTENT.policyIllustrationDataUrl,
+    policyCustomized,
   };
 };
 
@@ -452,10 +504,12 @@ export const taxPolicyRepository = {
   get(unitId?: number, taxYear?: number): TaxPolicyResponse {
     return buildResponse(unitId, taxYear);
   },
+
   getCurrentPolicySignature(unitId?: number, taxYear?: number) {
     const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
     return effectiveVersion?.policy_signature ?? buildTaxPolicySignature(buildDefaultTaxPolicySettings());
   },
+
   getEffectiveSettingsForScope(unitId?: number, taxYear?: number) {
     const effectiveVersion = getEffectiveVersionRowForScope(unitId, taxYear);
     if (!effectiveVersion) {
@@ -464,9 +518,11 @@ export const taxPolicyRepository = {
 
     return parseSettingsJson(effectiveVersion.settings_json);
   },
+
   getCurrentScopeBinding(unitId: number, taxYear: number) {
     return buildScopeBindingSummary(getActiveVersionRow(), unitId, taxYear);
   },
+
   previewVersionImpact(versionId: number, unitId: number, taxYear: number): TaxPolicyVersionImpactPreview | null {
     const targetVersion = getVersionRowById(versionId);
     const currentScopeBinding = buildScopeBindingSummary(getActiveVersionRow(), unitId, taxYear);
@@ -505,6 +561,7 @@ export const taxPolicyRepository = {
       diffItems: buildVersionDiffItems(currentSettings, targetSettings),
     };
   },
+
   activateVersion(versionId: number): TaxPolicySaveResponse | null {
     const targetVersion = getVersionRowById(versionId);
     if (!targetVersion) {
@@ -523,7 +580,7 @@ export const taxPolicyRepository = {
     insertAuditLog({
       actionType: "activate_version",
       versionId,
-      summary: `激活税率版本「${targetVersion.version_name}」为全局活动版本`,
+      summary: `激活税率版本“${targetVersion.version_name}”为全局活动版本`,
     });
 
     return {
@@ -531,6 +588,7 @@ export const taxPolicyRepository = {
       invalidatedResults: currentActiveVersion?.policy_signature !== targetVersion.policy_signature,
     };
   },
+
   bindVersionToScope(payload: TaxPolicyBindScopePayload & { versionId: number }): TaxPolicySaveResponse | null {
     const targetVersion = getVersionRowById(payload.versionId);
     if (!targetVersion) {
@@ -585,7 +643,7 @@ export const taxPolicyRepository = {
       versionId: payload.versionId,
       unitId: payload.unitId,
       taxYear: payload.taxYear,
-      summary: `将税率版本「${targetVersion.version_name}」绑定到单位 ${payload.unitId} / ${payload.taxYear} 年`,
+      summary: `将税率版本“${targetVersion.version_name}”绑定到单位 ${payload.unitId} / ${payload.taxYear} 年`,
     });
 
     return {
@@ -593,6 +651,7 @@ export const taxPolicyRepository = {
       invalidatedResults: currentScopeBinding?.policySignature !== targetVersion.policy_signature,
     };
   },
+
   clearScopeBinding(unitId: number, taxYear: number): TaxPolicySaveResponse {
     const activeVersion = getActiveVersionRow();
     const currentScopeBinding = buildScopeBindingSummary(activeVersion, unitId, taxYear);
@@ -617,7 +676,7 @@ export const taxPolicyRepository = {
       versionId: activeVersion?.id ?? null,
       unitId,
       taxYear,
-      summary: `解除单位 ${unitId} / ${taxYear} 年的专属税率绑定，恢复继承「${activeVersion?.version_name ?? DEFAULT_TAX_POLICY_VERSION_NAME}」`,
+      summary: `解除单位 ${unitId} / ${taxYear} 年的专属税率绑定，恢复继承“${activeVersion?.version_name ?? DEFAULT_TAX_POLICY_VERSION_NAME}”`,
     });
 
     return {
@@ -627,14 +686,27 @@ export const taxPolicyRepository = {
         (activeVersion?.policy_signature ?? buildTaxPolicySignature(buildDefaultTaxPolicySettings())),
     };
   },
+
   save(payload: TaxPolicyUpdatePayload): TaxPolicySaveResponse {
     const currentResponse = buildResponse();
     const nextSettings = normalizeTaxPolicySettings(payload);
-    const nextNotes = payload.maintenanceNotes?.trim() ?? DEFAULT_TAX_POLICY_MAINTENANCE_NOTES;
+    const nextPolicyContent: TaxPolicyContent = {
+      policyTitle: payload.policyTitle?.trim() ?? currentResponse.policyTitle,
+      policyBody:
+        payload.policyBody?.trim() ??
+        payload.maintenanceNotes?.trim() ??
+        currentResponse.policyBody,
+      policyIllustrationDataUrl:
+        payload.policyIllustrationDataUrl?.trim() ?? currentResponse.policyIllustrationDataUrl,
+    };
+    const nextNotes = serializePolicyContent(nextPolicyContent);
     const defaultSettings = buildDefaultTaxPolicySettings();
     const activeVersion = getActiveVersionRow();
     const settingsChanged = !isSameTaxPolicySettings(currentResponse.currentSettings, nextSettings);
-    const notesChanged = currentResponse.currentNotes !== nextNotes;
+    const notesChanged =
+      currentResponse.policyTitle !== nextPolicyContent.policyTitle ||
+      currentResponse.policyBody !== nextPolicyContent.policyBody ||
+      currentResponse.policyIllustrationDataUrl !== nextPolicyContent.policyIllustrationDataUrl;
 
     if (!settingsChanged && !notesChanged) {
       return {
@@ -658,7 +730,7 @@ export const taxPolicyRepository = {
       insertAuditLog({
         actionType: "update_notes",
         versionId: activeVersion.id,
-        summary: `更新税率说明，当前版本为「${activeVersion.version_name}」`,
+        summary: `更新当前政策说明，当前版本为“${activeVersion.version_name}”`,
       });
 
       return {
@@ -693,7 +765,7 @@ export const taxPolicyRepository = {
       insertAuditLog({
         actionType: "save_settings",
         versionId: existingVersion.id,
-        summary: `复用已有税率版本「${existingVersion.version_name}」并设为全局活动版本`,
+        summary: `复用已有税率版本“${existingVersion.version_name}”并设为全局活动版本`,
       });
 
       return {
@@ -740,7 +812,7 @@ export const taxPolicyRepository = {
     insertAuditLog({
       actionType: "save_settings",
       versionId: createdVersion?.id ?? null,
-      summary: `创建并启用税率版本「${versionName}」`,
+      summary: `创建并启用税率版本“${versionName}”`,
     });
 
     return {

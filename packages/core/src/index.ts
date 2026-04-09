@@ -3,6 +3,7 @@ export type Unit = {
   unitName: string;
   remark: string;
   isArchived: boolean;
+  availableTaxYears: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -16,6 +17,7 @@ export type AppContext = {
 export type CreateUnitPayload = {
   unitName: string;
   remark?: string;
+  startYear?: number;
 };
 
 export type DeleteUnitChallenge = {
@@ -36,6 +38,9 @@ export type Employee = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type EmployeeGeneralStatus = "active" | "left";
+export type EmployeeMonthStatus = "active" | "left_this_month" | "left";
 
 export type CreateEmployeePayload = {
   employeeCode: string;
@@ -226,6 +231,12 @@ export type TaxPolicyMaintenanceNotes = {
   notesCustomized: boolean;
 };
 
+export type TaxPolicyContent = {
+  policyTitle: string;
+  policyBody: string;
+  policyIllustrationDataUrl: string;
+};
+
 export type TaxPolicyVersionSummary = {
   id: number;
   versionName: string;
@@ -294,6 +305,13 @@ export type TaxPolicyResponse = {
   versions: TaxPolicyVersionSummary[];
   currentScopeBinding: TaxPolicyScopeBindingSummary | null;
   auditLogs: TaxPolicyAuditLog[];
+  policyTitle: string;
+  policyBody: string;
+  policyIllustrationDataUrl: string;
+  defaultPolicyTitle: string;
+  defaultPolicyBody: string;
+  defaultPolicyIllustrationDataUrl: string;
+  policyCustomized: boolean;
 } & TaxPolicyMaintenanceNotes;
 
 export type TaxPolicySaveResponse = TaxPolicyResponse & {
@@ -302,6 +320,9 @@ export type TaxPolicySaveResponse = TaxPolicyResponse & {
 
 export type TaxPolicyUpdatePayload = TaxPolicySettingsInput & {
   maintenanceNotes?: string;
+  policyTitle?: string;
+  policyBody?: string;
+  policyIllustrationDataUrl?: string;
 };
 
 export type QuickCalculateMonthInput = UpsertEmployeeMonthRecordPayload & {
@@ -483,6 +504,10 @@ export {
   getSalaryIncomeForWithholding,
   hasSupplementaryAdjustments,
 } from "./annual-tax-calculator.js";
+export {
+  deriveEmployeeGeneralStatus,
+  deriveEmployeeMonthStatus,
+} from "./employee-status.js";
 export { buildMonthRecordDataSignature } from "./month-record-data-signature.js";
 export {
   annualTaxWithholdingModeLabelMap,

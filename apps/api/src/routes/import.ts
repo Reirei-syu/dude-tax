@@ -1,14 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { importSummaryRepository } from "../repositories/import-summary-repository.js";
-import { importService } from "../services/import-service.js";
 import { unitRepository } from "../repositories/unit-repository.js";
+import { importService } from "../services/import-service.js";
 
 const importTypeSchema = z.enum(["employee", "month_record"]);
 const importPreviewSchema = z.object({
   importType: importTypeSchema,
   unitId: z.number().int().positive(),
-  scopeTaxYear: z.number().int().min(2000).max(2100).optional(),
+  scopeTaxYear: z.number().int().min(1900).optional(),
   csvText: z.string().min(1),
 });
 const importCommitSchema = importPreviewSchema.extend({
@@ -32,16 +32,17 @@ export const registerImportRoutes = async (app: FastifyInstance) => {
   });
 
   app.get("/api/import/templates/:importType", async (request, reply) => {
-    const importType = importTypeSchema.safeParse(
-      (request.params as { importType: string }).importType,
-    );
+    const importType = importTypeSchema.safeParse((request.params as { importType: string }).importType);
+    const query = request.query as { unitId?: string; taxYear?: string };
+    const unitId = query.unitId ? Number(query.unitId) : undefined;
+    const taxYear = query.taxYear ? Number(query.taxYear) : undefined;
 
     if (!importType.success) {
       return reply.status(400).send({ message: "导入类型不合法" });
     }
 
     reply.header("Content-Type", "text/csv; charset=utf-8");
-    return importService.getTemplate(importType.data);
+    return importService.getTemplate(importType.data, unitId, taxYear);
   });
 
   app.post("/api/import/preview", async (request, reply) => {

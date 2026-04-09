@@ -23,6 +23,8 @@ const employeeTemplateHeader = [
   "remark",
 ];
 
+const employeeTemplateChineseHeader = ["工号", "姓名", "证件号", "入职日期", "离职日期", "备注"];
+
 const monthRecordTemplateHeader = [
   "employeeCode",
   "taxYear",
@@ -51,6 +53,50 @@ const monthRecordTemplateHeader = [
   "otherDeduction",
   "taxReductionExemption",
   "remark",
+];
+
+const monthRecordTemplateChineseHeader = [
+  "工号",
+  "年度",
+  "月份",
+  "记录状态",
+  "工资收入",
+  "年终奖",
+  "养老保险",
+  "医疗保险",
+  "职业年金",
+  "住房公积金",
+  "补充住房公积金",
+  "失业保险",
+  "工伤保险",
+  "已预扣税额",
+  "补发收入",
+  "补扣税调整",
+  "补发所属期间",
+  "补发备注",
+  "婴幼儿照护扣除",
+  "子女教育扣除",
+  "继续教育扣除",
+  "住房贷款利息扣除",
+  "住房租金扣除",
+  "赡养老人扣除",
+  "其他扣除",
+  "减免税额",
+  "备注",
+];
+
+const monthRecordTemplateWithReferenceHeader = [
+  "employeeCode",
+  "employeeName",
+  "idNumber",
+  ...monthRecordTemplateHeader.slice(1),
+];
+
+const monthRecordTemplateWithReferenceChineseHeader = [
+  "工号",
+  "姓名",
+  "证件号",
+  ...monthRecordTemplateChineseHeader.slice(1),
 ];
 
 type NumericMonthRecordField =
@@ -227,18 +273,102 @@ const parseNumber = (value: string) => {
   return Number.isNaN(nextValue) ? null : nextValue;
 };
 
-const buildTemplate = (importType: ImportType) =>
-  importType === "employee"
-    ? `${employeeTemplateHeader.join(",")}\n`
-    : `${monthRecordTemplateHeader.join(",")}\n`;
+const normalizeImportHeaders = (
+  headers: string[],
+  candidates: Array<{ englishHeaders: string[]; chineseHeaders: string[]; normalizedHeaders: string[] }>,
+) => {
+  for (const candidate of candidates) {
+    if (headers.join(",") === candidate.englishHeaders.join(",")) {
+      return {
+        matched: true,
+        normalizedHeaders: candidate.normalizedHeaders,
+      };
+    }
+
+    if (headers.join(",") === candidate.chineseHeaders.join(",")) {
+      return {
+        matched: true,
+        normalizedHeaders: candidate.normalizedHeaders,
+      };
+    }
+  }
+
+  return {
+    matched: false,
+    normalizedHeaders: headers,
+  };
+};
+
+const buildTemplate = (importType: ImportType, unitId?: number, taxYear?: number) => {
+  if (importType === "employee") {
+    return `${employeeTemplateChineseHeader.join(",")}\n`;
+  }
+
+  const rows =
+    unitId && Number.isInteger(unitId) && unitId > 0
+      ? employeeRepository.listByUnitId(unitId)
+      : [];
+  const templateTaxYear = taxYear && Number.isInteger(taxYear) ? taxYear : "";
+  const headerLine = `${monthRecordTemplateWithReferenceChineseHeader.join(",")}\n`;
+  const body =
+    rows.length > 0
+      ? rows
+          .map((employee) =>
+            [
+              employee.employeeCode,
+              employee.employeeName,
+              employee.idNumber,
+              templateTaxYear,
+              "",
+              "completed",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              employee.remark ?? "",
+            ].join(","),
+          )
+          .join("\n")
+      : "";
+
+  return `${headerLine}${body}${body ? "\n" : ""}`;
+};
 
 const parseEmployeeRow = (headers: string[], values: string[]) => {
   const errors: string[] = [];
+  const { matched, normalizedHeaders } = normalizeImportHeaders(
+    headers,
+    [
+      {
+        englishHeaders: employeeTemplateHeader,
+        chineseHeaders: employeeTemplateChineseHeader,
+        normalizedHeaders: employeeTemplateHeader,
+      },
+    ],
+  );
   const parsedData = Object.fromEntries(
-    headers.map((header, index) => [header, values[index] ?? ""]),
+    normalizedHeaders.map((header, index) => [header, values[index] ?? ""]),
   );
 
-  if (headers.join(",") !== employeeTemplateHeader.join(",")) {
+  if (!matched) {
     errors.push("员工模板表头不正确");
   }
 
@@ -270,11 +400,26 @@ const parseEmployeeRow = (headers: string[], values: string[]) => {
 
 const parseMonthRecordRow = (headers: string[], values: string[]) => {
   const errors: string[] = [];
+  const { matched, normalizedHeaders } = normalizeImportHeaders(
+    headers,
+    [
+      {
+        englishHeaders: monthRecordTemplateHeader,
+        chineseHeaders: monthRecordTemplateChineseHeader,
+        normalizedHeaders: monthRecordTemplateHeader,
+      },
+      {
+        englishHeaders: monthRecordTemplateWithReferenceHeader,
+        chineseHeaders: monthRecordTemplateWithReferenceChineseHeader,
+        normalizedHeaders: monthRecordTemplateWithReferenceHeader,
+      },
+    ],
+  );
   const parsedData = Object.fromEntries(
-    headers.map((header, index) => [header, values[index] ?? ""]),
+    normalizedHeaders.map((header, index) => [header, values[index] ?? ""]),
   );
 
-  if (headers.join(",") !== monthRecordTemplateHeader.join(",")) {
+  if (!matched) {
     errors.push("月度数据模板表头不正确");
   }
 
@@ -605,8 +750,8 @@ const buildBlockingFailures = (
     }));
 
 export const importService = {
-  getTemplate(importType: ImportType) {
-    return buildTemplate(importType);
+  getTemplate(importType: ImportType, unitId?: number, taxYear?: number) {
+    return buildTemplate(importType, unitId, taxYear);
   },
   preview(
     importType: ImportType,

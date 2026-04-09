@@ -90,13 +90,7 @@ export const registerMonthRecordRoutes = async (app: FastifyInstance) => {
         return reply.status(404).send({ message: "目标员工不存在" });
       }
 
-      return monthRecordRepository.upsert(
-        unitId,
-        employeeId,
-        taxYear,
-        taxMonth,
-        parsedBody.data,
-      );
+      return monthRecordRepository.upsert(unitId, employeeId, taxYear, taxMonth, parsedBody.data);
     },
   );
 };
