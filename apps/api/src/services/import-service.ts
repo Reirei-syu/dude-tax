@@ -29,6 +29,33 @@ const monthRecordTemplateHeader = [
   "employeeCode",
   "taxYear",
   "taxMonth",
+  "salaryIncome",
+  "annualBonus",
+  "pensionInsurance",
+  "medicalInsurance",
+  "occupationalAnnuity",
+  "housingFund",
+  "supplementaryHousingFund",
+  "unemploymentInsurance",
+  "workInjuryInsurance",
+  "withheldTax",
+  "otherIncome",
+  "otherIncomeRemark",
+  "infantCareDeduction",
+  "childEducationDeduction",
+  "continuingEducationDeduction",
+  "housingLoanInterestDeduction",
+  "housingRentDeduction",
+  "elderCareDeduction",
+  "otherDeduction",
+  "taxReductionExemption",
+  "remark",
+];
+
+const legacyMonthRecordTemplateHeader = [
+  "employeeCode",
+  "taxYear",
+  "taxMonth",
   "status",
   "salaryIncome",
   "annualBonus",
@@ -92,6 +119,13 @@ const monthRecordTemplateWithReferenceHeader = [
   ...monthRecordTemplateHeader.slice(1),
 ];
 
+const legacyMonthRecordTemplateWithReferenceHeader = [
+  "employeeCode",
+  "employeeName",
+  "idNumber",
+  ...legacyMonthRecordTemplateHeader.slice(1),
+];
+
 const monthRecordTemplateWithReferenceChineseHeader = [
   "工号",
   "姓名",
@@ -110,8 +144,7 @@ type NumericMonthRecordField =
   | "unemploymentInsurance"
   | "workInjuryInsurance"
   | "withheldTax"
-  | "supplementarySalaryIncome"
-  | "supplementaryWithheldTaxAdjustment"
+  | "otherIncome"
   | "infantCareDeduction"
   | "childEducationDeduction"
   | "continuingEducationDeduction"
@@ -180,8 +213,7 @@ const numericPayloadFields: NumericMonthRecordField[] = [
   "unemploymentInsurance",
   "workInjuryInsurance",
   "withheldTax",
-  "supplementarySalaryIncome",
-  "supplementaryWithheldTaxAdjustment",
+  "otherIncome",
   "infantCareDeduction",
   "childEducationDeduction",
   "continuingEducationDeduction",
@@ -409,9 +441,19 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
         normalizedHeaders: monthRecordTemplateHeader,
       },
       {
+        englishHeaders: legacyMonthRecordTemplateHeader,
+        chineseHeaders: monthRecordTemplateChineseHeader,
+        normalizedHeaders: legacyMonthRecordTemplateHeader,
+      },
+      {
         englishHeaders: monthRecordTemplateWithReferenceHeader,
         chineseHeaders: monthRecordTemplateWithReferenceChineseHeader,
         normalizedHeaders: monthRecordTemplateWithReferenceHeader,
+      },
+      {
+        englishHeaders: legacyMonthRecordTemplateWithReferenceHeader,
+        chineseHeaders: monthRecordTemplateWithReferenceChineseHeader,
+        normalizedHeaders: legacyMonthRecordTemplateWithReferenceHeader,
       },
     ],
   );
@@ -425,7 +467,7 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
 
   const taxYear = parseNumber(String(parsedData.taxYear ?? ""));
   const taxMonth = parseNumber(String(parsedData.taxMonth ?? ""));
-  const status = String(parsedData.status ?? "").trim() || "incomplete";
+  const status = String(parsedData.status ?? "").trim() || "completed";
 
   if (!String(parsedData.employeeCode ?? "").trim()) {
     errors.push("工号不能为空");
@@ -444,7 +486,6 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
   }
 
   const monthPayload: UpsertEmployeeMonthRecordPayload = {
-    status: status as UpsertEmployeeMonthRecordPayload["status"],
     salaryIncome: 0,
     annualBonus: 0,
     pensionInsurance: 0,
@@ -455,10 +496,10 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     unemploymentInsurance: 0,
     workInjuryInsurance: 0,
     withheldTax: 0,
-    supplementarySalaryIncome: 0,
-    supplementaryWithheldTaxAdjustment: 0,
-    supplementarySourcePeriodLabel: String(parsedData.supplementarySourcePeriodLabel ?? "").trim(),
-    supplementaryRemark: String(parsedData.supplementaryRemark ?? "").trim(),
+    otherIncome: 0,
+    otherIncomeRemark: String(
+      parsedData.otherIncomeRemark ?? parsedData.supplementaryRemark ?? "",
+    ).trim(),
     infantCareDeduction: 0,
     childEducationDeduction: 0,
     continuingEducationDeduction: 0,
@@ -478,6 +519,9 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     }
     monthPayload[field] = nextValue;
   });
+
+  monthPayload.otherIncome =
+    parseNumber(String(parsedData.otherIncome ?? parsedData.supplementarySalaryIncome ?? "")) ?? 0;
 
   if ((monthPayload.supplementarySourcePeriodLabel ?? "").length > 100) {
     errors.push("supplementarySourcePeriodLabel 不能超过 100 个字符");

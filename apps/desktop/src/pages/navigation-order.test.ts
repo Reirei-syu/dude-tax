@@ -2,8 +2,25 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MODULE_NAV_ITEMS } from "@dude-tax/config";
 
-test("当前政策导航位于历史查询和系统维护之间", () => {
-  const paths = MODULE_NAV_ITEMS.map((item) => item.path);
+test("导航顺序与政策参考命名符合新模块规划", () => {
+  assert.deepEqual(
+    MODULE_NAV_ITEMS.map((item) => item.path),
+    [
+      "/",
+      "/units",
+      "/employees",
+      "/quick-calc",
+      "/entry",
+      "/import",
+      "/result-confirmation",
+      "/history",
+      "/policy",
+      "/maintenance",
+    ],
+  );
 
-  assert.deepEqual(paths.slice(-3), ["/history", "/policy", "/maintenance"]);
+  assert.equal(
+    MODULE_NAV_ITEMS.find((item) => item.path === "/policy")?.label,
+    "政策参考",
+  );
 });

@@ -8,6 +8,7 @@ import {
   type AnnualTaxWithholdingContext,
   type EmployeeCalculationStatus,
   type EmployeeAnnualTaxResult,
+  type EmployeeMonthRecord,
   type HistoryAnnualTaxQuery,
   type HistoryResultRecalculationResponse,
   type TaxCalculationScheme,
@@ -25,6 +26,42 @@ import {
   type AnnualTaxWithholdingBridgeContext,
 } from "../domain/annual-tax-calculation-context.js";
 import { buildHistoryResultRecalculationComparisonItems } from "../domain/history-result-recalculation.js";
+
+const hasPositiveValue = (value: number | null | undefined) => Boolean(value && value > 0);
+
+const hasMonthRecordContent = (record: EmployeeMonthRecord | null) => {
+  if (!record) {
+    return false;
+  }
+
+  return (
+    record.id !== null ||
+    hasPositiveValue(record.salaryIncome) ||
+    hasPositiveValue(record.annualBonus) ||
+    hasPositiveValue(record.pensionInsurance) ||
+    hasPositiveValue(record.medicalInsurance) ||
+    hasPositiveValue(record.occupationalAnnuity) ||
+    hasPositiveValue(record.housingFund) ||
+    hasPositiveValue(record.supplementaryHousingFund) ||
+    hasPositiveValue(record.unemploymentInsurance) ||
+    hasPositiveValue(record.workInjuryInsurance) ||
+    hasPositiveValue(record.withheldTax) ||
+    hasPositiveValue(record.otherIncome) ||
+    hasPositiveValue(record.infantCareDeduction) ||
+    hasPositiveValue(record.childEducationDeduction) ||
+    hasPositiveValue(record.continuingEducationDeduction) ||
+    hasPositiveValue(record.housingLoanInterestDeduction) ||
+    hasPositiveValue(record.housingRentDeduction) ||
+    hasPositiveValue(record.elderCareDeduction) ||
+    hasPositiveValue(record.otherDeduction) ||
+    hasPositiveValue(record.taxReductionExemption) ||
+    Boolean(record.otherIncomeRemark?.trim()) ||
+    Boolean(record.remark?.trim())
+  );
+};
+
+const filterRecordedMonthRecords = (records: EmployeeMonthRecord[]) =>
+  records.filter((record) => hasMonthRecordContent(record));
 
 export class EmployeeCalculationNotReadyError extends Error {
   constructor() {
@@ -116,7 +153,9 @@ const recalculateReadyStatus = (
   bridgeContext: AnnualTaxWithholdingBridgeContext,
   ruleSourceSummary: AnnualTaxRuleSourceSummary,
 ) => {
-  const records = monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear);
+  const records = filterRecordedMonthRecords(
+    monthRecordRepository.listByEmployeeAndYear(unitId, status.employeeId, taxYear),
+  );
   const calculation = calculateEmployeeAnnualTax(records, currentSettings, withholdingContext);
   const dataSignature = buildAnnualTaxDataSignatureFromRecords(records, bridgeContext);
   const existingResult = annualTaxResultRepository.getByEmployeeAndYear(
@@ -187,7 +226,9 @@ export const annualTaxService = {
     }
 
     const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
-    const currentRecords = monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear);
+    const currentRecords = filterRecordedMonthRecords(
+      monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear),
+    );
     const bridgeContext = buildWithholdingBridgeContext(unitId, taxYear, employeeId);
     const resolvedWithholdingContext = resolveWithholdingContext(bridgeContext, {});
     const recalculatedResult = {

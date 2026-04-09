@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { closeDatabase } from "./db/database.js";
 import { registerCalculationRoutes } from "./routes/calculations.js";
+import { registerConfirmedResultRoutes } from "./routes/confirmed-results.js";
 import { registerContextRoutes } from "./routes/context.js";
 import { registerEmployeeRoutes } from "./routes/employees.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -9,6 +10,7 @@ import { registerImportRoutes } from "./routes/import.js";
 import { registerMonthRecordRoutes } from "./routes/month-records.js";
 import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
 import { registerUnitRoutes } from "./routes/units.js";
+import { registerYearEntryRoutes } from "./routes/year-entry.js";
 
 const app = Fastify({ logger: false });
 const serverHost = process.env.HOST ?? "127.0.0.1";
@@ -38,11 +40,13 @@ await app.register(cors, {
 await registerHealthRoutes(app);
 await registerImportRoutes(app);
 await registerCalculationRoutes(app);
+await registerConfirmedResultRoutes(app);
 await registerContextRoutes(app);
 await registerEmployeeRoutes(app);
 await registerMonthRecordRoutes(app);
 await registerTaxPolicyRoutes(app);
 await registerUnitRoutes(app);
+await registerYearEntryRoutes(app);
 
 const start = async () => {
   try {

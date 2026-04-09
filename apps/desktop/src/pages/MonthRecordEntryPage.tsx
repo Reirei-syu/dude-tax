@@ -1,114 +1,55 @@
-import type {
-  Employee,
-  EmployeeMonthRecord,
-  UpsertEmployeeMonthRecordPayload,
-} from "@dude-tax/core";
-import { deriveEmployeeMonthStatus } from "@dude-tax/core";
+import type { EmployeeYearRecordWorkspace, YearRecordUpsertItem } from "@dude-tax/core";
+import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
+import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
+import { saveFileWithDesktopFallback } from "../utils/file-save";
+import { buildYearRecordWorkbookBuffer } from "./year-record-export";
 import {
-  applyBatchEditDrafts,
-  buildEffectiveMonthRecords,
-  clearBatchEditDrafts,
-  getBatchSaveTargetMonths,
-  toggleBatchMonthSelection,
-} from "./month-record-batch-edit";
-import { buildCopiedMonthRecordPayload, hasMonthRecordContent } from "./month-record-copy";
-import { buildMonthRecordDraftDiffSummary, getMonthRecordDraftDiffs } from "./month-record-diff";
-import { buildMonthRecordSummary, getMonthProgressStatus } from "./month-record-progress";
-import { filterVisibleEmployeesForMonth } from "./month-record-employee-filter";
+  applyWorkspaceMonthToFutureMonths,
+  applyWorkspaceMonthToNextMonth,
+  getDirtyWorkspaceMonths,
+} from "./year-record-workspace";
 
-const emptyMonthRecordPayload: UpsertEmployeeMonthRecordPayload = {
-  status: "incomplete",
-  salaryIncome: 0,
-  annualBonus: 0,
-  pensionInsurance: 0,
-  medicalInsurance: 0,
-  occupationalAnnuity: 0,
-  housingFund: 0,
-  supplementaryHousingFund: 0,
-  unemploymentInsurance: 0,
-  workInjuryInsurance: 0,
-  withheldTax: 0,
-  supplementarySalaryIncome: 0,
-  supplementaryWithheldTaxAdjustment: 0,
-  supplementarySourcePeriodLabel: "",
-  supplementaryRemark: "",
-  infantCareDeduction: 0,
-  childEducationDeduction: 0,
-  continuingEducationDeduction: 0,
-  housingLoanInterestDeduction: 0,
-  housingRentDeduction: 0,
-  elderCareDeduction: 0,
-  otherDeduction: 0,
-  taxReductionExemption: 0,
-  remark: "",
-};
+const TAX_MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 
-const insuranceFields = [
-  { key: "pensionInsurance", label: "养老保险" },
-  { key: "medicalInsurance", label: "医疗保险" },
-  { key: "occupationalAnnuity", label: "职业年金" },
-  { key: "housingFund", label: "住房公积金" },
-  { key: "supplementaryHousingFund", label: "补充住房公积金" },
-  { key: "unemploymentInsurance", label: "失业保险" },
-  { key: "workInjuryInsurance", label: "工伤保险" },
-] as const;
+const toEditableRows = (workspace: EmployeeYearRecordWorkspace): YearRecordUpsertItem[] =>
+  workspace.months.map((row) => ({
+    taxMonth: row.taxMonth,
+    salaryIncome: row.salaryIncome,
+    annualBonus: row.annualBonus,
+    pensionInsurance: row.pensionInsurance,
+    medicalInsurance: row.medicalInsurance,
+    occupationalAnnuity: row.occupationalAnnuity,
+    housingFund: row.housingFund,
+    supplementaryHousingFund: row.supplementaryHousingFund,
+    unemploymentInsurance: row.unemploymentInsurance,
+    workInjuryInsurance: row.workInjuryInsurance,
+    withheldTax: row.withheldTax,
+    otherIncome: row.otherIncome ?? 0,
+    otherIncomeRemark: row.otherIncomeRemark ?? "",
+    infantCareDeduction: row.infantCareDeduction,
+    childEducationDeduction: row.childEducationDeduction,
+    continuingEducationDeduction: row.continuingEducationDeduction,
+    housingLoanInterestDeduction: row.housingLoanInterestDeduction,
+    housingRentDeduction: row.housingRentDeduction,
+    elderCareDeduction: row.elderCareDeduction,
+    otherDeduction: row.otherDeduction,
+    taxReductionExemption: row.taxReductionExemption,
+    remark: row.remark ?? "",
+  }));
 
-const specialDeductionFields = [
-  { key: "infantCareDeduction", label: "3 岁以下婴幼儿照护" },
-  { key: "childEducationDeduction", label: "子女教育" },
-  { key: "continuingEducationDeduction", label: "继续教育" },
-  { key: "housingLoanInterestDeduction", label: "住房贷款利息" },
-  { key: "housingRentDeduction", label: "住房租金" },
-  { key: "elderCareDeduction", label: "赡养老人" },
-  { key: "otherDeduction", label: "其他依法扣除" },
-  { key: "taxReductionExemption", label: "减免税额" },
-] as const;
-
-const monthStatusLabelMap = {
-  active: "在职",
-  left_this_month: "本月离职本月",
-  left: "离职",
-} as const;
-
-const parseCurrencyValue = (value: string) => {
-  const nextValue = Number(value);
-  if (Number.isNaN(nextValue) || nextValue < 0) {
-    return 0;
+const toggleSelectedMonth = (selectedMonths: number[], taxMonth: number) => {
+  if (selectedMonths.includes(taxMonth)) {
+    return selectedMonths.length === 1
+      ? selectedMonths
+      : selectedMonths.filter((item) => item !== taxMonth);
   }
-  return nextValue;
-};
 
-const toMonthRecordPayload = (
-  record: EmployeeMonthRecord | null,
-): UpsertEmployeeMonthRecordPayload => ({
-  status: record?.status ?? emptyMonthRecordPayload.status,
-  salaryIncome: record?.salaryIncome ?? 0,
-  annualBonus: record?.annualBonus ?? 0,
-  pensionInsurance: record?.pensionInsurance ?? 0,
-  medicalInsurance: record?.medicalInsurance ?? 0,
-  occupationalAnnuity: record?.occupationalAnnuity ?? 0,
-  housingFund: record?.housingFund ?? 0,
-  supplementaryHousingFund: record?.supplementaryHousingFund ?? 0,
-  unemploymentInsurance: record?.unemploymentInsurance ?? 0,
-  workInjuryInsurance: record?.workInjuryInsurance ?? 0,
-  withheldTax: record?.withheldTax ?? 0,
-  supplementarySalaryIncome: record?.supplementarySalaryIncome ?? 0,
-  supplementaryWithheldTaxAdjustment: record?.supplementaryWithheldTaxAdjustment ?? 0,
-  supplementarySourcePeriodLabel: record?.supplementarySourcePeriodLabel ?? "",
-  supplementaryRemark: record?.supplementaryRemark ?? "",
-  infantCareDeduction: record?.infantCareDeduction ?? 0,
-  childEducationDeduction: record?.childEducationDeduction ?? 0,
-  continuingEducationDeduction: record?.continuingEducationDeduction ?? 0,
-  housingLoanInterestDeduction: record?.housingLoanInterestDeduction ?? 0,
-  housingRentDeduction: record?.housingRentDeduction ?? 0,
-  elderCareDeduction: record?.elderCareDeduction ?? 0,
-  otherDeduction: record?.otherDeduction ?? 0,
-  taxReductionExemption: record?.taxReductionExemption ?? 0,
-  remark: record?.remark ?? "",
-});
+  return [...selectedMonths, taxMonth].sort((left, right) => left - right);
+};
 
 export const MonthRecordEntryPage = () => {
   const { context } = useAppContext();
@@ -116,275 +57,174 @@ export const MonthRecordEntryPage = () => {
   const currentTaxYear = context?.currentTaxYear ?? null;
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [monthRecords, setMonthRecords] = useState<EmployeeMonthRecord[]>([]);
-  const [draftPayloadByMonth, setDraftPayloadByMonth] = useState<
-    Partial<Record<number, UpsertEmployeeMonthRecordPayload>>
-  >({});
-  const [selectedBatchMonths, setSelectedBatchMonths] = useState<number[]>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<number>(1);
-  const [form, setForm] = useState<UpsertEmployeeMonthRecordPayload>(emptyMonthRecordPayload);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([1]);
+  const [overview, setOverview] =
+    useState<Awaited<ReturnType<typeof apiClient.getYearEntryOverview>> | null>(null);
+  const [workspace, setWorkspace] = useState<EmployeeYearRecordWorkspace | null>(null);
+  const [workspaceRows, setWorkspaceRows] = useState<YearRecordUpsertItem[]>([]);
+  const [originalWorkspaceRows, setOriginalWorkspaceRows] = useState<YearRecordUpsertItem[]>([]);
+  const [selectedWorkspaceMonth, setSelectedWorkspaceMonth] = useState(1);
+  const [basicDeductionAmount, setBasicDeductionAmount] = useState(DEFAULT_BASIC_DEDUCTION_AMOUNT);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
-  const visibleEmployees = useMemo(
-    () =>
-      currentTaxYear
-        ? filterVisibleEmployeesForMonth(employees, currentTaxYear, selectedMonth)
-        : [],
-    [employees, currentTaxYear, selectedMonth],
-  );
-
-  const effectiveMonthRecords = useMemo(
-    () => buildEffectiveMonthRecords(monthRecords, draftPayloadByMonth),
-    [draftPayloadByMonth, monthRecords],
-  );
-
-  const selectedEmployee = useMemo(
-    () => visibleEmployees.find((employee) => employee.id === selectedEmployeeId) ?? null,
-    [selectedEmployeeId, visibleEmployees],
-  );
-
-  const selectedRecord = useMemo(
-    () => effectiveMonthRecords.find((record) => record.taxMonth === selectedMonth) ?? null,
-    [effectiveMonthRecords, selectedMonth],
-  );
-
-  const previousMonthRecord = useMemo(
-    () => effectiveMonthRecords.find((record) => record.taxMonth === selectedMonth - 1) ?? null,
-    [effectiveMonthRecords, selectedMonth],
-  );
-
-  const monthSummary = useMemo(
-    () => buildMonthRecordSummary(effectiveMonthRecords),
-    [effectiveMonthRecords],
-  );
-
-  const draftDiffSummary = useMemo(
-    () => buildMonthRecordDraftDiffSummary(monthRecords, draftPayloadByMonth),
-    [draftPayloadByMonth, monthRecords],
-  );
-
-  const selectedMonthDiffs = useMemo(() => {
-    const savedRecord = monthRecords.find((record) => record.taxMonth === selectedMonth) ?? null;
-    if (!savedRecord) {
-      return [];
-    }
-    return getMonthRecordDraftDiffs(savedRecord, draftPayloadByMonth[selectedMonth]);
-  }, [draftPayloadByMonth, monthRecords, selectedMonth]);
-
-  const currentEmployeeMonthStatus = selectedEmployee && currentTaxYear
-    ? deriveEmployeeMonthStatus(selectedEmployee, currentTaxYear, selectedMonth)
-    : "active";
-
-  useEffect(() => {
-    if (!visibleEmployees.length) {
-      setSelectedEmployeeId(null);
-      return;
-    }
-
-    if (!visibleEmployees.some((employee) => employee.id === selectedEmployeeId)) {
-      setSelectedEmployeeId(visibleEmployees[0]?.id ?? null);
-    }
-  }, [selectedEmployeeId, visibleEmployees]);
-
-  const loadEmployees = async () => {
-    if (!currentUnitId) {
-      setEmployees([]);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setErrorMessage(null);
-      setNoticeMessage(null);
-      const nextEmployees = await apiClient.listEmployees(currentUnitId);
-      setEmployees(nextEmployees);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "加载员工列表失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadMonthRecords = async (employeeId: number) => {
+  const loadOverview = async () => {
     if (!currentUnitId || !currentTaxYear) {
-      setMonthRecords([]);
-      setForm(emptyMonthRecordPayload);
+      setOverview(null);
       return;
     }
 
     try {
       setLoading(true);
       setErrorMessage(null);
-      setNoticeMessage(null);
-      const nextRecords = await apiClient.listMonthRecords(currentUnitId, currentTaxYear, employeeId);
-      setMonthRecords(nextRecords);
-      setForm(
-        toMonthRecordPayload(
-          nextRecords.find((record) => record.taxMonth === selectedMonth) ?? null,
-        ),
-      );
+      const [nextOverview, taxPolicy] = await Promise.all([
+        apiClient.getYearEntryOverview(currentUnitId, currentTaxYear, selectedMonths),
+        apiClient.getTaxPolicy(currentUnitId, currentTaxYear),
+      ]);
+      setOverview(nextOverview);
+      setBasicDeductionAmount(taxPolicy.currentSettings.basicDeductionAmount);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "加载月度记录失败");
+      setErrorMessage(error instanceof Error ? error.message : "加载月度数据录入总览失败");
+      setOverview(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    setDraftPayloadByMonth({});
-    setSelectedBatchMonths([]);
-    void loadEmployees();
-  }, [currentUnitId]);
+    void loadOverview();
+  }, [currentUnitId, currentTaxYear, selectedMonths.join(",")]);
 
-  useEffect(() => {
-    if (!selectedEmployeeId) {
-      setMonthRecords([]);
-      setDraftPayloadByMonth({});
-      setSelectedBatchMonths([]);
-      setForm(emptyMonthRecordPayload);
-      return;
-    }
-
-    setDraftPayloadByMonth({});
-    setSelectedBatchMonths([]);
-    void loadMonthRecords(selectedEmployeeId);
-  }, [selectedEmployeeId, currentTaxYear, currentUnitId]);
-
-  useEffect(() => {
-    setForm(toMonthRecordPayload(selectedRecord));
-  }, [selectedRecord]);
-
-  const updateNumericField = (field: keyof UpsertEmployeeMonthRecordPayload, value: string) => {
-    setForm((currentForm) => ({ ...currentForm, [field]: parseCurrencyValue(value) }));
-  };
-
-  const saveMonthRecord = async () => {
-    if (!currentUnitId || !currentTaxYear || !selectedEmployeeId) {
-      setErrorMessage("请先选择单位、年份和员工");
+  const openWorkspace = async (employeeId: number) => {
+    if (!currentUnitId || !currentTaxYear) {
       return;
     }
 
     try {
-      setSubmitting(true);
+      setSaving(true);
       setErrorMessage(null);
-      setNoticeMessage(null);
-      await apiClient.upsertMonthRecord(
+      const nextWorkspace = await apiClient.getEmployeeYearWorkspace(
         currentUnitId,
         currentTaxYear,
-        selectedEmployeeId,
-        selectedMonth,
-        form,
+        employeeId,
       );
-      setDraftPayloadByMonth((currentDrafts) => clearBatchEditDrafts(currentDrafts, [selectedMonth]));
-      await loadMonthRecords(selectedEmployeeId);
+      const editableRows = toEditableRows(nextWorkspace);
+      setWorkspace(nextWorkspace);
+      setWorkspaceRows(editableRows);
+      setOriginalWorkspaceRows(editableRows);
+      setSelectedWorkspaceMonth(selectedMonths[0] ?? 1);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "保存月度记录失败");
+      setErrorMessage(error instanceof Error ? error.message : "加载员工工作台失败");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const copyPreviousMonth = () => {
-    if (!previousMonthRecord || !hasMonthRecordContent(previousMonthRecord)) {
-      setErrorMessage("上月没有可复制的数据");
-      return;
-    }
-
-    setErrorMessage(null);
-    setNoticeMessage(`已复制 ${selectedMonth - 1} 月数据到当前月份，尚未保存。`);
-    setForm(buildCopiedMonthRecordPayload(previousMonthRecord));
-  };
-
-  const applyBatchEdit = () => {
-    if (!selectedBatchMonths.length) {
-      setErrorMessage("请先选择需要批量套用的月份");
-      return;
-    }
-
-    setErrorMessage(null);
-    setNoticeMessage(`已将当前表单套用到 ${selectedBatchMonths.join("、")} 月，尚未保存。`);
-    setDraftPayloadByMonth((currentDrafts) =>
-      applyBatchEditDrafts(currentDrafts, selectedBatchMonths, form),
+  const handleChangeWorkspaceRow = (
+    taxMonth: number,
+    key: keyof YearRecordUpsertItem,
+    value: string | number,
+  ) => {
+    setWorkspaceRows((currentRows) =>
+      currentRows.map((row) =>
+        row.taxMonth === taxMonth
+          ? {
+              ...row,
+              [key]: value,
+            }
+          : row,
+      ),
     );
   };
 
-  const clearSelectedBatchDrafts = () => {
-    if (!selectedBatchMonths.length) {
-      setErrorMessage("请先选择需要清空草稿的月份");
+  const handleSaveWorkspace = async () => {
+    if (!workspace || !currentUnitId || !currentTaxYear) {
       return;
     }
 
-    setErrorMessage(null);
-    setNoticeMessage(`已清空 ${selectedBatchMonths.join("、")} 月的本地草稿。`);
-    setDraftPayloadByMonth((currentDrafts) =>
-      clearBatchEditDrafts(currentDrafts, selectedBatchMonths),
-    );
-  };
-
-  const saveSelectedBatchDrafts = async () => {
-    if (!currentUnitId || !currentTaxYear || !selectedEmployeeId) {
-      setErrorMessage("请先选择单位、年份和员工");
+    const dirtyMonths = getDirtyWorkspaceMonths(originalWorkspaceRows, workspaceRows);
+    if (!dirtyMonths.length) {
+      setNoticeMessage("当前没有需要保存的改动。");
       return;
     }
-
-    const targetMonths = getBatchSaveTargetMonths(selectedBatchMonths, draftPayloadByMonth);
-    if (!targetMonths.length) {
-      setErrorMessage("所选月份没有可保存的草稿");
-      return;
-    }
-
-    const savedMonths: number[] = [];
-    const failedMonths: number[] = [];
-    let lastErrorMessage = "";
 
     try {
-      setSubmitting(true);
+      setSaving(true);
       setErrorMessage(null);
-      setNoticeMessage(null);
-
-      for (const taxMonth of targetMonths) {
-        const draftPayload = draftPayloadByMonth[taxMonth];
-        if (!draftPayload) {
-          continue;
-        }
-
-        try {
-          await apiClient.upsertMonthRecord(
-            currentUnitId,
-            currentTaxYear,
-            selectedEmployeeId,
-            taxMonth,
-            draftPayload,
-          );
-          savedMonths.push(taxMonth);
-        } catch (error) {
-          failedMonths.push(taxMonth);
-          lastErrorMessage = error instanceof Error ? error.message : "批量保存失败";
-        }
-      }
-
-      if (savedMonths.length) {
-        setDraftPayloadByMonth((currentDrafts) => clearBatchEditDrafts(currentDrafts, savedMonths));
-        await loadMonthRecords(selectedEmployeeId);
-      }
-
-      setSelectedBatchMonths(failedMonths);
-      if (failedMonths.length) {
-        if (savedMonths.length) {
-          setNoticeMessage(`已保存 ${savedMonths.join("、")} 月草稿。`);
-        }
-        setErrorMessage(`以下月份保存失败：${failedMonths.join("、")} 月。${lastErrorMessage}`);
-        return;
-      }
-
-      setNoticeMessage(`已保存 ${savedMonths.join("、")} 月草稿。`);
+      const nextWorkspace = await apiClient.saveEmployeeYearWorkspace(
+        currentUnitId,
+        currentTaxYear,
+        workspace.employeeId,
+        { months: dirtyMonths },
+      );
+      const editableRows = toEditableRows(nextWorkspace);
+      setWorkspace(nextWorkspace);
+      setWorkspaceRows(editableRows);
+      setOriginalWorkspaceRows(editableRows);
+      setNoticeMessage("员工年度数据已保存。");
+      await loadOverview();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "保存员工年度数据失败");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
+    }
+  };
+
+  const selectedMonthsLabel = useMemo(() => selectedMonths.join("、"), [selectedMonths]);
+
+  const downloadWorkbook = async () => {
+    if (!currentUnitId || !currentTaxYear || !currentUnit || !overview?.employees.length) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setErrorMessage(null);
+      const workspaces = await Promise.all(
+        overview.employees.map((employee) =>
+          apiClient.getEmployeeYearWorkspace(currentUnitId, currentTaxYear, employee.employeeId),
+        ),
+      );
+
+      const workbookArray = await buildYearRecordWorkbookBuffer({
+        summarySheetName: "汇总",
+        summaryColumns: [
+          { key: "employeeCode", label: "工号" },
+          { key: "employeeName", label: "姓名" },
+          { key: "totalWithheldTax", label: "预扣税额" },
+          { key: "optimalScheme", label: "方案" },
+          { key: "uneditedMonths", label: "未编辑月份" },
+        ],
+        summaryRows: overview.employees.map((employee) => ({
+          employeeCode: employee.employeeCode,
+          employeeName: employee.employeeName,
+          totalWithheldTax: employee.totalWithheldTax.toFixed(2),
+          optimalScheme: employee.optimalScheme
+            ? taxCalculationSchemeLabelMap[employee.optimalScheme]
+            : "-",
+          uneditedMonths: employee.uneditedMonths.length ? employee.uneditedMonths.join("、") : "-",
+        })),
+        employees: workspaces.map((item) => ({
+          employeeCode: item.employeeCode,
+          employeeName: item.employeeName,
+          rows: toEditableRows(item).filter((row) => selectedMonths.includes(row.taxMonth)),
+        })),
+        basicDeductionAmount,
+      });
+
+      await saveFileWithDesktopFallback({
+        defaultPath: `月度数据录入_${currentUnit.unitName}_${currentTaxYear}_${selectedMonths.join("-")}.xlsx`,
+        filters: [{ name: "Excel 文件", extensions: ["xlsx"] }],
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content: workbookArray,
+      });
+      setNoticeMessage("月度数据录入导出已生成。");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "导出月度数据录入失败");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -400,8 +240,8 @@ export const MonthRecordEntryPage = () => {
   }
 
   return (
-    <section className="page-grid month-entry-grid month-entry-page">
-      <article className="glass-card page-section">
+    <section className="page-grid">
+      <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h1>月度数据录入</h1>
@@ -409,333 +249,134 @@ export const MonthRecordEntryPage = () => {
               当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
             </p>
           </div>
-          <span className="tag">{loading ? "加载中" : "基础录入已开启"}</span>
+          <span className="tag">{loading ? "加载中" : "年度员工总览"}</span>
         </div>
 
-        <div className="month-entry-toolbar">
-          <label className="form-field">
-            <span>当前员工</span>
-            <select
-              disabled={!visibleEmployees.length}
-              value={selectedEmployeeId ?? ""}
-              onChange={(event) =>
-                setSelectedEmployeeId(event.target.value ? Number(event.target.value) : null)
+        <div className="month-selector-panel">
+          {TAX_MONTHS.map((taxMonth) => (
+            <button
+              key={taxMonth}
+              className={selectedMonths.includes(taxMonth) ? "month-picker-button is-selected" : "month-picker-button"}
+              type="button"
+              onClick={() =>
+                setSelectedMonths((currentMonths) => toggleSelectedMonth(currentMonths, taxMonth))
               }
             >
-              {!visibleEmployees.length ? <option value="">当月没有可录入员工</option> : null}
-              {visibleEmployees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.employeeName}（{employee.employeeCode}）
-                </option>
-              ))}
-            </select>
-          </label>
+              {taxMonth} 月
+            </button>
+          ))}
         </div>
 
-        {selectedEmployee ? (
-          <>
-            <div className="current-month-summary">
-              <div className="summary-card">
-                <span>当前月员工状态</span>
-                <strong>{monthStatusLabelMap[currentEmployeeMonthStatus]}</strong>
-              </div>
-              <div className="summary-card">
-                <span>当前月已预扣税额</span>
-                <strong>{(selectedRecord?.withheldTax ?? 0).toFixed(2)}</strong>
-              </div>
-              <div className="summary-card">
-                <span>已完成月份</span>
-                <strong>{monthSummary.completed}</strong>
-              </div>
-            </div>
-
-            <div className="month-button-grid">
-              {effectiveMonthRecords.map((record) => {
-                const progressStatus = getMonthProgressStatus(record);
-                return (
-                  <button
-                    className={
-                      selectedMonth === record.taxMonth
-                        ? `month-picker-button is-selected is-${progressStatus}`
-                        : `month-picker-button is-${progressStatus}`
-                    }
-                    key={record.taxMonth}
-                    onClick={() => setSelectedMonth(record.taxMonth)}
-                    type="button"
-                  >
-                    {record.taxMonth} 月
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="batch-edit-panel">
-              <div className="section-header">
-                <div>
-                  <h3>批量套用</h3>
-                  <p>把当前表单内容作为本地草稿批量套用到所选月份。</p>
-                </div>
-                <span className="tag tag-neutral">已选 {selectedBatchMonths.length} 个月</span>
-              </div>
-
-              <div className="batch-month-grid">
-                {effectiveMonthRecords.map((record) => (
-                  <label
-                    className={
-                      selectedBatchMonths.includes(record.taxMonth)
-                        ? "batch-month-item selected-item"
-                        : "batch-month-item"
-                    }
-                    key={record.taxMonth}
-                  >
-                    <input
-                      checked={selectedBatchMonths.includes(record.taxMonth)}
-                      type="checkbox"
-                      onChange={() =>
-                        setSelectedBatchMonths((currentMonths) =>
-                          toggleBatchMonthSelection(currentMonths, record.taxMonth),
-                        )
-                      }
-                    />
-                    <div className="batch-month-label">
-                      <span>{record.taxMonth} 月</span>
-                      <small>{draftDiffSummary.changedMonths.includes(record.taxMonth) ? "有草稿" : "无草稿"}</small>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              <div className="button-row compact">
-                <button className="ghost-button" disabled={submitting} onClick={applyBatchEdit}>
-                  批量套用当前表单
-                </button>
-                <button
-                  className="primary-button"
-                  disabled={submitting}
-                  onClick={() => void saveSelectedBatchDrafts()}
-                >
-                  批量保存所选草稿
-                </button>
-                <button
-                  className="ghost-button"
-                  disabled={submitting}
-                  onClick={clearSelectedBatchDrafts}
-                >
-                  清空所选草稿
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="empty-state">
-            <strong>当前月份没有可录入员工。</strong>
-            <p>已离职员工不会出现在后续月份录入中；当月离职员工仍可录入本月数据。</p>
+        <div className="summary-grid">
+          <div className="summary-card">
+            <span>所选月份</span>
+            <strong>{selectedMonthsLabel}</strong>
           </div>
-        )}
-      </article>
-
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>
-              {selectedEmployee
-                ? `${selectedEmployee.employeeName} - ${selectedMonth} 月录入`
-                : "请选择员工"}
-            </h2>
-            <p>本阶段仅做数据维护，不进行税额试算。</p>
+          <div className="summary-card">
+            <span>所选月份预扣税额合计</span>
+            <strong>{overview?.totalWithheldTax.toFixed(2) ?? "0.00"}</strong>
+          </div>
+          <div className="summary-card">
+            <span>员工数量</span>
+            <strong>{overview?.employees.length ?? 0}</strong>
           </div>
         </div>
 
-        {selectedMonthDiffs.length ? (
-          <div className="draft-diff-banner">
-            <strong>当前月份有 {selectedMonthDiffs.length} 项未保存差异</strong>
-            <p>{selectedMonthDiffs.map((diff) => diff.label).join("、")}</p>
-          </div>
-        ) : null}
-
-        {selectedEmployee ? (
-          <>
-            <div className="form-grid">
-              <label className="form-field">
-                <span>记录状态</span>
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      status: event.target.value as UpsertEmployeeMonthRecordPayload["status"],
-                    }))
-                  }
-                >
-                  <option value="incomplete">未完成</option>
-                  <option value="completed">已完成</option>
-                </select>
-              </label>
-              <label className="form-field">
-                <span>工资收入</span>
-                <input
-                  min="0"
-                  step="0.01"
-                  type="number"
-                  value={form.salaryIncome}
-                  onChange={(event) => updateNumericField("salaryIncome", event.target.value)}
-                />
-              </label>
-              <label className="form-field">
-                <span>年终奖</span>
-                <input
-                  min="0"
-                  step="0.01"
-                  type="number"
-                  value={form.annualBonus}
-                  onChange={(event) => updateNumericField("annualBonus", event.target.value)}
-                />
-              </label>
-              <label className="form-field">
-                <span>已预扣税额</span>
-                <input
-                  min="0"
-                  step="0.01"
-                  type="number"
-                  value={form.withheldTax}
-                  onChange={(event) => updateNumericField("withheldTax", event.target.value)}
-                />
-              </label>
-            </div>
-
-            <div className="subsection-block">
-              <h3>补发补扣调整</h3>
-              <p className="field-hint">仅记录支付当月补发 / 补扣，不等同于往期更正申报。</p>
-              <div className="form-grid">
-                <label className="form-field">
-                  <span>补发收入</span>
-                  <input
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={form.supplementarySalaryIncome ?? 0}
-                    onChange={(event) =>
-                      updateNumericField("supplementarySalaryIncome", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>补扣税调整</span>
-                  <input
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={form.supplementaryWithheldTaxAdjustment ?? 0}
-                    onChange={(event) =>
-                      updateNumericField("supplementaryWithheldTaxAdjustment", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>补发所属期间</span>
-                  <input
-                    maxLength={100}
-                    placeholder="例如：2026-01"
-                    value={form.supplementarySourcePeriodLabel ?? ""}
-                    onChange={(event) =>
-                      setForm((currentForm) => ({
-                        ...currentForm,
-                        supplementarySourcePeriodLabel: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>补发备注</span>
-                  <input
-                    maxLength={300}
-                    placeholder="例如：补发绩效差额"
-                    value={form.supplementaryRemark ?? ""}
-                    onChange={(event) =>
-                      setForm((currentForm) => ({
-                        ...currentForm,
-                        supplementaryRemark: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="subsection-block">
-              <h3>社保公积金类</h3>
-              <div className="form-grid">
-                {insuranceFields.map((field) => (
-                  <label className="form-field" key={field.key}>
-                    <span>{field.label}</span>
-                    <input
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={form[field.key]}
-                      onChange={(event) => updateNumericField(field.key, event.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="subsection-block">
-              <h3>专项附加与其他扣除</h3>
-              <div className="form-grid">
-                {specialDeductionFields.map((field) => (
-                  <label className="form-field" key={field.key}>
-                    <span>{field.label}</span>
-                    <input
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={form[field.key]}
-                      onChange={(event) => updateNumericField(field.key, event.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <label className="form-field">
-              <span>备注</span>
-              <input
-                placeholder="可选备注"
-                value={form.remark ?? ""}
-                onChange={(event) =>
-                  setForm((currentForm) => ({ ...currentForm, remark: event.target.value }))
-                }
-              />
-            </label>
-
-            <div className="button-row">
-              <button
-                className="ghost-button"
-                disabled={submitting || !hasMonthRecordContent(previousMonthRecord)}
-                onClick={copyPreviousMonth}
-              >
-                复制上月
-              </button>
-              <button className="primary-button" disabled={submitting} onClick={() => void saveMonthRecord()}>
-                保存当前月份
-              </button>
-              <button
-                className="ghost-button"
-                disabled={submitting}
-                onClick={() => setForm(toMonthRecordPayload(selectedRecord))}
-              >
-                恢复当前月份
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="empty-state">请先在左侧选择员工。</div>
-        )}
+        <div className="button-row">
+          <button
+            className="ghost-button"
+            disabled={saving || !overview?.employees.length}
+            type="button"
+            onClick={() => void downloadWorkbook()}
+          >
+            导出 Excel
+          </button>
+        </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
+
+        <table className="data-table month-entry-overview-table">
+          <thead>
+            <tr>
+              <th>工号</th>
+              <th>姓名</th>
+              <th>预扣税额</th>
+              <th>方案</th>
+              <th>未编辑月份</th>
+            </tr>
+          </thead>
+          <tbody>
+            {overview?.employees.length ? (
+              overview.employees.map((employee) => (
+                <tr
+                  key={employee.employeeId}
+                  className="selectable-row"
+                  onClick={() => void openWorkspace(employee.employeeId)}
+                >
+                  <td>{employee.employeeCode}</td>
+                  <td>
+                    <div className="table-inline-actions">
+                      <button
+                        className="ghost-button table-action-button"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openWorkspace(employee.employeeId);
+                        }}
+                      >
+                        编辑
+                      </button>
+                      <span>{employee.employeeName}</span>
+                    </div>
+                  </td>
+                  <td>{employee.totalWithheldTax.toFixed(2)}</td>
+                  <td>
+                    {employee.optimalScheme
+                      ? taxCalculationSchemeLabelMap[employee.optimalScheme]
+                      : "-"}
+                  </td>
+                  <td>{employee.uneditedMonths.length ? employee.uneditedMonths.join("、") : "-"}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5}>当前年度暂无可录入员工。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </article>
+
+      <YearRecordWorkspaceDialog
+        open={Boolean(workspace)}
+        title={workspace ? `${workspace.employeeName} 年度录入工作台` : ""}
+        subtitle={workspace ? `${workspace.employeeCode} / ${currentTaxYear} 年` : undefined}
+        rows={workspaceRows}
+        selectedMonth={selectedWorkspaceMonth}
+        lockedMonths={workspace?.lockedMonths ?? []}
+        basicDeductionAmount={basicDeductionAmount}
+        primaryActionLabel="保存当前改动"
+        primaryActionDisabled={saving}
+        onPrimaryAction={() => void handleSaveWorkspace()}
+        onClose={() => {
+          setWorkspace(null);
+          setWorkspaceRows([]);
+          setOriginalWorkspaceRows([]);
+        }}
+        onSelectMonth={setSelectedWorkspaceMonth}
+        onChangeRow={handleChangeWorkspaceRow}
+        onApplyToNextMonth={() =>
+          setWorkspaceRows((currentRows) =>
+            applyWorkspaceMonthToNextMonth(currentRows, selectedWorkspaceMonth),
+          )
+        }
+        onApplyToFutureMonths={() =>
+          setWorkspaceRows((currentRows) =>
+            applyWorkspaceMonthToFutureMonths(currentRows, selectedWorkspaceMonth),
+          )
+        }
+      />
     </section>
   );
 };

@@ -1134,3 +1134,114 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.month-selector-panel {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.month-entry-overview-table {
+  margin-top: 18px;
+}
+
+.table-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-dialog {
+  width: min(96vw, 1480px);
+  height: min(88vh, 960px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(39, 62, 94, 0.24);
+}
+
+.workspace-dialog.is-maximized {
+  width: calc(100vw - 32px);
+  height: calc(100vh - 32px);
+}
+
+.workspace-header,
+.workspace-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.workspace-header h2 {
+  margin: 0;
+}
+
+.workspace-header p {
+  margin: 8px 0 0;
+  color: #617d9c;
+}
+
+.workspace-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.workspace-table {
+  margin-top: 0;
+  min-width: 1680px;
+}
+
+.workspace-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(237, 245, 255, 0.98);
+}
+
+@media (max-width: 1280px) {
+  .month-selector-panel {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .month-selector-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-overlay {
+    padding: 12px;
+  }
+
+  .workspace-dialog,
+  .workspace-dialog.is-maximized {
+    width: 100%;
+    height: calc(100vh - 24px);
+  }
+
+  .workspace-header,
+  .workspace-toolbar {
+    flex-direction: column;
+  }
+}

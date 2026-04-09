@@ -1,0 +1,219 @@
+import type { YearRecordUpsertItem } from "@dude-tax/core";
+import { useMemo, useState } from "react";
+import {
+  YEAR_RECORD_DEDUCTION_FIELDS,
+  YEAR_RECORD_INCOME_FIELDS,
+  YEAR_RECORD_INCOME_TEXT_FIELDS,
+  YEAR_RECORD_TEXT_FIELDS,
+} from "../pages/year-record-workspace";
+
+type EditableFieldKey = keyof YearRecordUpsertItem;
+
+type Props = {
+  open: boolean;
+  title: string;
+  subtitle?: string;
+  rows: YearRecordUpsertItem[];
+  selectedMonth: number;
+  lockedMonths?: number[];
+  basicDeductionAmount: number;
+  readOnly?: boolean;
+  onClose: () => void;
+  onSelectMonth: (taxMonth: number) => void;
+  onChangeRow?: (
+    taxMonth: number,
+    key: EditableFieldKey,
+    value: string | number,
+  ) => void;
+  onApplyToNextMonth?: () => void;
+  onApplyToFutureMonths?: () => void;
+  primaryActionLabel?: string;
+  primaryActionDisabled?: boolean;
+  onPrimaryAction?: () => void;
+};
+
+export const YearRecordWorkspaceDialog = ({
+  open,
+  title,
+  subtitle,
+  rows,
+  selectedMonth,
+  lockedMonths = [],
+  basicDeductionAmount,
+  readOnly = false,
+  onClose,
+  onSelectMonth,
+  onChangeRow,
+  onApplyToNextMonth,
+  onApplyToFutureMonths,
+  primaryActionLabel,
+  primaryActionDisabled = false,
+  onPrimaryAction,
+}: Props) => {
+  const [isMaximized, setIsMaximized] = useState(true);
+  const lockedMonthSet = useMemo(() => new Set(lockedMonths), [lockedMonths]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="workspace-overlay">
+      <div className={isMaximized ? "workspace-dialog is-maximized" : "workspace-dialog"}>
+        <div className="workspace-header">
+          <div>
+            <h2>{title}</h2>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+          <div className="button-row compact">
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => setIsMaximized((currentValue) => !currentValue)}
+            >
+              {isMaximized ? "还原窗口" : "最大化"}
+            </button>
+            <button className="ghost-button" type="button" onClick={onClose}>
+              关闭
+            </button>
+          </div>
+        </div>
+
+        <div className="workspace-toolbar">
+          <span className="tag">当前月份：{selectedMonth} 月</span>
+          {!readOnly ? (
+            <div className="button-row compact">
+              {onApplyToNextMonth ? (
+                <button className="ghost-button" type="button" onClick={onApplyToNextMonth}>
+                  将本月数据应用到下月
+                </button>
+              ) : null}
+              {onApplyToFutureMonths ? (
+                <button className="ghost-button" type="button" onClick={onApplyToFutureMonths}>
+                  将本月数据应用到后续月份
+                </button>
+              ) : null}
+              {primaryActionLabel && onPrimaryAction ? (
+                <button
+                  className="primary-button"
+                  disabled={primaryActionDisabled}
+                  type="button"
+                  onClick={onPrimaryAction}
+                >
+                  {primaryActionLabel}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="workspace-table-wrapper">
+          <table className="data-table workspace-table">
+            <thead>
+              <tr>
+                <th>月份</th>
+                {YEAR_RECORD_INCOME_FIELDS.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
+                {YEAR_RECORD_INCOME_TEXT_FIELDS.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
+                {YEAR_RECORD_DEDUCTION_FIELDS.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
+                <th>减除费用</th>
+                {YEAR_RECORD_TEXT_FIELDS.map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const isSelected = row.taxMonth === selectedMonth;
+                const isLocked = lockedMonthSet.has(row.taxMonth);
+                const isDisabled = readOnly || isLocked;
+
+                return (
+                  <tr
+                    key={row.taxMonth}
+                    className={isSelected ? "selectable-row is-selected" : "selectable-row"}
+                    onClick={() => onSelectMonth(row.taxMonth)}
+                  >
+                    <td>
+                      <strong>{row.taxMonth} 月</strong>
+                      {isLocked ? <div className="tag tag-warning">已确认</div> : null}
+                    </td>
+                    {YEAR_RECORD_INCOME_FIELDS.map((field) => (
+                      <td key={`${row.taxMonth}-${field.key}`}>
+                        <input
+                          className="table-input"
+                          disabled={isDisabled}
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={row[field.key]}
+                          onChange={(event) =>
+                            onChangeRow?.(row.taxMonth, field.key, Number(event.target.value) || 0)
+                          }
+                        />
+                      </td>
+                    ))}
+                    {YEAR_RECORD_INCOME_TEXT_FIELDS.map((field) => (
+                      <td key={`${row.taxMonth}-${field.key}`}>
+                        <input
+                          className="table-input"
+                          disabled={isDisabled}
+                          type="text"
+                          value={row[field.key]}
+                          onChange={(event) =>
+                            onChangeRow?.(row.taxMonth, field.key, event.target.value)
+                          }
+                        />
+                      </td>
+                    ))}
+                    {YEAR_RECORD_DEDUCTION_FIELDS.map((field) => (
+                      <td key={`${row.taxMonth}-${field.key}`}>
+                        <input
+                          className="table-input"
+                          disabled={isDisabled}
+                          min="0"
+                          step="0.01"
+                          type="number"
+                          value={row[field.key]}
+                          onChange={(event) =>
+                            onChangeRow?.(row.taxMonth, field.key, Number(event.target.value) || 0)
+                          }
+                        />
+                      </td>
+                    ))}
+                    <td>
+                      <input
+                        className="table-input"
+                        disabled
+                        type="number"
+                        value={basicDeductionAmount}
+                      />
+                    </td>
+                    {YEAR_RECORD_TEXT_FIELDS.map((field) => (
+                      <td key={`${row.taxMonth}-${field.key}`}>
+                        <input
+                          className="table-input"
+                          disabled={isDisabled}
+                          type="text"
+                          value={row[field.key]}
+                          onChange={(event) =>
+                            onChangeRow?.(row.taxMonth, field.key, event.target.value)
+                          }
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};

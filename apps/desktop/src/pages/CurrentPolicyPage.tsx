@@ -61,7 +61,7 @@ export const CurrentPolicyPage = () => {
         const nextPolicy = await apiClient.getTaxPolicy(currentUnitId, currentTaxYear);
         setPolicy(nextPolicy);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "加载当前政策失败");
+        setErrorMessage(error instanceof Error ? error.message : "加载政策参考失败");
         setPolicy(null);
       } finally {
         setLoading(false);
@@ -81,7 +81,7 @@ export const CurrentPolicyPage = () => {
       <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
-            <h1>当前政策</h1>
+            <h1>政策参考</h1>
             <p>
               当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear ?? "-"} 年
             </p>
@@ -163,7 +163,7 @@ export const CurrentPolicyPage = () => {
         <div className="section-header">
           <div>
             <h2>扣除项说明</h2>
-            <p>由系统维护模块维护标题、正文与插图。</p>
+            <p>标题、正文与插图由系统维护模块统一维护。</p>
           </div>
         </div>
 
@@ -171,7 +171,7 @@ export const CurrentPolicyPage = () => {
           <strong>{policy?.policyTitle || "未设置标题"}</strong>
           {policy?.policyIllustrationDataUrl ? (
             <img
-              alt={policy.policyTitle || "当前政策插图"}
+              alt={policy.policyTitle || "政策参考插图"}
               className="policy-illustration"
               src={policy.policyIllustrationDataUrl}
             />

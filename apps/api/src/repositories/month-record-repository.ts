@@ -1,16 +1,12 @@
-import type {
-  EmployeeMonthRecord,
-  MonthRecordStatus,
-  UpsertEmployeeMonthRecordPayload,
-} from "@dude-tax/core";
+import type { EmployeeMonthRecord, UpsertEmployeeMonthRecordPayload } from "@dude-tax/core";
 import { database } from "../db/database.js";
+
 const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord => ({
   id: Number(row.id),
   unitId: Number(row.unit_id),
   employeeId: Number(row.employee_id),
   taxYear: Number(row.tax_year),
   taxMonth: Number(row.tax_month),
-  status: String(row.status) as MonthRecordStatus,
   salaryIncome: Number(row.salary_income),
   annualBonus: Number(row.annual_bonus),
   pensionInsurance: Number(row.pension_insurance),
@@ -21,6 +17,8 @@ const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord 
   unemploymentInsurance: Number(row.unemployment_insurance),
   workInjuryInsurance: Number(row.work_injury_insurance),
   withheldTax: Number(row.withheld_tax ?? 0),
+  otherIncome: Number(row.supplementary_salary_income ?? 0),
+  otherIncomeRemark: String(row.supplementary_remark ?? ""),
   supplementarySalaryIncome: Number(row.supplementary_salary_income ?? 0),
   supplementaryWithheldTaxAdjustment: Number(row.supplementary_withheld_tax_adjustment ?? 0),
   supplementarySourcePeriodLabel: String(row.supplementary_source_period_label ?? ""),
@@ -37,6 +35,7 @@ const mapRowToMonthRecord = (row: Record<string, unknown>): EmployeeMonthRecord 
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at),
 });
+
 const createDefaultMonthRecord = (
   unitId: number,
   employeeId: number,
@@ -48,7 +47,6 @@ const createDefaultMonthRecord = (
   employeeId,
   taxYear,
   taxMonth,
-  status: "incomplete",
   salaryIncome: 0,
   annualBonus: 0,
   pensionInsurance: 0,
@@ -59,6 +57,8 @@ const createDefaultMonthRecord = (
   unemploymentInsurance: 0,
   workInjuryInsurance: 0,
   withheldTax: 0,
+  otherIncome: 0,
+  otherIncomeRemark: "",
   supplementarySalaryIncome: 0,
   supplementaryWithheldTaxAdjustment: 0,
   supplementarySourcePeriodLabel: "",
@@ -75,6 +75,7 @@ const createDefaultMonthRecord = (
   createdAt: null,
   updatedAt: null,
 });
+
 const numericFields = [
   "salaryIncome",
   "annualBonus",
@@ -86,8 +87,7 @@ const numericFields = [
   "unemploymentInsurance",
   "workInjuryInsurance",
   "withheldTax",
-  "supplementarySalaryIncome",
-  "supplementaryWithheldTaxAdjustment",
+  "otherIncome",
   "infantCareDeduction",
   "childEducationDeduction",
   "continuingEducationDeduction",
@@ -97,6 +97,7 @@ const numericFields = [
   "otherDeduction",
   "taxReductionExemption",
 ] as const;
+
 export const monthRecordRepository = {
   listExistingByUnitAndYears(unitId: number, taxYears: number[]): EmployeeMonthRecord[] {
     if (!taxYears.length) {
@@ -106,46 +107,64 @@ export const monthRecordRepository = {
     const placeholders = taxYears.map(() => "?").join(", ");
     const rows = database
       .prepare(
-        `           SELECT *           FROM employee_month_records           WHERE unit_id = ?             AND tax_year IN (${placeholders})           ORDER BY employee_id ASC, tax_year ASC, tax_month ASC         `,
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE unit_id = ?
+            AND tax_year IN (${placeholders})
+          ORDER BY employee_id ASC, tax_year ASC, tax_month ASC
+        `,
       )
       .all(unitId, ...taxYears) as Record<string, unknown>[];
 
     return rows.map(mapRowToMonthRecord);
   },
+
   listCompletedByEmployeeIdsAndYear(employeeIds: number[], taxYear: number): EmployeeMonthRecord[] {
     if (!employeeIds.length) {
       return [];
     }
+
     const placeholders = employeeIds.map(() => "?").join(", ");
     const rows = database
       .prepare(
-        `           SELECT *           FROM employee_month_records           WHERE tax_year = ?             AND status = 'completed'             AND employee_id IN (${placeholders})           ORDER BY tax_month ASC, created_at ASC         `,
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE tax_year = ?
+            AND employee_id IN (${placeholders})
+          ORDER BY tax_month ASC, created_at ASC
+        `,
       )
       .all(taxYear, ...employeeIds) as Record<string, unknown>[];
+
     return rows.map(mapRowToMonthRecord);
   },
-  listByEmployeeAndYear(
-    unitId: number,
-    employeeId: number,
-    taxYear: number,
-  ): EmployeeMonthRecord[] {
+
+  listByEmployeeAndYear(unitId: number, employeeId: number, taxYear: number): EmployeeMonthRecord[] {
     const rows = database
       .prepare(
-        `           SELECT *           FROM employee_month_records           WHERE unit_id = ? AND employee_id = ? AND tax_year = ?           ORDER BY tax_month ASC         `,
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+          ORDER BY tax_month ASC
+        `,
       )
       .all(unitId, employeeId, taxYear) as Record<string, unknown>[];
+
     const recordMap = new Map<number, EmployeeMonthRecord>();
     rows.forEach((row) => {
       const record = mapRowToMonthRecord(row);
       recordMap.set(record.taxMonth, record);
     });
+
     return Array.from({ length: 12 }, (_, index) => {
       const taxMonth = index + 1;
-      return (
-        recordMap.get(taxMonth) ?? createDefaultMonthRecord(unitId, employeeId, taxYear, taxMonth)
-      );
+      return recordMap.get(taxMonth) ?? createDefaultMonthRecord(unitId, employeeId, taxYear, taxMonth);
     });
   },
+
   upsert(
     unitId: number,
     employeeId: number,
@@ -155,40 +174,111 @@ export const monthRecordRepository = {
   ): EmployeeMonthRecord {
     const now = new Date().toISOString();
     const values = numericFields.map((field) => payload[field] ?? 0);
-    const supplementarySourcePeriodLabel = payload.supplementarySourcePeriodLabel?.trim() ?? "";
-    const supplementaryRemark = payload.supplementaryRemark?.trim() ?? "";
+    const otherIncomeRemark = payload.otherIncomeRemark?.trim() ?? "";
+
     database
       .prepare(
-        `           INSERT INTO employee_month_records (             unit_id,             employee_id,             tax_year,             tax_month,             status,             salary_income,             annual_bonus,             pension_insurance,             medical_insurance,             occupational_annuity,             housing_fund,             supplementary_housing_fund,             unemployment_insurance,             work_injury_insurance,             withheld_tax,             supplementary_salary_income,             supplementary_withheld_tax_adjustment,             infant_care_deduction,             child_education_deduction,             continuing_education_deduction,             housing_loan_interest_deduction,             housing_rent_deduction,             elder_care_deduction,             other_deduction,             tax_reduction_exemption,             remark,             supplementary_source_period_label,             supplementary_remark,             created_at,             updated_at           )           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)           ON CONFLICT(unit_id, employee_id, tax_year, tax_month) DO UPDATE SET             status = excluded.status,             salary_income = excluded.salary_income,             annual_bonus = excluded.annual_bonus,             pension_insurance = excluded.pension_insurance,             medical_insurance = excluded.medical_insurance,             occupational_annuity = excluded.occupational_annuity,             housing_fund = excluded.housing_fund,             supplementary_housing_fund = excluded.supplementary_housing_fund,             unemployment_insurance = excluded.unemployment_insurance,             work_injury_insurance = excluded.work_injury_insurance,             withheld_tax = excluded.withheld_tax,             supplementary_salary_income = excluded.supplementary_salary_income,             supplementary_withheld_tax_adjustment = excluded.supplementary_withheld_tax_adjustment,             infant_care_deduction = excluded.infant_care_deduction,             child_education_deduction = excluded.child_education_deduction,             continuing_education_deduction = excluded.continuing_education_deduction,             housing_loan_interest_deduction = excluded.housing_loan_interest_deduction,             housing_rent_deduction = excluded.housing_rent_deduction,             elder_care_deduction = excluded.elder_care_deduction,             other_deduction = excluded.other_deduction,             tax_reduction_exemption = excluded.tax_reduction_exemption,             remark = excluded.remark,             supplementary_source_period_label = excluded.supplementary_source_period_label,             supplementary_remark = excluded.supplementary_remark,             updated_at = excluded.updated_at         `,
+        `
+          INSERT INTO employee_month_records (
+            unit_id,
+            employee_id,
+            tax_year,
+            tax_month,
+            status,
+            salary_income,
+            annual_bonus,
+            pension_insurance,
+            medical_insurance,
+            occupational_annuity,
+            housing_fund,
+            supplementary_housing_fund,
+            unemployment_insurance,
+            work_injury_insurance,
+            withheld_tax,
+            supplementary_salary_income,
+            supplementary_withheld_tax_adjustment,
+            infant_care_deduction,
+            child_education_deduction,
+            continuing_education_deduction,
+            housing_loan_interest_deduction,
+            housing_rent_deduction,
+            elder_care_deduction,
+            other_deduction,
+            tax_reduction_exemption,
+            remark,
+            supplementary_source_period_label,
+            supplementary_remark,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)
+          ON CONFLICT(unit_id, employee_id, tax_year, tax_month) DO UPDATE SET
+            status = 'completed',
+            salary_income = excluded.salary_income,
+            annual_bonus = excluded.annual_bonus,
+            pension_insurance = excluded.pension_insurance,
+            medical_insurance = excluded.medical_insurance,
+            occupational_annuity = excluded.occupational_annuity,
+            housing_fund = excluded.housing_fund,
+            supplementary_housing_fund = excluded.supplementary_housing_fund,
+            unemployment_insurance = excluded.unemployment_insurance,
+            work_injury_insurance = excluded.work_injury_insurance,
+            withheld_tax = excluded.withheld_tax,
+            supplementary_salary_income = excluded.supplementary_salary_income,
+            supplementary_withheld_tax_adjustment = 0,
+            infant_care_deduction = excluded.infant_care_deduction,
+            child_education_deduction = excluded.child_education_deduction,
+            continuing_education_deduction = excluded.continuing_education_deduction,
+            housing_loan_interest_deduction = excluded.housing_loan_interest_deduction,
+            housing_rent_deduction = excluded.housing_rent_deduction,
+            elder_care_deduction = excluded.elder_care_deduction,
+            other_deduction = excluded.other_deduction,
+            tax_reduction_exemption = excluded.tax_reduction_exemption,
+            remark = excluded.remark,
+            supplementary_source_period_label = '',
+            supplementary_remark = excluded.supplementary_remark,
+            updated_at = excluded.updated_at
+        `,
       )
       .run(
         unitId,
         employeeId,
         taxYear,
         taxMonth,
-        payload.status,
         ...values,
         payload.remark?.trim() ?? "",
-        supplementarySourcePeriodLabel,
-        supplementaryRemark,
+        otherIncomeRemark,
         now,
         now,
       );
+
     database
       .prepare(
-        `           DELETE FROM annual_calculation_runs           WHERE unit_id = ? AND employee_id = ? AND tax_year = ?         `,
+        `
+          DELETE FROM annual_calculation_runs
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+        `,
       )
       .run(unitId, employeeId, taxYear);
     database
       .prepare(
-        `           DELETE FROM annual_tax_results           WHERE unit_id = ? AND employee_id = ? AND tax_year = ?         `,
+        `
+          DELETE FROM annual_tax_results
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+        `,
       )
       .run(unitId, employeeId, taxYear);
+
     const row = database
       .prepare(
-        `           SELECT *           FROM employee_month_records           WHERE unit_id = ? AND employee_id = ? AND tax_year = ? AND tax_month = ?         `,
+        `
+          SELECT *
+          FROM employee_month_records
+          WHERE unit_id = ? AND employee_id = ? AND tax_year = ? AND tax_month = ?
+        `,
       )
       .get(unitId, employeeId, taxYear, taxMonth) as Record<string, unknown>;
+
     return mapRowToMonthRecord(row);
   },
 };

@@ -81,9 +81,9 @@ export const HomePage = () => {
   const reminderItems = useMemo(
     () => [
       {
-        title: "待重算",
-        description: "点击前往计算中心查看尚未重算或已失效的员工。",
-        path: "/calculation",
+        title: "待结果确认",
+        description: "点击前往结果确认查看尚未确认或需重新确认的员工结果。",
+        path: "/result-confirmation",
         count: statuses.filter(
           (status) =>
             status.preparationStatus === "ready" &&
@@ -143,7 +143,7 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h1>首页</h1>
-            <p>这是当前单位和年份的工作总控台。</p>
+            <p>这里是当前单位和年份的工作总控台。</p>
           </div>
           <span className="tag">
             {loading || reminderLoading || taxPolicyLoading ? "加载中" : "工作提醒已联动"}
@@ -174,7 +174,7 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h2>工作提醒</h2>
-            <p>点击条目即可跳转到待编辑的目标模块。</p>
+            <p>点击条目即可跳转到待处理模块。</p>
           </div>
         </div>
 
@@ -195,7 +195,7 @@ export const HomePage = () => {
         <div className="section-header">
           <div>
             <h2>工作建议</h2>
-            <p>根据当前单位、年份和数据准备状态，给出下一步建议入口。</p>
+            <p>根据当前单位、年份和准备状态，给出下一步建议入口。</p>
           </div>
         </div>
 

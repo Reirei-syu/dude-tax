@@ -4,13 +4,12 @@ export const MODULE_NAV_ITEMS = [
   { path: "/", label: "首页", isPlaceholder: false },
   { path: "/units", label: "单位管理", isPlaceholder: false },
   { path: "/employees", label: "员工信息", isPlaceholder: false },
+  { path: "/quick-calc", label: "快速计算", isPlaceholder: false },
   { path: "/entry", label: "月度数据录入", isPlaceholder: false },
   { path: "/import", label: "批量导入", isPlaceholder: false },
-  { path: "/quick-calc", label: "快速计算", isPlaceholder: false },
-  { path: "/calculation", label: "计算中心", isPlaceholder: false },
-  { path: "/results", label: "结果中心", isPlaceholder: false },
+  { path: "/result-confirmation", label: "结果确认", isPlaceholder: false },
   { path: "/history", label: "历史查询", isPlaceholder: false },
-  { path: "/policy", label: "当前政策", isPlaceholder: false },
+  { path: "/policy", label: "政策参考", isPlaceholder: false },
   { path: "/maintenance", label: "系统维护", isPlaceholder: false },
 ] as const;
 

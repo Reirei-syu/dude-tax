@@ -55,7 +55,13 @@ export type UpdateEmployeePayload = CreateEmployeePayload;
 
 export type MonthRecordStatus = "incomplete" | "completed";
 
-export type EmployeeMonthSupplementaryAdjustmentFields = {
+export type EmployeeMonthOtherIncomeFields = {
+  otherIncome?: number;
+  otherIncomeRemark?: string;
+};
+
+export type EmployeeMonthLegacyCompatibilityFields = {
+  status?: MonthRecordStatus;
   supplementarySalaryIncome?: number;
   supplementaryWithheldTaxAdjustment?: number;
   supplementarySourcePeriodLabel?: string;
@@ -68,7 +74,6 @@ export type EmployeeMonthRecord = {
   employeeId: number;
   taxYear: number;
   taxMonth: number;
-  status: MonthRecordStatus;
   salaryIncome: number;
   annualBonus: number;
   pensionInsurance: number;
@@ -90,10 +95,35 @@ export type EmployeeMonthRecord = {
   remark: string;
   createdAt: string | null;
   updatedAt: string | null;
-} & EmployeeMonthSupplementaryAdjustmentFields;
+} & EmployeeMonthOtherIncomeFields &
+  EmployeeMonthLegacyCompatibilityFields;
+
+export type EmployeeYearEntryOverview = {
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  totalWithheldTax: number;
+  optimalScheme: TaxCalculationScheme | null;
+  uneditedMonths: number[];
+};
+
+export type YearEntryOverviewResponse = {
+  selectedMonths: number[];
+  totalWithheldTax: number;
+  employees: EmployeeYearEntryOverview[];
+};
+
+export type EmployeeYearRecordWorkspace = {
+  unitId: number;
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  taxYear: number;
+  lockedMonths: number[];
+  months: EmployeeMonthRecord[];
+};
 
 export type UpsertEmployeeMonthRecordPayload = {
-  status: MonthRecordStatus;
   salaryIncome: number;
   annualBonus: number;
   pensionInsurance: number;
@@ -113,7 +143,16 @@ export type UpsertEmployeeMonthRecordPayload = {
   otherDeduction: number;
   taxReductionExemption: number;
   remark?: string;
-} & EmployeeMonthSupplementaryAdjustmentFields;
+} & EmployeeMonthOtherIncomeFields &
+  EmployeeMonthLegacyCompatibilityFields;
+
+export type YearRecordUpsertItem = UpsertEmployeeMonthRecordPayload & {
+  taxMonth: number;
+};
+
+export type BatchUpsertEmployeeYearRecordsPayload = {
+  months: YearRecordUpsertItem[];
+};
 
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
 
@@ -435,6 +474,29 @@ export type AnnualTaxResultVersion = EmployeeAnnualTaxResult & {
   invalidatedReason: ResultInvalidationReason | null;
 };
 
+export type MonthConfirmationStatus = {
+  taxMonth: number;
+  isConfirmed: boolean;
+  confirmedAt: string | null;
+  canConfirm: boolean;
+  canUnconfirm: boolean;
+  blockedReason: string | null;
+};
+
+export type MonthConfirmationState = {
+  lastConfirmedMonth: number;
+  months: MonthConfirmationStatus[];
+};
+
+export type ConfirmedAnnualResultSummary = EmployeeAnnualTaxResult & {
+  confirmedMonthCount: number;
+  confirmedMonths: number[];
+};
+
+export type ConfirmedAnnualResultDetail = ConfirmedAnnualResultSummary & {
+  months: EmployeeMonthRecord[];
+};
+
 export type UpdateAnnualResultSelectedSchemePayload = {
   selectedScheme: TaxCalculationScheme;
 };
@@ -500,13 +562,16 @@ export type HistoryAnnualTaxQuery = {
 export {
   buildMonthlyWithholdingTrace,
   calculateEmployeeAnnualTax,
+  calculateEmployeeAnnualTaxForMonths,
   getActualWithheldTaxForWithholding,
   getSalaryIncomeForWithholding,
-  hasSupplementaryAdjustments,
+  hasOtherIncomeEntry,
 } from "./annual-tax-calculator.js";
 export {
   deriveEmployeeGeneralStatus,
   deriveEmployeeMonthStatus,
+  isEmployeeActiveInTaxMonth,
+  isEmployeeActiveInTaxYear,
 } from "./employee-status.js";
 export { buildMonthRecordDataSignature } from "./month-record-data-signature.js";
 export {

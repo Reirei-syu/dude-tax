@@ -4,12 +4,16 @@ import type {
   AnnualTaxResultVersion,
   AnnualTaxWithholdingContext,
   AppContext,
+  BatchUpsertEmployeeYearRecordsPayload,
+  ConfirmedAnnualResultDetail,
+  ConfirmedAnnualResultSummary,
   CreateEmployeePayload,
   CreateUnitPayload,
   DeleteUnitChallenge,
   Employee,
   EmployeeAnnualTaxResult,
   EmployeeCalculationStatus,
+  EmployeeYearRecordWorkspace,
   EmployeeMonthRecord,
   HistoryAnnualTaxQuery,
   HistoryAnnualTaxResult,
@@ -19,6 +23,7 @@ import type {
   ImportPreviewResponse,
   ImportSummary,
   ImportType,
+  MonthConfirmationState,
   QuickCalculatePayload,
   TaxPolicyResponse,
   TaxPolicySaveResponse,
@@ -27,6 +32,7 @@ import type {
   Unit,
   UpdateAnnualResultSelectedSchemePayload,
   UpsertEmployeeMonthRecordPayload,
+  YearEntryOverviewResponse,
 } from "@dude-tax/core";
 
 const resolveApiBaseUrl = () =>
@@ -155,6 +161,92 @@ export const apiClient = {
         method: "PUT",
         body: JSON.stringify(payload),
       },
+    );
+  },
+
+  getYearEntryOverview(unitId: number, taxYear: number, selectedMonths: number[]) {
+    const searchParams = new URLSearchParams();
+    if (selectedMonths.length) {
+      searchParams.set("months", selectedMonths.join(","));
+    }
+
+    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<YearEntryOverviewResponse>(
+      `/api/units/${unitId}/years/${taxYear}/year-entry-overview${suffix}`,
+    );
+  },
+
+  getEmployeeYearWorkspace(unitId: number, taxYear: number, employeeId: number) {
+    return request<EmployeeYearRecordWorkspace>(
+      `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/year-record-workspace`,
+    );
+  },
+
+  saveEmployeeYearWorkspace(
+    unitId: number,
+    taxYear: number,
+    employeeId: number,
+    payload: BatchUpsertEmployeeYearRecordsPayload,
+  ) {
+    return request<EmployeeYearRecordWorkspace>(
+      `/api/units/${unitId}/years/${taxYear}/employees/${employeeId}/year-record-workspace`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  getMonthConfirmationState(unitId: number, taxYear: number) {
+    return request<MonthConfirmationState>(
+      `/api/units/${unitId}/years/${taxYear}/month-confirmations`,
+    );
+  },
+
+  confirmMonth(unitId: number, taxYear: number, taxMonth: number) {
+    return request<MonthConfirmationState>(
+      `/api/units/${unitId}/years/${taxYear}/month-confirmations/${taxMonth}/confirm`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  unconfirmMonth(unitId: number, taxYear: number, taxMonth: number) {
+    return request<MonthConfirmationState>(
+      `/api/units/${unitId}/years/${taxYear}/month-confirmations/${taxMonth}/unconfirm`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  listConfirmedResults(unitId: number, taxYear: number, throughMonth?: number) {
+    const searchParams = new URLSearchParams();
+    if (throughMonth) {
+      searchParams.set("throughMonth", String(throughMonth));
+    }
+
+    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<ConfirmedAnnualResultSummary[]>(
+      `/api/units/${unitId}/years/${taxYear}/confirmed-results${suffix}`,
+    );
+  },
+
+  getConfirmedResultDetail(
+    unitId: number,
+    taxYear: number,
+    employeeId: number,
+    throughMonth?: number,
+  ) {
+    const searchParams = new URLSearchParams();
+    if (throughMonth) {
+      searchParams.set("throughMonth", String(throughMonth));
+    }
+
+    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<ConfirmedAnnualResultDetail>(
+      `/api/units/${unitId}/years/${taxYear}/confirmed-results/${employeeId}${suffix}`,
     );
   },
 

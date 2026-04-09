@@ -6,9 +6,9 @@ import type {
   AnnualTaxWithholdingTrace,
   AnnualTaxWithholdingTraceItem,
   EmployeeMonthRecord,
+  TaxCalculationScheme,
   TaxPolicySettings,
   TaxSettlementDirection,
-  TaxCalculationScheme,
 } from "./index.js";
 import { buildDefaultTaxPolicySettings } from "./tax-policy.js";
 
@@ -45,23 +45,16 @@ const getSpecialAdditionalDeductionTotal = (record: EmployeeMonthRecord) =>
   record.housingRentDeduction +
   record.elderCareDeduction;
 
-const getSupplementarySalaryIncome = (record: EmployeeMonthRecord) =>
-  roundCurrency(record.supplementarySalaryIncome ?? 0);
-
-const getSupplementaryWithheldTaxAdjustment = (record: EmployeeMonthRecord) =>
-  roundCurrency(record.supplementaryWithheldTaxAdjustment ?? 0);
+const getOtherIncome = (record: EmployeeMonthRecord) => roundCurrency(record.otherIncome ?? 0);
 
 export const getSalaryIncomeForWithholding = (record: EmployeeMonthRecord) =>
-  roundCurrency(record.salaryIncome + getSupplementarySalaryIncome(record));
+  roundCurrency(record.salaryIncome + getOtherIncome(record));
 
 export const getActualWithheldTaxForWithholding = (record: EmployeeMonthRecord) =>
-  roundCurrency(record.withheldTax + getSupplementaryWithheldTaxAdjustment(record));
+  roundCurrency(record.withheldTax);
 
-export const hasSupplementaryAdjustments = (record: EmployeeMonthRecord) =>
-  getSupplementarySalaryIncome(record) !== 0 ||
-  getSupplementaryWithheldTaxAdjustment(record) !== 0 ||
-  Boolean(record.supplementarySourcePeriodLabel?.trim()) ||
-  Boolean(record.supplementaryRemark?.trim());
+export const hasOtherIncomeEntry = (record: EmployeeMonthRecord) =>
+  getOtherIncome(record) !== 0 || Boolean(record.otherIncomeRemark?.trim());
 
 const resolveWithholdingMode = (
   context: AnnualTaxWithholdingContext,
@@ -98,20 +91,31 @@ const getCumulativeBasicDeduction = (
   return roundCurrency(monthlyBasicDeduction * processedMonthCount);
 };
 
+const sortByTaxMonth = (records: EmployeeMonthRecord[]) =>
+  [...records].sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
+
+const pickComprehensiveBracket = (annualTaxableIncome: number, taxPolicy: TaxPolicySettings) =>
+  taxPolicy.comprehensiveTaxBrackets.find(
+    (bracket) => bracket.maxAnnualIncome === null || annualTaxableIncome <= bracket.maxAnnualIncome,
+  ) ?? taxPolicy.comprehensiveTaxBrackets[taxPolicy.comprehensiveTaxBrackets.length - 1];
+
+const pickBonusBracket = (averageMonthlyBonus: number, taxPolicy: TaxPolicySettings) =>
+  taxPolicy.bonusTaxBrackets.find(
+    (bracket) =>
+      bracket.maxAverageMonthlyIncome === null ||
+      averageMonthlyBonus <= bracket.maxAverageMonthlyIncome,
+  ) ?? taxPolicy.bonusTaxBrackets[taxPolicy.bonusTaxBrackets.length - 1];
+
 export const buildMonthlyWithholdingTrace = (
   records: EmployeeMonthRecord[],
   context: AnnualTaxWithholdingContext = {},
   taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
 ): AnnualTaxWithholdingTrace => {
-  const completedRecords = [...records]
-    .filter((record) => record.status === "completed")
-    .sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
-  const carryInCompletedRecords = [...(context.carryInCompletedRecords ?? [])]
-    .filter((record) => record.status === "completed")
-    .sort((leftRecord, rightRecord) => leftRecord.taxMonth - rightRecord.taxMonth);
+  const effectiveRecords = sortByTaxMonth(records);
+  const carryInRecords = sortByTaxMonth(context.carryInCompletedRecords ?? []);
 
-  if (!completedRecords.length) {
-    throw new Error("当前员工暂无已完成月份，无法生成预扣预缴轨迹");
+  if (!effectiveRecords.length) {
+    throw new Error("当前员工暂无有效月份，无法生成预扣预缴轨迹");
   }
 
   const mode = resolveWithholdingMode(context);
@@ -123,8 +127,8 @@ export const buildMonthlyWithholdingTrace = (
   let previousCumulativeExpectedWithheldTax = 0;
 
   const processedRecords = [
-    ...carryInCompletedRecords.map((record) => ({ record, isCarryIn: true })),
-    ...completedRecords.map((record) => ({ record, isCarryIn: false })),
+    ...carryInRecords.map((record) => ({ record, isCarryIn: true })),
+    ...effectiveRecords.map((record) => ({ record, isCarryIn: false })),
   ].sort((leftEntry, rightEntry) => leftEntry.record.taxMonth - rightEntry.record.taxMonth);
 
   const items = processedRecords.flatMap((entry, index) => {
@@ -222,19 +226,6 @@ export const buildMonthlyWithholdingTrace = (
   };
 };
 
-const pickComprehensiveBracket = (annualTaxableIncome: number, taxPolicy: TaxPolicySettings) =>
-  taxPolicy.comprehensiveTaxBrackets.find(
-    (bracket) => bracket.maxAnnualIncome === null || annualTaxableIncome <= bracket.maxAnnualIncome,
-  ) ??
-  taxPolicy.comprehensiveTaxBrackets[taxPolicy.comprehensiveTaxBrackets.length - 1];
-
-const pickBonusBracket = (averageMonthlyBonus: number, taxPolicy: TaxPolicySettings) =>
-  taxPolicy.bonusTaxBrackets.find(
-    (bracket) =>
-      bracket.maxAverageMonthlyIncome === null ||
-      averageMonthlyBonus <= bracket.maxAverageMonthlyIncome,
-  ) ?? taxPolicy.bonusTaxBrackets[taxPolicy.bonusTaxBrackets.length - 1];
-
 const buildSchemeResult = (
   scheme: TaxCalculationScheme,
   taxableComprehensiveIncome: number,
@@ -282,7 +273,7 @@ const buildSeparateBonusScheme = (
     ? roundCurrency(annualBonusTotal * (bonusBracket.rate / 100) - bonusBracket.quickDeduction)
     : 0;
 
-  const schemeResult = buildSchemeResult(
+  return buildSchemeResult(
     "separate_bonus",
     salaryOnlyTaxableIncome,
     annualBonusTax,
@@ -290,58 +281,54 @@ const buildSeparateBonusScheme = (
     bonusBracket?.level ?? null,
     taxPolicy,
   );
-  return schemeResult;
 };
 
 const buildCombinedBonusScheme = (
   combinedTaxableIncome: number,
   taxReductionExemptionTotal: number,
   taxPolicy: TaxPolicySettings,
-): AnnualTaxSchemeResult => ({
-  ...buildSchemeResult(
+): AnnualTaxSchemeResult =>
+  buildSchemeResult(
     "combined_bonus",
     combinedTaxableIncome,
     0,
     taxReductionExemptionTotal,
     null,
     taxPolicy,
-  ),
-});
+  );
 
 export const calculateEmployeeAnnualTax = (
   records: EmployeeMonthRecord[],
   taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
   withholdingContext: AnnualTaxWithholdingContext = {},
 ): AnnualTaxCalculation => {
-  const completedRecords = records.filter((record) => record.status === "completed");
-  if (!completedRecords.length) {
-    throw new Error("当前员工暂无已完成月份，无法执行年度计算");
+  const effectiveRecords = sortByTaxMonth(records);
+  if (!effectiveRecords.length) {
+    throw new Error("当前员工暂无有效月份，无法执行年度计算");
   }
 
-  const completedMonthCount = completedRecords.length;
+  const completedMonthCount = effectiveRecords.length;
   const salaryIncomeTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + getSalaryIncomeForWithholding(record), 0),
+    effectiveRecords.reduce((sum, record) => sum + getSalaryIncomeForWithholding(record), 0),
   );
   const annualBonusTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + record.annualBonus, 0),
+    effectiveRecords.reduce((sum, record) => sum + record.annualBonus, 0),
   );
   const insuranceAndHousingFundTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + getInsuranceAndHousingFundTotal(record), 0),
+    effectiveRecords.reduce((sum, record) => sum + getInsuranceAndHousingFundTotal(record), 0),
   );
   const specialAdditionalDeductionTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + getSpecialAdditionalDeductionTotal(record), 0),
+    effectiveRecords.reduce((sum, record) => sum + getSpecialAdditionalDeductionTotal(record), 0),
   );
   const otherDeductionTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + record.otherDeduction, 0),
+    effectiveRecords.reduce((sum, record) => sum + record.otherDeduction, 0),
   );
   const taxReductionExemptionTotal = roundCurrency(
-    completedRecords.reduce((sum, record) => sum + record.taxReductionExemption, 0),
+    effectiveRecords.reduce((sum, record) => sum + record.taxReductionExemption, 0),
   );
-  const withholdingTrace = buildMonthlyWithholdingTrace(records, withholdingContext, taxPolicy);
+  const withholdingTrace = buildMonthlyWithholdingTrace(effectiveRecords, withholdingContext, taxPolicy);
   const annualTaxWithheld = withholdingTrace.summary.actualWithheldTaxTotal;
-  const basicDeductionTotal = roundCurrency(
-    taxPolicy.basicDeductionAmount * completedMonthCount,
-  );
+  const basicDeductionTotal = roundCurrency(taxPolicy.basicDeductionAmount * completedMonthCount);
   const deductibleTotal = roundCurrency(
     insuranceAndHousingFundTotal +
       specialAdditionalDeductionTotal +
@@ -397,4 +384,18 @@ export const calculateEmployeeAnnualTax = (
       combinedBonus,
     },
   };
+};
+
+export const calculateEmployeeAnnualTaxForMonths = (
+  records: EmployeeMonthRecord[],
+  selectedMonths: number[],
+  taxPolicy: TaxPolicySettings = buildDefaultTaxPolicySettings(),
+  withholdingContext: AnnualTaxWithholdingContext = {},
+) => {
+  const selectedMonthSet = new Set(selectedMonths);
+  return calculateEmployeeAnnualTax(
+    records.filter((record) => selectedMonthSet.has(record.taxMonth)),
+    taxPolicy,
+    withholdingContext,
+  );
 };

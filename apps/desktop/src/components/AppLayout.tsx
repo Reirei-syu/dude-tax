@@ -40,8 +40,8 @@ export const AppLayout = () => {
               disabled={loading || !context?.units.length}
               value={context?.currentUnitId ?? ""}
               onChange={(event) => {
-                const nextValue = event.target.value ? Number(event.target.value) : null;
-                void updateContext({ currentUnitId: nextValue });
+                const nextUnitId = event.target.value ? Number(event.target.value) : null;
+                void updateContext({ currentUnitId: nextUnitId });
               }}
             >
               {!context?.units.length ? <option value="">请先创建单位</option> : null}
@@ -65,17 +65,17 @@ export const AppLayout = () => {
                 void updateContext({ currentTaxYear: Number(event.target.value) });
               }}
             >
-              {!availableTaxYears.length ? <option value="">请先在单位中新增年份</option> : null}
+              {!availableTaxYears.length ? <option value="">请先在单位管理中新增年份</option> : null}
               {availableTaxYears.map((year) => (
                 <option key={year} value={year}>
-                  {year} 年度
+                  {year} 年
                 </option>
               ))}
             </select>
           </div>
 
           <div className="context-summary">
-            <div>先选单位和年份，再进入后续工作模块。</div>
+            <div>请先确定单位和年份，再进入具体业务模块。</div>
             <strong>
               {currentUnit?.unitName ?? "未选择单位"} / {context?.currentTaxYear ?? "-"} 年
             </strong>

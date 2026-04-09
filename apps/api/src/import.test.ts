@@ -187,9 +187,9 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
   const firstMonthRecord = records.find((record) => record.taxMonth === 1);
   assert.equal(firstMonthRecord?.salaryIncome, 8000);
   assert.equal(firstMonthRecord?.withheldTax, 100);
-  assert.equal(firstMonthRecord?.supplementarySalaryIncome, 2500);
-  assert.equal(firstMonthRecord?.supplementaryWithheldTaxAdjustment, 80);
-  assert.equal(firstMonthRecord?.supplementarySourcePeriodLabel, "2026-01");
+  assert.equal(firstMonthRecord?.otherIncome, 2500);
+  assert.equal(firstMonthRecord?.supplementaryWithheldTaxAdjustment, 0);
+  assert.equal(firstMonthRecord?.supplementarySourcePeriodLabel, "");
   assert.equal(firstMonthRecord?.supplementaryRemark, "补发绩效");
   assert.equal(firstMonthRecord?.remark, "覆盖导入");
 

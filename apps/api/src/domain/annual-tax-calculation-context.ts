@@ -16,8 +16,34 @@ export type AnnualTaxWithholdingBridgeContext = {
 
 const getSalaryIncomeForSignature = (record: EmployeeMonthRecord) =>
   Math.round(
-    (record.salaryIncome + (record.supplementarySalaryIncome ?? 0) + Number.EPSILON) * 100,
+    (record.salaryIncome + (record.otherIncome ?? 0) + Number.EPSILON) * 100,
   ) / 100;
+
+const hasPositiveValue = (value: number | null | undefined) => Boolean(value && value > 0);
+
+const hasMonthRecordContent = (record: EmployeeMonthRecord) =>
+  record.id !== null ||
+  hasPositiveValue(record.salaryIncome) ||
+  hasPositiveValue(record.annualBonus) ||
+  hasPositiveValue(record.pensionInsurance) ||
+  hasPositiveValue(record.medicalInsurance) ||
+  hasPositiveValue(record.occupationalAnnuity) ||
+  hasPositiveValue(record.housingFund) ||
+  hasPositiveValue(record.supplementaryHousingFund) ||
+  hasPositiveValue(record.unemploymentInsurance) ||
+  hasPositiveValue(record.workInjuryInsurance) ||
+  hasPositiveValue(record.withheldTax) ||
+  hasPositiveValue(record.otherIncome) ||
+  hasPositiveValue(record.infantCareDeduction) ||
+  hasPositiveValue(record.childEducationDeduction) ||
+  hasPositiveValue(record.continuingEducationDeduction) ||
+  hasPositiveValue(record.housingLoanInterestDeduction) ||
+  hasPositiveValue(record.housingRentDeduction) ||
+  hasPositiveValue(record.elderCareDeduction) ||
+  hasPositiveValue(record.otherDeduction) ||
+  hasPositiveValue(record.taxReductionExemption) ||
+  Boolean(record.otherIncomeRemark?.trim()) ||
+  Boolean(record.remark?.trim());
 
 export const buildWithholdingBridgeContext = (
   unitId: number,
@@ -113,6 +139,8 @@ export const buildAnnualTaxDataSignatureFromRecords = (
 
 export const buildAnnualTaxDataSignature = (unitId: number, taxYear: number, employeeId: number) =>
   buildAnnualTaxDataSignatureFromRecords(
-    monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear),
+    monthRecordRepository
+      .listByEmployeeAndYear(unitId, employeeId, taxYear)
+      .filter((record) => hasMonthRecordContent(record)),
     buildWithholdingBridgeContext(unitId, taxYear, employeeId),
   );

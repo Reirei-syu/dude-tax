@@ -11,6 +11,7 @@ const modulesPromise = Promise.all([
   import("./routes/month-records.js"),
   import("./repositories/unit-repository.js"),
   import("./repositories/employee-repository.js"),
+  import("./repositories/month-confirmation-repository.js"),
   import("./db/database.js"),
 ]);
 
@@ -20,8 +21,9 @@ before(() => {
 });
 
 beforeEach(async () => {
-  const [, , , { database }] = await modulesPromise;
+  const [, , , , { database }] = await modulesPromise;
   database.exec(`
+    DELETE FROM month_confirmations;
     DELETE FROM annual_tax_results;
     DELETE FROM annual_calculation_runs;
     DELETE FROM employee_month_records;
@@ -34,12 +36,12 @@ beforeEach(async () => {
 });
 
 after(async () => {
-  const [, , , { closeDatabase }] = await modulesPromise;
+  const [, , , , { closeDatabase }] = await modulesPromise;
   closeDatabase();
   fs.rmSync(testDatabasePath, { force: true });
 });
 
-test("月度录入接口可保存并回读补发补扣字段", async () => {
+test("月度录入接口可保存并回读其他收入字段", async () => {
   const [
     { registerMonthRecordRoutes },
     { unitRepository },
@@ -50,13 +52,13 @@ test("月度录入接口可保存并回读补发补扣字段", async () => {
   await registerMonthRecordRoutes(app);
 
   const unit = unitRepository.create({
-    unitName: "补发补扣测试单位",
+    unitName: "其他收入测试单位",
     remark: "",
   });
 
   const employee = employeeRepository.create(unit.id, {
-    employeeCode: "EMP-SUP-001",
-    employeeName: "补发员工",
+    employeeCode: "EMP-INC-001",
+    employeeName: "其他收入员工",
     idNumber: "110101199001019999",
     hireDate: null,
     leaveDate: null,
@@ -67,7 +69,6 @@ test("月度录入接口可保存并回读补发补扣字段", async () => {
     method: "PUT",
     url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records/3`,
     payload: {
-      status: "completed",
       salaryIncome: 10_000,
       annualBonus: 0,
       pensionInsurance: 0,
@@ -78,10 +79,8 @@ test("月度录入接口可保存并回读补发补扣字段", async () => {
       unemploymentInsurance: 0,
       workInjuryInsurance: 0,
       withheldTax: 320,
-      supplementarySalaryIncome: 2_500,
-      supplementaryWithheldTaxAdjustment: 120,
-      supplementarySourcePeriodLabel: "2026-01",
-      supplementaryRemark: "补发绩效差额",
+      otherIncome: 2_500,
+      otherIncomeRemark: "季度补差",
       infantCareDeduction: 0,
       childEducationDeduction: 0,
       continuingEducationDeduction: 0,
@@ -105,10 +104,68 @@ test("月度录入接口可保存并回读补发补扣字段", async () => {
 
   const records = listResponse.json() as Array<Record<string, unknown>>;
   const marchRecord = records.find((record) => record.taxMonth === 3);
-  assert.equal(marchRecord?.supplementarySalaryIncome, 2_500);
-  assert.equal(marchRecord?.supplementaryWithheldTaxAdjustment, 120);
-  assert.equal(marchRecord?.supplementarySourcePeriodLabel, "2026-01");
-  assert.equal(marchRecord?.supplementaryRemark, "补发绩效差额");
+  assert.equal(marchRecord?.otherIncome, 2_500);
+  assert.equal(marchRecord?.otherIncomeRemark, "季度补差");
+
+  await app.close();
+});
+
+test("单月保存接口会阻止修改已确认月份", async () => {
+  const [
+    { registerMonthRecordRoutes },
+    { unitRepository },
+    { employeeRepository },
+    { monthConfirmationRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerMonthRecordRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "单月保存确认锁测试单位",
+    remark: "",
+  });
+
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-LOCK-002",
+    employeeName: "锁定员工",
+    idNumber: "110101199001018888",
+    hireDate: "2026-01-01",
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthConfirmationRepository.confirm(unit.id, 2026, 1);
+
+  const response = await app.inject({
+    method: "PUT",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records/1`,
+    payload: {
+      salaryIncome: 9_000,
+      annualBonus: 0,
+      pensionInsurance: 0,
+      medicalInsurance: 0,
+      occupationalAnnuity: 0,
+      housingFund: 0,
+      supplementaryHousingFund: 0,
+      unemploymentInsurance: 0,
+      workInjuryInsurance: 0,
+      withheldTax: 100,
+      otherIncome: 0,
+      otherIncomeRemark: "",
+      infantCareDeduction: 0,
+      childEducationDeduction: 0,
+      continuingEducationDeduction: 0,
+      housingLoanInterestDeduction: 0,
+      housingRentDeduction: 0,
+      elderCareDeduction: 0,
+      otherDeduction: 0,
+      taxReductionExemption: 0,
+      remark: "",
+    },
+  });
+
+  assert.equal(response.statusCode, 409);
 
   await app.close();
 });

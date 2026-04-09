@@ -464,6 +464,17 @@ database.exec(`
 
   ${buildEmployeeMonthRecordsTableSql()}
 
+  CREATE TABLE IF NOT EXISTS month_confirmations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL CHECK(tax_year >= 2000),
+    tax_month INTEGER NOT NULL CHECK(tax_month BETWEEN 1 AND 12),
+    confirmed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    UNIQUE(unit_id, tax_year, tax_month)
+  );
+
   ${buildAnnualCalculationRunsTableSql()}
 
   ${buildAnnualTaxResultsTableSql()}

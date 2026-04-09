@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { employeeRepository } from "../repositories/employee-repository.js";
+import { monthConfirmationRepository } from "../repositories/month-confirmation-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 
 const monthRecordPayloadSchema = z.object({
-  status: z.enum(["incomplete", "completed"]),
   salaryIncome: z.number().min(0),
   annualBonus: z.number().min(0),
   pensionInsurance: z.number().min(0),
@@ -16,10 +16,8 @@ const monthRecordPayloadSchema = z.object({
   unemploymentInsurance: z.number().min(0),
   workInjuryInsurance: z.number().min(0),
   withheldTax: z.number().min(0),
-  supplementarySalaryIncome: z.number().min(0).optional(),
-  supplementaryWithheldTaxAdjustment: z.number().min(0).optional(),
-  supplementarySourcePeriodLabel: z.string().trim().max(100).optional(),
-  supplementaryRemark: z.string().trim().max(300).optional(),
+  otherIncome: z.number().min(0).optional(),
+  otherIncomeRemark: z.string().trim().max(300).optional(),
   infantCareDeduction: z.number().min(0),
   childEducationDeduction: z.number().min(0),
   continuingEducationDeduction: z.number().min(0),
@@ -29,6 +27,35 @@ const monthRecordPayloadSchema = z.object({
   otherDeduction: z.number().min(0),
   taxReductionExemption: z.number().min(0),
   remark: z.string().trim().max(300).optional(),
+  status: z.enum(["incomplete", "completed"]).optional(),
+  supplementarySalaryIncome: z.number().min(0).optional(),
+  supplementaryWithheldTaxAdjustment: z.number().optional(),
+  supplementarySourcePeriodLabel: z.string().trim().max(100).optional(),
+  supplementaryRemark: z.string().trim().max(300).optional(),
+});
+
+const toCanonicalPayload = (payload: z.infer<typeof monthRecordPayloadSchema>) => ({
+  salaryIncome: payload.salaryIncome,
+  annualBonus: payload.annualBonus,
+  pensionInsurance: payload.pensionInsurance,
+  medicalInsurance: payload.medicalInsurance,
+  occupationalAnnuity: payload.occupationalAnnuity,
+  housingFund: payload.housingFund,
+  supplementaryHousingFund: payload.supplementaryHousingFund,
+  unemploymentInsurance: payload.unemploymentInsurance,
+  workInjuryInsurance: payload.workInjuryInsurance,
+  withheldTax: payload.withheldTax,
+  otherIncome: payload.otherIncome ?? payload.supplementarySalaryIncome ?? 0,
+  otherIncomeRemark: payload.otherIncomeRemark ?? payload.supplementaryRemark ?? "",
+  infantCareDeduction: payload.infantCareDeduction,
+  childEducationDeduction: payload.childEducationDeduction,
+  continuingEducationDeduction: payload.continuingEducationDeduction,
+  housingLoanInterestDeduction: payload.housingLoanInterestDeduction,
+  housingRentDeduction: payload.housingRentDeduction,
+  elderCareDeduction: payload.elderCareDeduction,
+  otherDeduction: payload.otherDeduction,
+  taxReductionExemption: payload.taxReductionExemption,
+  remark: payload.remark ?? "",
 });
 
 export const registerMonthRecordRoutes = async (app: FastifyInstance) => {
@@ -41,12 +68,12 @@ export const registerMonthRecordRoutes = async (app: FastifyInstance) => {
 
       const unitExists = unitRepository.list().some((unit) => unit.id === unitId);
       if (!unitExists) {
-        return reply.status(404).send({ message: "目标单位不存在" });
+        return reply.status(404).send({ message: "目标单位不存在。" });
       }
 
       const employee = employeeRepository.getById(employeeId);
       if (!employee || employee.unitId !== unitId) {
-        return reply.status(404).send({ message: "目标员工不存在" });
+        return reply.status(404).send({ message: "目标员工不存在。" });
       }
 
       return monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear);
@@ -68,29 +95,42 @@ export const registerMonthRecordRoutes = async (app: FastifyInstance) => {
       const employeeId = Number(params.employeeId);
       const taxMonth = Number(params.taxMonth);
 
-      const parsedBody = monthRecordPayloadSchema.safeParse(request.body);
+      const parsedBody = monthRecordPayloadSchema.safeParse(request.body ?? {});
       if (!parsedBody.success) {
         return reply.status(400).send({
-          message: "月度记录参数不合法",
+          message: "月度记录参数不合法。",
           issues: parsedBody.error.flatten(),
         });
       }
 
       if (taxMonth < 1 || taxMonth > 12) {
-        return reply.status(400).send({ message: "月份必须在 1 到 12 之间" });
+        return reply.status(400).send({ message: "月份必须在 1 到 12 之间。" });
       }
 
       const unitExists = unitRepository.list().some((unit) => unit.id === unitId);
       if (!unitExists) {
-        return reply.status(404).send({ message: "目标单位不存在" });
+        return reply.status(404).send({ message: "目标单位不存在。" });
       }
 
       const employee = employeeRepository.getById(employeeId);
       if (!employee || employee.unitId !== unitId) {
-        return reply.status(404).send({ message: "目标员工不存在" });
+        return reply.status(404).send({ message: "目标员工不存在。" });
       }
 
-      return monthRecordRepository.upsert(unitId, employeeId, taxYear, taxMonth, parsedBody.data);
+      if (monthConfirmationRepository.isConfirmed(unitId, taxYear, taxMonth)) {
+        return reply.status(409).send({
+          message: "目标月份已确认，禁止修改。",
+          lockedMonths: [taxMonth],
+        });
+      }
+
+      return monthRecordRepository.upsert(
+        unitId,
+        employeeId,
+        taxYear,
+        taxMonth,
+        toCanonicalPayload(parsedBody.data),
+      );
     },
   );
 };

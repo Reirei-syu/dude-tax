@@ -5,7 +5,6 @@ const roundAmount = (value: number | undefined | null) =>
 
 const mapRecordToSignaturePayload = (record: EmployeeMonthRecord) => ({
   taxMonth: record.taxMonth,
-  status: record.status,
   salaryIncome: roundAmount(record.salaryIncome),
   annualBonus: roundAmount(record.annualBonus),
   pensionInsurance: roundAmount(record.pensionInsurance),
@@ -16,8 +15,7 @@ const mapRecordToSignaturePayload = (record: EmployeeMonthRecord) => ({
   unemploymentInsurance: roundAmount(record.unemploymentInsurance),
   workInjuryInsurance: roundAmount(record.workInjuryInsurance),
   withheldTax: roundAmount(record.withheldTax),
-  supplementarySalaryIncome: roundAmount(record.supplementarySalaryIncome),
-  supplementaryWithheldTaxAdjustment: roundAmount(record.supplementaryWithheldTaxAdjustment),
+  otherIncome: roundAmount(record.otherIncome),
   infantCareDeduction: roundAmount(record.infantCareDeduction),
   childEducationDeduction: roundAmount(record.childEducationDeduction),
   continuingEducationDeduction: roundAmount(record.continuingEducationDeduction),
