@@ -2,16 +2,29 @@ import {
   calculateEmployeeAnnualTax,
   isEmployeeActiveInTaxMonth,
   isEmployeeActiveInTaxYear,
+  type AnnualTaxWithholdingContext,
   type BatchUpsertEmployeeYearRecordsPayload,
+  type EmployeeAnnualTaxResult,
   type EmployeeMonthRecord,
   type EmployeeYearEntryOverview,
   type EmployeeYearRecordWorkspace,
   type MonthConfirmationState,
+  type YearEntryCalculationResponse,
+  type YearEntryCalculationSummaryRow,
+  type YearEntryResultCoverage,
 } from "@dude-tax/core";
+import { annualTaxResultRepository } from "../repositories/annual-tax-result-repository.js";
+import { calculationRunRepository } from "../repositories/calculation-run-repository.js";
 import { employeeRepository } from "../repositories/employee-repository.js";
 import { monthConfirmationRepository } from "../repositories/month-confirmation-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
+import {
+  buildAnnualTaxDataSignatureFromRecords,
+  buildRuleSourceSummary,
+  buildWithholdingBridgeContext,
+  resolveWithholdingContext,
+} from "../domain/annual-tax-calculation-context.js";
 
 const TAX_MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 
@@ -48,12 +61,16 @@ const hasMonthRecordContent = (record: EmployeeMonthRecord | null) => {
   );
 };
 
-const normalizeSelectedMonths = (selectedMonths: number[]) => {
-  const selectedMonthSet = new Set(
-    selectedMonths.filter((taxMonth) => Number.isInteger(taxMonth) && taxMonth >= 1 && taxMonth <= 12),
-  );
+const getEmployeeGroup = (
+  employee: Pick<NonNullable<ReturnType<typeof employeeRepository.getById>>, "leaveDate">,
+  taxYear: number,
+): EmployeeYearEntryOverview["employeeGroup"] => {
+  const leaveDate = employee.leaveDate?.trim() ?? "";
+  if (leaveDate.startsWith(`${taxYear}-`)) {
+    return "left_this_year";
+  }
 
-  return TAX_MONTHS.filter((taxMonth) => selectedMonthSet.has(taxMonth));
+  return "active";
 };
 
 const getYearActiveEmployees = (unitId: number, taxYear: number) =>
@@ -67,21 +84,51 @@ const getEmployeeRecords = (unitId: number, employeeId: number, taxYear: number)
 const getMonthRecordByTaxMonth = (records: EmployeeMonthRecord[], taxMonth: number) =>
   records.find((record) => record.taxMonth === taxMonth) ?? null;
 
-const buildEffectiveMonthRecord = (
-  records: EmployeeMonthRecord[],
-  taxMonth: number,
-  shouldForceZeroRow: boolean,
-) => {
-  const record = getMonthRecordByTaxMonth(records, taxMonth);
-  if (!record) {
-    return null;
-  }
+const getRecordedMonthRecords = (records: EmployeeMonthRecord[]) =>
+  records.filter((record) => hasMonthRecordContent(record));
 
-  if (shouldForceZeroRow || hasMonthRecordContent(record)) {
-    return record;
-  }
+const buildYearEntryResultCoverage = (
+  unitId: number,
+  taxYear: number,
+  effectiveEmployeeIds: number[],
+): YearEntryResultCoverage => {
+  const currentPolicySignature = taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear);
+  const calculatedEmployeeIdSet = new Set(
+    annualTaxResultRepository
+      .listByUnitAndYear(unitId, taxYear, currentPolicySignature)
+      .map((result) => result.employeeId),
+  );
+  const uncoveredEmployeeIds = effectiveEmployeeIds.filter(
+    (employeeId) => !calculatedEmployeeIdSet.has(employeeId),
+  );
 
-  return null;
+  return {
+    totalEffectiveEmployeeCount: effectiveEmployeeIds.length,
+    calculatedEmployeeCount: effectiveEmployeeIds.length - uncoveredEmployeeIds.length,
+    uncoveredEmployeeIds,
+    isComplete: uncoveredEmployeeIds.length === 0,
+  };
+};
+
+const buildYearEntryCalculationSummaryRow = (
+  result: EmployeeAnnualTaxResult,
+): YearEntryCalculationSummaryRow => {
+  const alternativeSchemeResult =
+    result.selectedScheme === "separate_bonus"
+      ? result.schemeResults.combinedBonus
+      : result.schemeResults.separateBonus;
+  const lastTraceItem = result.withholdingTraceItems?.at(-1) ?? null;
+
+  return {
+    employeeId: result.employeeId,
+    employeeCode: result.employeeCode,
+    employeeName: result.employeeName,
+    cumulativeExpectedWithheldTax:
+      lastTraceItem?.cumulativeExpectedWithheldTax ?? result.withholdingSummary.expectedWithheldTaxTotal,
+    lastAppliedRate: lastTraceItem?.appliedRate ?? null,
+    selectedScheme: result.selectedScheme,
+    alternativeTaxAmount: alternativeSchemeResult.finalTax,
+  };
 };
 
 type ConfirmabilityResult = {
@@ -89,7 +136,12 @@ type ConfirmabilityResult = {
   blockedReason: string | null;
 };
 
-const getMonthConfirmability = (unitId: number, taxYear: number, taxMonth: number): ConfirmabilityResult => {
+const getMonthConfirmability = (
+  unitId: number,
+  taxYear: number,
+  taxMonth: number,
+  coverage: YearEntryResultCoverage,
+): ConfirmabilityResult => {
   const lastConfirmedMonth = monthConfirmationRepository.getLastConfirmedMonth(unitId, taxYear);
   if (monthConfirmationRepository.isConfirmed(unitId, taxYear, taxMonth)) {
     return {
@@ -102,6 +154,13 @@ const getMonthConfirmability = (unitId: number, taxYear: number, taxMonth: numbe
     return {
       canConfirm: false,
       blockedReason: "previous_month_unconfirmed",
+    };
+  }
+
+  if (!coverage.isComplete) {
+    return {
+      canConfirm: false,
+      blockedReason: "results_incomplete",
     };
   }
 
@@ -123,14 +182,15 @@ export class MonthConfirmationConflictError extends Error {
 export const yearEntryService = {
   hasMonthRecordContent,
 
-  buildYearEntryOverview(unitId: number, taxYear: number, selectedMonths: number[]) {
-    const normalizedMonths = normalizeSelectedMonths(selectedMonths);
+  buildYearEntryOverview(unitId: number, taxYear: number) {
     const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
     const confirmedMonthSet = new Set(monthConfirmationRepository.getLockedMonths(unitId, taxYear));
     const employees = getYearActiveEmployees(unitId, taxYear);
+    const effectiveEmployeeIds = employees.map((employee) => employee.id);
 
     const employeeRows: EmployeeYearEntryOverview[] = employees.map((employee) => {
       const records = getEmployeeRecords(unitId, employee.id, taxYear);
+      const recordedRecords = getRecordedMonthRecords(records);
       const activeMonths = TAX_MONTHS.filter((taxMonth) =>
         isEmployeeActiveInTaxMonth(employee, taxYear, taxMonth),
       );
@@ -139,23 +199,20 @@ export const yearEntryService = {
         return !confirmedMonthSet.has(taxMonth) && !hasMonthRecordContent(record);
       });
 
-      const selectedEffectiveRecords = normalizedMonths
-        .filter((taxMonth) => isEmployeeActiveInTaxMonth(employee, taxYear, taxMonth))
-        .map((taxMonth) =>
-          buildEffectiveMonthRecord(records, taxMonth, confirmedMonthSet.has(taxMonth)),
-        )
-        .filter((record): record is EmployeeMonthRecord => Boolean(record));
-
       let optimalScheme: EmployeeYearEntryOverview["optimalScheme"] = null;
-      if (selectedEffectiveRecords.length) {
-        optimalScheme = calculateEmployeeAnnualTax(selectedEffectiveRecords, effectiveSettings).selectedScheme;
+      if (recordedRecords.length) {
+        optimalScheme = calculateEmployeeAnnualTax(recordedRecords, effectiveSettings).selectedScheme;
       }
 
       return {
         employeeId: employee.id,
         employeeCode: employee.employeeCode,
         employeeName: employee.employeeName,
-        totalWithheldTax: selectedEffectiveRecords.reduce(
+        hireDate: employee.hireDate,
+        leaveDate: employee.leaveDate,
+        employeeGroup: getEmployeeGroup(employee, taxYear),
+        recordedMonthCount: recordedRecords.length,
+        totalWithheldTax: recordedRecords.reduce(
           (sum, record) => sum + Number(record.withheldTax ?? 0),
           0,
         ),
@@ -165,9 +222,85 @@ export const yearEntryService = {
     });
 
     return {
-      selectedMonths: normalizedMonths,
-      totalWithheldTax: employeeRows.reduce((sum, employee) => sum + employee.totalWithheldTax, 0),
+      totalEffectiveEmployeeCount: effectiveEmployeeIds.length,
+      currentResultCoverage: buildYearEntryResultCoverage(unitId, taxYear, effectiveEmployeeIds),
       employees: employeeRows,
+    };
+  },
+
+  calculateYearEntryResults(
+    unitId: number,
+    taxYear: number,
+    employeeIds: number[],
+    withholdingContext: AnnualTaxWithholdingContext = {},
+  ): YearEntryCalculationResponse {
+    const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
+    const currentPolicySignature = taxPolicyRepository.getCurrentPolicySignature(unitId, taxYear);
+    const effectiveEmployees = getYearActiveEmployees(unitId, taxYear);
+    const effectiveEmployeeIds = effectiveEmployees.map((employee) => employee.id);
+    const selectedEmployeeIdSet = new Set(
+      employeeIds.filter((employeeId) => effectiveEmployeeIds.includes(employeeId)),
+    );
+
+    effectiveEmployees.forEach((employee) => {
+      if (!selectedEmployeeIdSet.has(employee.id)) {
+        annualTaxResultRepository.deleteByEmployeeAndYear(unitId, employee.id, taxYear);
+        calculationRunRepository.deleteByEmployeeAndYear(unitId, employee.id, taxYear);
+        return;
+      }
+
+      const records = getRecordedMonthRecords(getEmployeeRecords(unitId, employee.id, taxYear));
+      if (!records.length) {
+        annualTaxResultRepository.deleteByEmployeeAndYear(unitId, employee.id, taxYear);
+        calculationRunRepository.deleteByEmployeeAndYear(unitId, employee.id, taxYear);
+        return;
+      }
+
+      const bridgeContext = buildWithholdingBridgeContext(unitId, taxYear, employee.id);
+      const resolvedWithholdingContext = resolveWithholdingContext(bridgeContext, withholdingContext);
+      const calculation = calculateEmployeeAnnualTax(records, effectiveSettings, resolvedWithholdingContext);
+      const nextCalculation = {
+        ...calculation,
+        ruleSourceSummary: buildRuleSourceSummary(bridgeContext, resolvedWithholdingContext),
+      };
+      const dataSignature = buildAnnualTaxDataSignatureFromRecords(records, bridgeContext);
+
+      annualTaxResultRepository.upsert(
+        unitId,
+        employee.id,
+        taxYear,
+        nextCalculation,
+        currentPolicySignature,
+        dataSignature,
+      );
+      calculationRunRepository.markCalculated(
+        unitId,
+        employee.id,
+        taxYear,
+        "ready",
+        currentPolicySignature,
+        dataSignature,
+      );
+    });
+
+    const currentResultMap = new Map(
+      annualTaxResultRepository
+        .listByUnitAndYear(unitId, taxYear, currentPolicySignature)
+        .map((result) => [result.employeeId, result] as const),
+    );
+    const coverage = buildYearEntryResultCoverage(unitId, taxYear, effectiveEmployeeIds);
+
+    return {
+      status: "success",
+      coverage: {
+        ...coverage,
+        requestedEmployeeCount: selectedEmployeeIdSet.size,
+      },
+      summaryRows: effectiveEmployees
+        .filter((employee) => selectedEmployeeIdSet.has(employee.id))
+        .map((employee) => currentResultMap.get(employee.id))
+        .filter((result): result is NonNullable<typeof result> => Boolean(result))
+        .map((result) => buildYearEntryCalculationSummaryRow(result)),
     };
   },
 
@@ -219,12 +352,23 @@ export const yearEntryService = {
       confirmedRecords.map((record) => [record.taxMonth, record.confirmedAt]),
     );
     const lastConfirmedMonth = monthConfirmationRepository.getLastConfirmedMonth(unitId, taxYear);
+    const coverage = buildYearEntryResultCoverage(
+      unitId,
+      taxYear,
+      getYearActiveEmployees(unitId, taxYear).map((employee) => employee.id),
+    );
 
     return {
       lastConfirmedMonth,
+      coverage,
       months: TAX_MONTHS.map((taxMonth) => {
         const isConfirmed = confirmedAtMap.has(taxMonth);
-        const { canConfirm, blockedReason } = getMonthConfirmability(unitId, taxYear, taxMonth);
+        const { canConfirm, blockedReason } = getMonthConfirmability(
+          unitId,
+          taxYear,
+          taxMonth,
+          coverage,
+        );
 
         return {
           taxMonth,
@@ -239,10 +383,22 @@ export const yearEntryService = {
   },
 
   confirmMonth(unitId: number, taxYear: number, taxMonth: number) {
-    const { canConfirm, blockedReason } = getMonthConfirmability(unitId, taxYear, taxMonth);
+    const coverage = buildYearEntryResultCoverage(
+      unitId,
+      taxYear,
+      getYearActiveEmployees(unitId, taxYear).map((employee) => employee.id),
+    );
+    const { canConfirm, blockedReason } = getMonthConfirmability(
+      unitId,
+      taxYear,
+      taxMonth,
+      coverage,
+    );
     if (!canConfirm) {
       throw new MonthConfirmationConflictError(
-        "当前月份不满足确认条件。",
+        blockedReason === "results_incomplete"
+          ? "当前计算结果未覆盖全部有效员工，无法确认当前月份。"
+          : "当前月份不满足确认条件。",
         blockedReason ? [taxMonth] : [],
       );
     }

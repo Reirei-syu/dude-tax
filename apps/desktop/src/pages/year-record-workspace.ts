@@ -31,6 +31,17 @@ export const YEAR_RECORD_DEDUCTION_FIELDS = [
 
 export const YEAR_RECORD_TEXT_FIELDS = [{ key: "remark", label: "备注" }] as const;
 
+export type YearRecordFieldKey =
+  | (typeof YEAR_RECORD_INCOME_FIELDS)[number]["key"]
+  | (typeof YEAR_RECORD_INCOME_TEXT_FIELDS)[number]["key"]
+  | (typeof YEAR_RECORD_DEDUCTION_FIELDS)[number]["key"]
+  | (typeof YEAR_RECORD_TEXT_FIELDS)[number]["key"];
+
+export const getVisibleYearRecordIncomeFields = (hiddenFieldKeys: YearRecordFieldKey[] = []) => {
+  const hiddenFieldKeySet = new Set(hiddenFieldKeys);
+  return YEAR_RECORD_INCOME_FIELDS.filter((field) => !hiddenFieldKeySet.has(field.key));
+};
+
 const COPYABLE_FIELD_KEYS = [
   ...YEAR_RECORD_INCOME_FIELDS.map((field) => field.key),
   ...YEAR_RECORD_INCOME_TEXT_FIELDS.map((field) => field.key),

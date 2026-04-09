@@ -6,13 +6,34 @@
 
 ## 任务列表
 
-### [ ] Windows / Electron 手工烟测录入模型精简后的主流程
+### [ ] Windows / Electron 手工烟测月度录入年度化计算主流程
 - 类型：Test
 - 模块：`apps/desktop`
-- 描述：手工检查月度数据录入、快速计算、结果确认、历史查询 4 个主页面在桌面壳中的交互、弹层、滚动与导出行为，重点确认“其他收入”“减除费用只读列”“空白确认月”表现。
-- 依赖：录入模型精简优化已完成
+- 描述：手工检查月度数据录入页的员工选择弹层、折叠区块、年度工作台、执行计算、结果汇总与明细弹层，以及结果确认页的全员覆盖门禁与当前待确认结果展示。
+- 依赖：月度数据录入模块年度化计算改造已完成
 - 风险：中
 - 优先级：4
+
+### [x] 月度数据录入模块年度化计算改造
+- 完成时间：2026-04-09
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/repositories/annual-tax-result-repository.ts`
+  - `apps/api/src/routes/year-entry.ts`
+  - `apps/api/src/services/year-entry-service.ts`
+  - `apps/api/src/year-entry.test.ts`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/components/AnnualTaxCalculationResultPanel.tsx`
+  - `apps/desktop/src/components/AnnualTaxResultDialog.tsx`
+  - `apps/desktop/src/components/YearEntryEmployeeSelectionDialog.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/QuickCalculatePage.tsx`
+  - `apps/desktop/src/pages/ResultConfirmationPage.tsx`
+  - `apps/desktop/src/styles.css`
+- 影响范围：
+  - 月度录入改为全年员工名单 + 结果汇总双区块
+  - 新增年度录入批量计算接口与结果覆盖校验
+  - 结果确认页改读当前待确认结果
 
 ### [x] 录入模型精简优化
 - 完成时间：2026-04-09

@@ -224,6 +224,14 @@ textarea {
   font-size: 24px;
 }
 
+.summary-card-secondary {
+  display: block;
+  margin-top: 10px;
+  color: #6e84a1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .tag {
   display: inline-flex;
   align-items: center;
@@ -1182,6 +1190,16 @@ textarea {
   height: calc(100vh - 32px);
 }
 
+.annual-tax-result-dialog {
+  width: min(92vw, 1180px);
+  height: min(84vh, 860px);
+}
+
+.employee-selection-dialog {
+  width: min(86vw, 960px);
+  height: min(82vh, 760px);
+}
+
 .workspace-header,
 .workspace-toolbar {
   display: flex;
@@ -1207,6 +1225,16 @@ textarea {
   background: rgba(255, 255, 255, 0.68);
 }
 
+.annual-tax-result-wrapper {
+  padding: 20px;
+}
+
+.annual-tax-result-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .workspace-table {
   margin-top: 0;
   min-width: 1680px;
@@ -1217,6 +1245,48 @@ textarea {
   top: 0;
   z-index: 1;
   background: rgba(237, 245, 255, 0.98);
+}
+
+.employee-selection-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.employee-selection-group {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(202, 220, 241, 0.56);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.employee-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.employee-checkbox-item {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 227, 245, 0.76);
+  background: rgba(250, 252, 255, 0.9);
+}
+
+.employee-checkbox-item input {
+  margin-top: 4px;
+}
+
+.employee-checkbox-item p {
+  margin: 6px 0 0;
+  color: #617d9c;
 }
 
 @media (max-width: 1280px) {
@@ -1243,5 +1313,11 @@ textarea {
   .workspace-header,
   .workspace-toolbar {
     flex-direction: column;
+  }
+
+  .annual-tax-result-dialog,
+  .employee-selection-dialog {
+    width: 100%;
+    height: calc(100vh - 24px);
   }
 }

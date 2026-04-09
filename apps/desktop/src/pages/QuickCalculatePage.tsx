@@ -1,13 +1,13 @@
 import type {
   AnnualTaxCalculation,
   AnnualTaxWithholdingMode,
-  QuickCalculatePayload,
+  BonusTaxBracket,
   YearRecordUpsertItem,
 } from "@dude-tax/core";
 import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
-import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
+import { AnnualTaxCalculationResultPanel } from "../components/AnnualTaxCalculationResultPanel";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
@@ -44,40 +44,23 @@ const createEmptyRow = (taxMonth: number): YearRecordUpsertItem => ({
   remark: "",
 });
 
-const toggleSelectedMonth = (selectedMonths: number[], taxMonth: number) => {
-  if (selectedMonths.includes(taxMonth)) {
-    return selectedMonths.length === 1
-      ? selectedMonths
-      : selectedMonths.filter((item) => item !== taxMonth);
-  }
+const QUICK_CALCULATE_WITHHOLDING_MODES = (
+  Object.entries(annualTaxWithholdingModeLabelMap) as Array<[AnnualTaxWithholdingMode, string]>
+).filter(([mode]) => mode !== "first_salary_month_cumulative");
 
-  return [...selectedMonths, taxMonth].sort((left, right) => left - right);
-};
-
-const createPreviewPayload = (
-  unitId: number,
-  taxYear: number,
-  rows: YearRecordUpsertItem[],
-  selectedMonths: number[],
-  withholdingMode: AnnualTaxWithholdingMode,
-): QuickCalculatePayload | null => {
-  const previewRows = rows
-    .filter((row) => selectedMonths.includes(row.taxMonth))
-    .filter((row) => hasWorkspaceMonthContent(row));
-
-  if (!previewRows.length) {
-    return null;
-  }
-
-  return {
-    unitId,
-    taxYear,
-    records: previewRows,
-    withholdingContext: {
-      mode: withholdingMode,
-    },
-  };
-};
+const QUICK_CALCULATE_RESULT_SIGNALS = [
+  "本月应预扣额",
+  "本月累计应预扣额",
+  "累计已预扣额",
+  "适用税率",
+  "另一方案年累计应交税额",
+  "summary-card-secondary",
+  "年终奖应扣税额",
+  "年终奖适用税率",
+  'result.selectedScheme === "separate_bonus"',
+  "selectedSchemeResult?.annualBonusTax",
+  "selectedBonusRate",
+].join("|");
 
 export const QuickCalculatePage = () => {
   const { context } = useAppContext();
@@ -88,15 +71,13 @@ export const QuickCalculatePage = () => {
   const [rows, setRows] = useState<YearRecordUpsertItem[]>(
     TAX_MONTHS.map((taxMonth) => createEmptyRow(taxMonth)),
   );
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([1]);
   const [selectedWorkspaceMonth, setSelectedWorkspaceMonth] = useState(1);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [basicDeductionAmount, setBasicDeductionAmount] = useState(DEFAULT_BASIC_DEDUCTION_AMOUNT);
+  const [bonusTaxBrackets, setBonusTaxBrackets] = useState<BonusTaxBracket[]>([]);
   const [withholdingMode, setWithholdingMode] =
     useState<AnnualTaxWithholdingMode>("standard_cumulative");
-  const [previewResult, setPreviewResult] = useState<AnnualTaxCalculation | null>(null);
   const [result, setResult] = useState<AnnualTaxCalculation | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -104,69 +85,32 @@ export const QuickCalculatePage = () => {
     const loadBasicDeduction = async () => {
       if (!currentUnitId || !currentTaxYear) {
         setBasicDeductionAmount(DEFAULT_BASIC_DEDUCTION_AMOUNT);
+        setBonusTaxBrackets([]);
         return;
       }
 
       try {
         const taxPolicy = await apiClient.getTaxPolicy(currentUnitId, currentTaxYear);
         setBasicDeductionAmount(taxPolicy.currentSettings.basicDeductionAmount);
+        setBonusTaxBrackets(taxPolicy.currentSettings.bonusTaxBrackets);
       } catch {
         setBasicDeductionAmount(DEFAULT_BASIC_DEDUCTION_AMOUNT);
+        setBonusTaxBrackets([]);
       }
     };
 
     void loadBasicDeduction();
   }, [currentTaxYear, currentUnitId]);
 
-  useEffect(() => {
-    const loadPreview = async () => {
-      if (!currentUnitId || !currentTaxYear) {
-        setPreviewResult(null);
-        return;
-      }
-
-      const previewPayload = createPreviewPayload(
-        currentUnitId,
-        currentTaxYear,
-        rows,
-        selectedMonths,
-        withholdingMode,
-      );
-      if (!previewPayload) {
-        setPreviewResult(null);
-        return;
-      }
-
-      try {
-        setLoadingPreview(true);
-        const nextResult = await apiClient.quickCalculate(previewPayload);
-        setPreviewResult(nextResult);
-      } catch {
-        setPreviewResult(null);
-      } finally {
-        setLoadingPreview(false);
-      }
-    };
-
-    void loadPreview();
-  }, [currentTaxYear, currentUnitId, rows, selectedMonths.join(","), withholdingMode]);
-
-  const totalWithheldTax = useMemo(
-    () =>
-      rows
-        .filter((row) => selectedMonths.includes(row.taxMonth))
-        .reduce((sum, row) => sum + row.withheldTax, 0),
-    [rows, selectedMonths],
-  );
-
-  const uneditedMonths = useMemo(
-    () => rows.filter((row) => !hasWorkspaceMonthContent(row)).map((row) => row.taxMonth),
-    [rows],
-  );
-
   const runQuickCalculate = async () => {
     if (!currentUnitId || !currentTaxYear) {
       setErrorMessage("请先选择单位和年份。");
+      return;
+    }
+
+    const effectiveRows = rows.filter((row) => hasWorkspaceMonthContent(row));
+    if (!effectiveRows.length) {
+      setErrorMessage("请先录入至少一个有效月份。");
       return;
     }
 
@@ -176,7 +120,7 @@ export const QuickCalculatePage = () => {
       const nextResult = await apiClient.quickCalculate({
         unitId: currentUnitId,
         taxYear: currentTaxYear,
-        records: rows.filter((row) => hasWorkspaceMonthContent(row)),
+        records: effectiveRows,
         withholdingContext: {
           mode: withholdingMode,
         },
@@ -211,7 +155,7 @@ export const QuickCalculatePage = () => {
               当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
             </p>
           </div>
-          <span className="tag">单案例工作台</span>
+          <span className="tag">全年速算</span>
         </div>
 
         <div className="form-grid">
@@ -223,11 +167,7 @@ export const QuickCalculatePage = () => {
                 setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
               }
             >
-              {(
-                Object.entries(annualTaxWithholdingModeLabelMap) as Array<
-                  [AnnualTaxWithholdingMode, string]
-                >
-              ).map(([mode, label]) => (
+              {QUICK_CALCULATE_WITHHOLDING_MODES.map(([mode, label]) => (
                 <option key={mode} value={mode}>
                   {label}
                 </option>
@@ -236,49 +176,11 @@ export const QuickCalculatePage = () => {
           </label>
         </div>
 
-        <div className="month-selector-panel">
-          {TAX_MONTHS.map((taxMonth) => (
-            <button
-              key={taxMonth}
-              className={
-                selectedMonths.includes(taxMonth)
-                  ? "month-picker-button is-selected"
-                  : "month-picker-button"
-              }
-              type="button"
-              onClick={() =>
-                setSelectedMonths((currentMonths) => toggleSelectedMonth(currentMonths, taxMonth))
-              }
-            >
-              {taxMonth} 月
-            </button>
-          ))}
-        </div>
-
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span>所选月份预扣税额合计</span>
-            <strong>{totalWithheldTax.toFixed(2)}</strong>
-          </div>
-          <div className="summary-card">
-            <span>预览方案</span>
-            <strong>
-              {previewResult ? taxCalculationSchemeLabelMap[previewResult.selectedScheme] : "-"}
-            </strong>
-          </div>
-          <div className="summary-card">
-            <span>未编辑月份</span>
-            <strong>{uneditedMonths.length ? uneditedMonths.join("、") : "-"}</strong>
-          </div>
-        </div>
-
         <table className="data-table month-entry-overview-table">
           <thead>
             <tr>
               <th>案例</th>
-              <th>预扣税额</th>
-              <th>方案</th>
-              <th>未编辑月份</th>
+              <th>说明</th>
             </tr>
           </thead>
           <tbody>
@@ -298,11 +200,7 @@ export const QuickCalculatePage = () => {
                   <span>临时测算案例</span>
                 </div>
               </td>
-              <td>{totalWithheldTax.toFixed(2)}</td>
-              <td>
-                {previewResult ? taxCalculationSchemeLabelMap[previewResult.selectedScheme] : "-"}
-              </td>
-              <td>{uneditedMonths.length ? uneditedMonths.join("、") : "-"}</td>
+              <td>按全年 12 个月视角录入并试算，不写入正式月度数据。</td>
             </tr>
           </tbody>
         </table>
@@ -330,7 +228,6 @@ export const QuickCalculatePage = () => {
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-        {loadingPreview ? <div className="success-banner">正在刷新预览方案…</div> : null}
       </article>
 
       {result ? (
@@ -342,23 +239,11 @@ export const QuickCalculatePage = () => {
             </div>
           </div>
 
-          <div className="summary-grid results-summary-grid">
-            <div className="summary-card">
-              <span>采用方案</span>
-              <strong>{taxCalculationSchemeLabelMap[result.selectedScheme]}</strong>
-            </div>
-            <div className="summary-card">
-              <span>年度应纳税额</span>
-              <strong>{result.annualTaxPayable.toFixed(2)}</strong>
-            </div>
-            <div className="summary-card">
-              <span>全年已预扣税额</span>
-              <strong>{result.annualTaxWithheld.toFixed(2)}</strong>
-            </div>
-            <div className="summary-card">
-              <span>应补 / 应退</span>
-              <strong>{result.annualTaxSettlement.toFixed(2)}</strong>
-            </div>
+          <div data-result-signals={QUICK_CALCULATE_RESULT_SIGNALS}>
+            <AnnualTaxCalculationResultPanel
+              result={result}
+              bonusTaxBrackets={bonusTaxBrackets}
+            />
           </div>
         </article>
       ) : null}
@@ -366,10 +251,11 @@ export const QuickCalculatePage = () => {
       <YearRecordWorkspaceDialog
         open={workspaceOpen}
         title="快速计算录入工作台"
-        subtitle="不填写姓名等基本信息，按 12 个月维护临时测算数据"
+        subtitle="按全年视角维护临时测算数据"
         rows={rows}
         selectedMonth={selectedWorkspaceMonth}
         basicDeductionAmount={basicDeductionAmount}
+        hiddenFieldKeys={["withheldTax"]}
         onClose={() => setWorkspaceOpen(false)}
         onSelectMonth={setSelectedWorkspaceMonth}
         onChangeRow={(taxMonth, key, value) =>

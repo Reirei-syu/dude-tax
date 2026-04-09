@@ -195,7 +195,11 @@ test("标准累计预扣模式按已处理月份累计减除费用", () => {
 
   assert.equal(trace.mode, "standard_cumulative");
   assert.equal(trace.items[0]?.cumulativeBasicDeduction, 5_000);
+  assert.equal(trace.items[0]?.cumulativeActualWithheldTaxBeforeCurrentMonth, 0);
+  assert.equal(trace.items[0]?.appliedRate, 3);
   assert.equal(trace.items[1]?.cumulativeBasicDeduction, 10_000);
+  assert.equal(trace.items[1]?.cumulativeActualWithheldTaxBeforeCurrentMonth, 0);
+  assert.equal(trace.items[1]?.appliedRate, 3);
   assert.equal(trace.summary.expectedWithheldTaxTotal, 300);
   assert.equal(trace.summary.actualWithheldTaxTotal, 200);
 });
@@ -311,6 +315,24 @@ test("其他收入会并入预扣轨迹和年度汇算收入", () => {
   assert.equal(trace.items[0]?.actualWithheldTax, 100);
   assert.equal(result.salaryIncomeTotal, 12_000);
   assert.equal(result.annualTaxWithheld, 100);
+  assert.equal(result.withholdingTraceItems?.length, 1);
+});
+
+test("逐月轨迹会输出累计应预扣、累计已预扣和适用税率", () => {
+  const calculateEmployeeAnnualTax = getCalculator();
+
+  const result = calculateEmployeeAnnualTax([
+    createMonthRecord(1, { salaryIncome: 10_000, withheldTax: 0 }),
+    createMonthRecord(2, { salaryIncome: 10_000, withheldTax: 200 }),
+  ]);
+
+  assert.equal(result.withholdingTraceItems?.length, 2);
+  assert.equal(result.withholdingTraceItems?.[0]?.cumulativeExpectedWithheldTax, 150);
+  assert.equal(result.withholdingTraceItems?.[0]?.cumulativeActualWithheldTaxBeforeCurrentMonth, 0);
+  assert.equal(result.withholdingTraceItems?.[0]?.appliedRate, 3);
+  assert.equal(result.withholdingTraceItems?.[1]?.cumulativeExpectedWithheldTax, 300);
+  assert.equal(result.withholdingTraceItems?.[1]?.cumulativeActualWithheldTaxBeforeCurrentMonth, 0);
+  assert.equal(result.withholdingTraceItems?.[1]?.appliedRate, 3);
 });
 
 test("支持按选中月份裁剪后计算年度结果", () => {

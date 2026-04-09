@@ -125,6 +125,7 @@ export const buildMonthlyWithholdingTrace = (
   let cumulativeOtherDeduction = 0;
   let cumulativeTaxReductionExemption = 0;
   let previousCumulativeExpectedWithheldTax = 0;
+  let cumulativeActualWithheldTax = 0;
 
   const processedRecords = [
     ...carryInRecords.map((record) => ({ record, isCarryIn: true })),
@@ -177,6 +178,8 @@ export const buildMonthlyWithholdingTrace = (
     const currentMonthExpectedWithheldTax = roundCurrency(
       cumulativeExpectedWithheldTax - previousCumulativeExpectedWithheldTax,
     );
+    const actualWithheldTax = getActualWithheldTaxForWithholding(record);
+    const cumulativeActualWithheldTaxBeforeCurrentMonth = cumulativeActualWithheldTax;
 
     previousCumulativeExpectedWithheldTax = cumulativeExpectedWithheldTax;
 
@@ -188,7 +191,8 @@ export const buildMonthlyWithholdingTrace = (
       taxMonth: record.taxMonth,
       withholdingMode: mode,
       salaryIncome: getSalaryIncomeForWithholding(record),
-      actualWithheldTax: getActualWithheldTaxForWithholding(record),
+      actualWithheldTax,
+      cumulativeActualWithheldTaxBeforeCurrentMonth,
       cumulativeSalaryIncome,
       cumulativeBasicDeduction,
       cumulativeInsuranceAndHousingFund,
@@ -199,9 +203,12 @@ export const buildMonthlyWithholdingTrace = (
       cumulativeExpectedWithheldTax,
       currentMonthExpectedWithheldTax,
       currentMonthWithholdingVariance: roundCurrency(
-        getActualWithheldTaxForWithholding(record) - currentMonthExpectedWithheldTax,
+        actualWithheldTax - currentMonthExpectedWithheldTax,
       ),
+      appliedRate: cumulativeBracket?.rate ?? 0,
     };
+
+    cumulativeActualWithheldTax = roundCurrency(cumulativeActualWithheldTax + actualWithheldTax);
 
     return [item];
   });
@@ -379,6 +386,7 @@ export const calculateEmployeeAnnualTax = (
     annualTaxSettlement,
     settlementDirection,
     withholdingSummary: withholdingTrace.summary,
+    withholdingTraceItems: withholdingTrace.items,
     schemeResults: {
       separateBonus,
       combinedBonus,

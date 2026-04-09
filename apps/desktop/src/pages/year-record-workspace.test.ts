@@ -5,6 +5,7 @@ import {
   applyWorkspaceMonthToFutureMonths,
   applyWorkspaceMonthToNextMonth,
   getDirtyWorkspaceMonths,
+  getVisibleYearRecordIncomeFields,
   hasWorkspaceMonthContent,
 } from "./year-record-workspace";
 
@@ -77,4 +78,11 @@ test("月份有实际录入内容时视为已编辑", () => {
   assert.equal(hasWorkspaceMonthContent(createRow(1)), false);
   assert.equal(hasWorkspaceMonthContent(createRow(1, { otherIncome: 500 })), true);
   assert.equal(hasWorkspaceMonthContent(createRow(1, { otherIncomeRemark: "奖金补差" })), true);
+});
+
+test("共享工作台支持按配置隐藏预扣税额列", () => {
+  const visibleFields = getVisibleYearRecordIncomeFields(["withheldTax"]);
+  assert.equal(visibleFields.some((field) => field.key === "withheldTax"), false);
+  assert.equal(visibleFields.some((field) => field.key === "salaryIncome"), true);
+  assert.equal(visibleFields.some((field) => field.key === "otherIncome"), true);
 });

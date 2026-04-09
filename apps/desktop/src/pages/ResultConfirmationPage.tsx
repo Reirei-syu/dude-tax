@@ -1,38 +1,23 @@
-import type { ConfirmedAnnualResultDetail, YearRecordUpsertItem } from "@dude-tax/core";
+import type { EmployeeAnnualTaxResult } from "@dude-tax/core";
 import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
 import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
-import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
+import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 import { buildYearRecordWorkbookBuffer } from "./year-record-export";
 
-const toReadonlyRows = (detail: ConfirmedAnnualResultDetail): YearRecordUpsertItem[] =>
-  detail.months.map((row) => ({
-    taxMonth: row.taxMonth,
-    salaryIncome: row.salaryIncome,
-    annualBonus: row.annualBonus,
-    pensionInsurance: row.pensionInsurance,
-    medicalInsurance: row.medicalInsurance,
-    occupationalAnnuity: row.occupationalAnnuity,
-    housingFund: row.housingFund,
-    supplementaryHousingFund: row.supplementaryHousingFund,
-    unemploymentInsurance: row.unemploymentInsurance,
-    workInjuryInsurance: row.workInjuryInsurance,
-    withheldTax: row.withheldTax,
-    otherIncome: row.otherIncome ?? 0,
-    otherIncomeRemark: row.otherIncomeRemark ?? "",
-    infantCareDeduction: row.infantCareDeduction,
-    childEducationDeduction: row.childEducationDeduction,
-    continuingEducationDeduction: row.continuingEducationDeduction,
-    housingLoanInterestDeduction: row.housingLoanInterestDeduction,
-    housingRentDeduction: row.housingRentDeduction,
-    elderCareDeduction: row.elderCareDeduction,
-    otherDeduction: row.otherDeduction,
-    taxReductionExemption: row.taxReductionExemption,
-    remark: row.remark ?? "",
-  }));
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("zh-CN", {
+    hour12: false,
+  });
+};
 
 export const ResultConfirmationPage = () => {
   const { context } = useAppContext();
@@ -43,86 +28,65 @@ export const ResultConfirmationPage = () => {
   const [confirmationState, setConfirmationState] =
     useState<Awaited<ReturnType<typeof apiClient.getMonthConfirmationState>> | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(1);
-  const [results, setResults] = useState<Awaited<ReturnType<typeof apiClient.listConfirmedResults>>>([]);
-  const [detail, setDetail] = useState<ConfirmedAnnualResultDetail | null>(null);
-  const [detailRows, setDetailRows] = useState<YearRecordUpsertItem[]>([]);
-  const [detailSelectedMonth, setDetailSelectedMonth] = useState(1);
+  const [results, setResults] = useState<EmployeeAnnualTaxResult[]>([]);
+  const [detailEmployeeId, setDetailEmployeeId] = useState<number | null>(null);
   const [basicDeductionAmount, setBasicDeductionAmount] = useState(DEFAULT_BASIC_DEDUCTION_AMOUNT);
+  const [bonusTaxBrackets, setBonusTaxBrackets] =
+    useState<Awaited<ReturnType<typeof apiClient.getTaxPolicy>>["currentSettings"]["bonusTaxBrackets"]>(
+      [],
+    );
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
-  const loadConfirmationState = async () => {
+  const loadPageData = async () => {
     if (!currentUnitId || !currentTaxYear) {
       setConfirmationState(null);
-      return;
-    }
-
-    const [nextState, taxPolicy] = await Promise.all([
-      apiClient.getMonthConfirmationState(currentUnitId, currentTaxYear),
-      apiClient.getTaxPolicy(currentUnitId, currentTaxYear),
-    ]);
-    setConfirmationState(nextState);
-    setBasicDeductionAmount(taxPolicy.currentSettings.basicDeductionAmount);
-    setSelectedMonth((currentMonth) => {
-      const preferredMonth = Math.min(nextState.lastConfirmedMonth + 1 || 1, 12);
-      return currentMonth > 12 ? preferredMonth : currentMonth;
-    });
-  };
-
-  const loadResults = async (throughMonth: number) => {
-    if (!currentUnitId || !currentTaxYear) {
       setResults([]);
       return;
     }
 
-    const nextResults = await apiClient.listConfirmedResults(currentUnitId, currentTaxYear, throughMonth);
+    const [nextState, taxPolicy, nextResults] = await Promise.all([
+      apiClient.getMonthConfirmationState(currentUnitId, currentTaxYear),
+      apiClient.getTaxPolicy(currentUnitId, currentTaxYear),
+      apiClient.listAnnualResults(currentUnitId, currentTaxYear),
+    ]);
+    setConfirmationState(nextState);
     setResults(nextResults);
+    setBasicDeductionAmount(taxPolicy.currentSettings.basicDeductionAmount);
+    setBonusTaxBrackets(taxPolicy.currentSettings.bonusTaxBrackets);
+    setSelectedMonth((currentMonth) => {
+      if (currentMonth >= 1 && currentMonth <= 12) {
+        return currentMonth;
+      }
+
+      return Math.min(nextState.lastConfirmedMonth + 1 || 1, 12);
+    });
   };
 
   useEffect(() => {
-    const loadPage = async () => {
-      if (!currentUnitId || !currentTaxYear) {
-        return;
-      }
-
+    const load = async () => {
       try {
         setLoading(true);
         setErrorMessage(null);
-        await loadConfirmationState();
+        await loadPageData();
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "加载结果确认状态失败");
+        setErrorMessage(error instanceof Error ? error.message : "加载结果确认页面失败");
       } finally {
         setLoading(false);
       }
     };
 
-    void loadPage();
+    void load();
   }, [currentUnitId, currentTaxYear]);
-
-  useEffect(() => {
-    const loadScopedResults = async () => {
-      if (!currentUnitId || !currentTaxYear) {
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-        await loadResults(selectedMonth);
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "加载已确认结果失败");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadScopedResults();
-  }, [currentUnitId, currentTaxYear, selectedMonth]);
 
   const currentMonthState =
     confirmationState?.months.find((month) => month.taxMonth === selectedMonth) ?? null;
+  const detailResult = useMemo(
+    () => results.find((result) => result.employeeId === detailEmployeeId) ?? null,
+    [detailEmployeeId, results],
+  );
 
   const handleConfirm = async () => {
     if (!currentUnitId || !currentTaxYear) {
@@ -132,42 +96,16 @@ export const ResultConfirmationPage = () => {
     try {
       setSubmitting(true);
       setErrorMessage(null);
-      const nextState = currentMonthState?.isConfirmed
-        ? await apiClient.unconfirmMonth(currentUnitId, currentTaxYear, selectedMonth)
-        : await apiClient.confirmMonth(currentUnitId, currentTaxYear, selectedMonth);
-      setConfirmationState(nextState);
-      await loadResults(selectedMonth);
-      setNoticeMessage(
-        currentMonthState?.isConfirmed
-          ? `已取消 ${selectedMonth} 月及其后续月份确认。`
-          : `已确认 ${selectedMonth} 月数据。`,
-      );
+      if (currentMonthState?.isConfirmed) {
+        await apiClient.unconfirmMonth(currentUnitId, currentTaxYear, selectedMonth);
+        setNoticeMessage(`已取消 ${selectedMonth} 月及其后续月份确认。`);
+      } else {
+        await apiClient.confirmMonth(currentUnitId, currentTaxYear, selectedMonth);
+        setNoticeMessage(`已确认 ${selectedMonth} 月数据。`);
+      }
+      await loadPageData();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "执行确认操作失败");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openDetail = async (employeeId: number) => {
-    if (!currentUnitId || !currentTaxYear) {
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setErrorMessage(null);
-      const nextDetail = await apiClient.getConfirmedResultDetail(
-        currentUnitId,
-        currentTaxYear,
-        employeeId,
-        selectedMonth,
-      );
-      setDetail(nextDetail);
-      setDetailRows(toReadonlyRows(nextDetail));
-      setDetailSelectedMonth(nextDetail.confirmedMonths[0] ?? 1);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "加载确认明细失败");
     } finally {
       setSubmitting(false);
     }
@@ -181,37 +119,23 @@ export const ResultConfirmationPage = () => {
     try {
       setSubmitting(true);
       setErrorMessage(null);
-      const details = await Promise.all(
-        results.map((result) =>
-          apiClient.getConfirmedResultDetail(
-            currentUnitId,
-            currentTaxYear,
-            result.employeeId,
-            selectedMonth,
-          ),
-        ),
-      );
       const workbookArray = await buildYearRecordWorkbookBuffer({
         summarySheetName: "汇总",
         summaryColumns: [
           { key: "employeeCode", label: "工号" },
           { key: "employeeName", label: "姓名" },
-          { key: "annualTaxWithheld", label: "预扣税额" },
+          { key: "annualTaxWithheld", label: "年度累计应预扣额" },
           { key: "selectedScheme", label: "方案" },
-          { key: "confirmedMonths", label: "已确认月份" },
+          { key: "calculatedAt", label: "计算时间" },
         ],
         summaryRows: results.map((result) => ({
           employeeCode: result.employeeCode,
           employeeName: result.employeeName,
           annualTaxWithheld: result.annualTaxWithheld.toFixed(2),
           selectedScheme: taxCalculationSchemeLabelMap[result.selectedScheme],
-          confirmedMonths: result.confirmedMonths.join("、"),
+          calculatedAt: formatDateTime(result.calculatedAt),
         })),
-        employees: details.map((item) => ({
-          employeeCode: item.employeeCode,
-          employeeName: item.employeeName,
-          rows: toReadonlyRows(item),
-        })),
+        employees: [],
         basicDeductionAmount,
       });
       await saveFileWithDesktopFallback({
@@ -249,7 +173,7 @@ export const ResultConfirmationPage = () => {
               当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
             </p>
           </div>
-          <span className="tag">{loading ? "加载中" : "已确认结果"}</span>
+          <span className="tag">{loading ? "加载中" : "待确认结果"}</span>
         </div>
 
         <div className="month-selector-panel">
@@ -283,8 +207,15 @@ export const ResultConfirmationPage = () => {
             <strong>{currentMonthState?.isConfirmed ? "已确认" : "未确认"}</strong>
           </div>
           <div className="summary-card">
-            <span>已确认员工结果数</span>
+            <span>待确认结果数</span>
             <strong>{results.length}</strong>
+          </div>
+          <div className="summary-card">
+            <span>结果覆盖</span>
+            <strong>
+              {confirmationState?.coverage.calculatedEmployeeCount ?? 0}/
+              {confirmationState?.coverage.totalEffectiveEmployeeCount ?? 0}
+            </strong>
           </div>
         </div>
 
@@ -313,6 +244,11 @@ export const ResultConfirmationPage = () => {
         {currentMonthState?.blockedReason === "previous_month_unconfirmed" ? (
           <div className="error-banner">请先完成前一个月份的确认。</div>
         ) : null}
+        {currentMonthState?.blockedReason === "results_incomplete" ? (
+          <div className="error-banner">
+            当前计算结果未覆盖全部有效员工，请先返回月度数据录入完成全员计算。
+          </div>
+        ) : null}
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
 
@@ -321,9 +257,9 @@ export const ResultConfirmationPage = () => {
             <tr>
               <th>工号</th>
               <th>姓名</th>
-              <th>预扣税额</th>
-              <th>方案</th>
-              <th>已确认月份</th>
+              <th>年度累计应预扣额</th>
+              <th>当前方案</th>
+              <th>计算时间</th>
             </tr>
           </thead>
           <tbody>
@@ -332,7 +268,7 @@ export const ResultConfirmationPage = () => {
                 <tr
                   key={result.employeeId}
                   className="selectable-row"
-                  onClick={() => void openDetail(result.employeeId)}
+                  onClick={() => setDetailEmployeeId(result.employeeId)}
                 >
                   <td>{result.employeeCode}</td>
                   <td>
@@ -342,7 +278,7 @@ export const ResultConfirmationPage = () => {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void openDetail(result.employeeId);
+                          setDetailEmployeeId(result.employeeId);
                         }}
                       >
                         查询明细
@@ -352,35 +288,25 @@ export const ResultConfirmationPage = () => {
                   </td>
                   <td>{result.annualTaxWithheld.toFixed(2)}</td>
                   <td>{taxCalculationSchemeLabelMap[result.selectedScheme]}</td>
-                  <td>{result.confirmedMonths.join("、")}</td>
+                  <td>{formatDateTime(result.calculatedAt)}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={5}>当前筛选范围内暂无已确认结果。</td>
+                <td colSpan={5}>当前暂无待确认结果，请先返回月度数据录入执行计算。</td>
               </tr>
             )}
           </tbody>
         </table>
       </article>
 
-      <YearRecordWorkspaceDialog
-        open={Boolean(detail)}
-        title={detail ? `${detail.employeeName} 已确认明细` : ""}
-        subtitle={
-          detail ? `${detail.employeeCode} / 已确认月份：${detail.confirmedMonths.join("、")}` : undefined
-        }
-        rows={detailRows}
-        selectedMonth={detailSelectedMonth}
-        lockedMonths={detail?.confirmedMonths ?? []}
-        basicDeductionAmount={basicDeductionAmount}
-        readOnly
-        onClose={() => {
-          setDetail(null);
-          setDetailRows([]);
-          setDetailSelectedMonth(1);
-        }}
-        onSelectMonth={setDetailSelectedMonth}
+      <AnnualTaxResultDialog
+        open={Boolean(detailResult)}
+        title={detailResult ? `${detailResult.employeeName} 全年计算结果` : ""}
+        subtitle={detailResult ? `${detailResult.employeeCode} / ${detailResult.taxYear} 年` : undefined}
+        result={detailResult}
+        bonusTaxBrackets={bonusTaxBrackets}
+        onClose={() => setDetailEmployeeId(null)}
       />
     </section>
   );

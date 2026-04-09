@@ -7,10 +7,6 @@ import {
   yearEntryService,
 } from "../services/year-entry-service.js";
 
-const yearEntryOverviewQuerySchema = z.object({
-  months: z.string().optional(),
-});
-
 const yearRecordItemSchema = z.object({
   taxMonth: z.number().int().min(1).max(12),
   salaryIncome: z.number().min(0),
@@ -43,6 +39,19 @@ const yearRecordItemSchema = z.object({
 
 const batchUpsertSchema = z.object({
   months: z.array(yearRecordItemSchema),
+});
+
+const yearEntryCalculateSchema = z.object({
+  employeeIds: z.array(z.number().int().positive()),
+  withholdingContext: z
+    .object({
+      mode: z
+        .enum(["auto", "standard_cumulative", "annual_60000_upfront", "first_salary_month_cumulative"])
+        .optional(),
+      previousYearIncomeUnder60k: z.boolean().optional(),
+      firstSalaryMonthInYear: z.number().int().min(1).max(12).nullable().optional(),
+    })
+    .optional(),
 });
 
 const toCanonicalPayload = (payload: z.infer<typeof yearRecordItemSchema>) => ({
@@ -94,17 +103,6 @@ const ensureUnitAndYear = (unitId: number, taxYear: number) => {
   };
 };
 
-const parseSelectedMonths = (monthsText: string | undefined) => {
-  if (!monthsText?.trim()) {
-    return Array.from({ length: 12 }, (_, index) => index + 1);
-  }
-
-  return monthsText
-    .split(",")
-    .map((monthText) => Number(monthText.trim()))
-    .filter((taxMonth) => Number.isInteger(taxMonth) && taxMonth >= 1 && taxMonth <= 12);
-};
-
 export const registerYearEntryRoutes = async (app: FastifyInstance) => {
   app.get("/api/units/:unitId/years/:taxYear/year-entry-overview", async (request, reply) => {
     const unitId = Number((request.params as { unitId: string }).unitId);
@@ -114,18 +112,30 @@ export const registerYearEntryRoutes = async (app: FastifyInstance) => {
       return reply.status(unitAndYear.statusCode).send({ message: unitAndYear.message });
     }
 
-    const parsedQuery = yearEntryOverviewQuerySchema.safeParse(request.query ?? {});
-    if (!parsedQuery.success) {
+    return yearEntryService.buildYearEntryOverview(unitId, taxYear);
+  });
+
+  app.post("/api/units/:unitId/years/:taxYear/year-entry-calculate", async (request, reply) => {
+    const unitId = Number((request.params as { unitId: string }).unitId);
+    const taxYear = Number((request.params as { taxYear: string }).taxYear);
+    const unitAndYear = ensureUnitAndYear(unitId, taxYear);
+    if (!unitAndYear.ok) {
+      return reply.status(unitAndYear.statusCode).send({ message: unitAndYear.message });
+    }
+
+    const parsedBody = yearEntryCalculateSchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
       return reply.status(400).send({
-        message: "年度录入总览参数不合法。",
-        issues: parsedQuery.error.flatten(),
+        message: "年度录入计算参数不合法。",
+        issues: parsedBody.error.flatten(),
       });
     }
 
-    return yearEntryService.buildYearEntryOverview(
+    return yearEntryService.calculateYearEntryResults(
       unitId,
       taxYear,
-      parseSelectedMonths(parsedQuery.data.months),
+      parsedBody.data.employeeIds,
+      parsedBody.data.withholdingContext,
     );
   });
 

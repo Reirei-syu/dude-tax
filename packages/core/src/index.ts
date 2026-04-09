@@ -102,15 +102,44 @@ export type EmployeeYearEntryOverview = {
   employeeId: number;
   employeeCode: string;
   employeeName: string;
+  hireDate: string | null;
+  leaveDate: string | null;
+  employeeGroup: "active" | "left_this_year";
+  recordedMonthCount: number;
   totalWithheldTax: number;
   optimalScheme: TaxCalculationScheme | null;
   uneditedMonths: number[];
 };
 
+export type YearEntryResultCoverage = {
+  totalEffectiveEmployeeCount: number;
+  calculatedEmployeeCount: number;
+  uncoveredEmployeeIds: number[];
+  isComplete: boolean;
+};
+
 export type YearEntryOverviewResponse = {
-  selectedMonths: number[];
-  totalWithheldTax: number;
+  totalEffectiveEmployeeCount: number;
+  currentResultCoverage: YearEntryResultCoverage;
   employees: EmployeeYearEntryOverview[];
+};
+
+export type YearEntryCalculationSummaryRow = {
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  cumulativeExpectedWithheldTax: number;
+  lastAppliedRate: number | null;
+  selectedScheme: TaxCalculationScheme;
+  alternativeTaxAmount: number;
+};
+
+export type YearEntryCalculationResponse = {
+  status: "success";
+  coverage: YearEntryResultCoverage & {
+    requestedEmployeeCount: number;
+  };
+  summaryRows: YearEntryCalculationSummaryRow[];
 };
 
 export type EmployeeYearRecordWorkspace = {
@@ -192,6 +221,7 @@ export type AnnualTaxWithholdingTraceItem = {
   withholdingMode: AnnualTaxWithholdingMode;
   salaryIncome: number;
   actualWithheldTax: number;
+  cumulativeActualWithheldTaxBeforeCurrentMonth: number;
   cumulativeSalaryIncome: number;
   cumulativeBasicDeduction: number;
   cumulativeInsuranceAndHousingFund: number;
@@ -202,6 +232,7 @@ export type AnnualTaxWithholdingTraceItem = {
   cumulativeExpectedWithheldTax: number;
   currentMonthExpectedWithheldTax: number;
   currentMonthWithholdingVariance: number;
+  appliedRate: number;
 };
 
 export type AnnualTaxWithholdingSummary = {
@@ -450,6 +481,7 @@ export type AnnualTaxCalculation = {
   annualTaxSettlement: number;
   settlementDirection: TaxSettlementDirection;
   withholdingSummary: AnnualTaxWithholdingSummary;
+  withholdingTraceItems?: AnnualTaxWithholdingTraceItem[];
   ruleSourceSummary?: AnnualTaxRuleSourceSummary | null;
   schemeResults: {
     separateBonus: AnnualTaxSchemeResult;
@@ -485,6 +517,7 @@ export type MonthConfirmationStatus = {
 
 export type MonthConfirmationState = {
   lastConfirmedMonth: number;
+  coverage: YearEntryResultCoverage;
   months: MonthConfirmationStatus[];
 };
 

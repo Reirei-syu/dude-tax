@@ -32,6 +32,7 @@ import type {
   Unit,
   UpdateAnnualResultSelectedSchemePayload,
   UpsertEmployeeMonthRecordPayload,
+  YearEntryCalculationResponse,
   YearEntryOverviewResponse,
 } from "@dude-tax/core";
 
@@ -164,15 +165,26 @@ export const apiClient = {
     );
   },
 
-  getYearEntryOverview(unitId: number, taxYear: number, selectedMonths: number[]) {
-    const searchParams = new URLSearchParams();
-    if (selectedMonths.length) {
-      searchParams.set("months", selectedMonths.join(","));
-    }
-
-    const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  getYearEntryOverview(unitId: number, taxYear: number) {
     return request<YearEntryOverviewResponse>(
-      `/api/units/${unitId}/years/${taxYear}/year-entry-overview${suffix}`,
+      `/api/units/${unitId}/years/${taxYear}/year-entry-overview`,
+    );
+  },
+
+  calculateYearEntryResults(
+    unitId: number,
+    taxYear: number,
+    payload: {
+      employeeIds: number[];
+      withholdingContext?: AnnualTaxWithholdingContext;
+    },
+  ) {
+    return request<YearEntryCalculationResponse>(
+      `/api/units/${unitId}/years/${taxYear}/year-entry-calculate`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
     );
   },
 

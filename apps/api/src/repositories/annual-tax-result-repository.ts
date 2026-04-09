@@ -181,16 +181,30 @@ export const annualTaxResultRepository = {
     taxYear: number,
     currentPolicySignature?: string,
   ) {
+    const currentDataSignature =
+      currentPolicySignature ? buildAnnualTaxDataSignature(unitId, taxYear, employeeId) : null;
     const row = database
       .prepare(
-        `           SELECT             result.unit_id,             result.employee_id,             result.tax_year,             result.selected_scheme,             result.selected_tax_amount,             result.calculation_snapshot,             result.calculated_at,             e.employee_code,             e.employee_name           FROM annual_tax_results result           INNER JOIN employees e             ON e.id = result.employee_id           WHERE result.unit_id = ? AND result.employee_id = ? AND result.tax_year = ?             ${currentPolicySignature ? "AND result.policy_signature = ? AND result.data_signature != ''" : ""}         `,
+        `           SELECT             result.unit_id,             result.employee_id,             result.tax_year,             result.selected_scheme,             result.selected_tax_amount,             result.policy_signature,             result.data_signature,             result.calculation_snapshot,             result.calculated_at,             e.employee_code,             e.employee_name           FROM annual_tax_results result           INNER JOIN employees e             ON e.id = result.employee_id           WHERE result.unit_id = ? AND result.employee_id = ? AND result.tax_year = ?             ${currentPolicySignature ? "AND result.policy_signature = ? AND result.data_signature != ''" : ""}         `,
       )
       .get(
         ...(currentPolicySignature
           ? [unitId, employeeId, taxYear, currentPolicySignature]
           : [unitId, employeeId, taxYear]),
       ) as Record<string, unknown> | undefined;
-    return row ? mapRowToAnnualTaxResult(row) : null;
+    if (!row) {
+      return null;
+    }
+
+    if (
+      currentPolicySignature &&
+      (String(row.policy_signature ?? "") !== currentPolicySignature ||
+        String(row.data_signature ?? "") !== currentDataSignature)
+    ) {
+      return null;
+    }
+
+    return mapRowToAnnualTaxResult(row);
   },
   listByUnitAndYear(
     unitId: number,
@@ -199,12 +213,25 @@ export const annualTaxResultRepository = {
   ): EmployeeAnnualTaxResult[] {
     const rows = database
       .prepare(
-        `           SELECT             result.unit_id,             result.employee_id,             result.tax_year,             result.selected_scheme,             result.selected_tax_amount,             result.calculation_snapshot,             result.calculated_at,             e.employee_code,             e.employee_name           FROM annual_tax_results result           INNER JOIN employees e             ON e.id = result.employee_id           WHERE result.unit_id = ? AND result.tax_year = ?             ${currentPolicySignature ? "AND result.policy_signature = ? AND result.data_signature != ''" : ""}           ORDER BY e.created_at DESC         `,
+        `           SELECT             result.unit_id,             result.employee_id,             result.tax_year,             result.selected_scheme,             result.selected_tax_amount,             result.policy_signature,             result.data_signature,             result.calculation_snapshot,             result.calculated_at,             e.employee_code,             e.employee_name           FROM annual_tax_results result           INNER JOIN employees e             ON e.id = result.employee_id           WHERE result.unit_id = ? AND result.tax_year = ?             ${currentPolicySignature ? "AND result.policy_signature = ? AND result.data_signature != ''" : ""}           ORDER BY e.created_at DESC         `,
       )
       .all(
         ...(currentPolicySignature ? [unitId, taxYear, currentPolicySignature] : [unitId, taxYear]),
       ) as Record<string, unknown>[];
-    return rows.map(mapRowToAnnualTaxResult);
+
+    return rows
+      .filter((row) => {
+        if (!currentPolicySignature) {
+          return true;
+        }
+
+        return (
+          String(row.policy_signature ?? "") === currentPolicySignature &&
+          String(row.data_signature ?? "") ===
+            buildAnnualTaxDataSignature(unitId, taxYear, Number(row.employee_id))
+        );
+      })
+      .map(mapRowToAnnualTaxResult);
   },
   listVersionsByEmployeeAndYear(
     unitId: number,

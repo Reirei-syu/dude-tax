@@ -2,9 +2,10 @@ import type { YearRecordUpsertItem } from "@dude-tax/core";
 import { useMemo, useState } from "react";
 import {
   YEAR_RECORD_DEDUCTION_FIELDS,
-  YEAR_RECORD_INCOME_FIELDS,
   YEAR_RECORD_INCOME_TEXT_FIELDS,
   YEAR_RECORD_TEXT_FIELDS,
+  getVisibleYearRecordIncomeFields,
+  type YearRecordFieldKey,
 } from "../pages/year-record-workspace";
 
 type EditableFieldKey = keyof YearRecordUpsertItem;
@@ -18,6 +19,7 @@ type Props = {
   lockedMonths?: number[];
   basicDeductionAmount: number;
   readOnly?: boolean;
+  hiddenFieldKeys?: YearRecordFieldKey[];
   onClose: () => void;
   onSelectMonth: (taxMonth: number) => void;
   onChangeRow?: (
@@ -41,6 +43,7 @@ export const YearRecordWorkspaceDialog = ({
   lockedMonths = [],
   basicDeductionAmount,
   readOnly = false,
+  hiddenFieldKeys = [],
   onClose,
   onSelectMonth,
   onChangeRow,
@@ -52,6 +55,10 @@ export const YearRecordWorkspaceDialog = ({
 }: Props) => {
   const [isMaximized, setIsMaximized] = useState(true);
   const lockedMonthSet = useMemo(() => new Set(lockedMonths), [lockedMonths]);
+  const visibleIncomeFields = useMemo(
+    () => getVisibleYearRecordIncomeFields(hiddenFieldKeys),
+    [hiddenFieldKeys],
+  );
 
   if (!open) {
     return null;
@@ -112,7 +119,7 @@ export const YearRecordWorkspaceDialog = ({
             <thead>
               <tr>
                 <th>月份</th>
-                {YEAR_RECORD_INCOME_FIELDS.map((field) => (
+                {visibleIncomeFields.map((field) => (
                   <th key={field.key}>{field.label}</th>
                 ))}
                 {YEAR_RECORD_INCOME_TEXT_FIELDS.map((field) => (
@@ -143,7 +150,7 @@ export const YearRecordWorkspaceDialog = ({
                       <strong>{row.taxMonth} 月</strong>
                       {isLocked ? <div className="tag tag-warning">已确认</div> : null}
                     </td>
-                    {YEAR_RECORD_INCOME_FIELDS.map((field) => (
+                    {visibleIncomeFields.map((field) => (
                       <td key={`${row.taxMonth}-${field.key}`}>
                         <input
                           className="table-input"
@@ -187,12 +194,7 @@ export const YearRecordWorkspaceDialog = ({
                       </td>
                     ))}
                     <td>
-                      <input
-                        className="table-input"
-                        disabled
-                        type="number"
-                        value={basicDeductionAmount}
-                      />
+                      <input className="table-input" disabled type="number" value={basicDeductionAmount} />
                     </td>
                     {YEAR_RECORD_TEXT_FIELDS.map((field) => (
                       <td key={`${row.taxMonth}-${field.key}`}>
