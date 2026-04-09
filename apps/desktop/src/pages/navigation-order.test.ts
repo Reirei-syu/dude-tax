@@ -11,7 +11,6 @@ test("导航顺序与政策参考命名符合新模块规划", () => {
       "/employees",
       "/quick-calc",
       "/entry",
-      "/import",
       "/result-confirmation",
       "/history",
       "/policy",

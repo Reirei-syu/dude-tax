@@ -411,6 +411,7 @@ export type ImportConflictStrategy = "skip" | "overwrite" | "abort";
 
 export type ImportPreviewRow = {
   rowNumber: number;
+  rowLabel?: string | null;
   status: "ready" | "conflict" | "error";
   conflictType: string | null;
   errors: string[];
@@ -423,6 +424,8 @@ export type ImportPreviewResponse = {
   readyRows: number;
   conflictRows: number;
   errorRows: number;
+  autoFillZeroRowCount?: number;
+  autoFillZeroEmployeeCount?: number;
   rows: ImportPreviewRow[];
 };
 
@@ -434,6 +437,7 @@ export type ImportCommitResponse = {
   failureCount: number;
   failures: Array<{
     rowNumber: number;
+    rowLabel?: string | null;
     reason: string;
   }>;
 };

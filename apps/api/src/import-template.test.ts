@@ -106,6 +106,14 @@ test("月度数据模板下载会带出当前单位员工参考信息", async ()
     leaveDate: null,
     remark: "",
   });
+  employeeRepository.create(unit.id, {
+    employeeCode: "EMP002",
+    employeeName: "李四",
+    idNumber: "110101199001011235",
+    hireDate: "2025-01-01",
+    leaveDate: "2025-12-31",
+    remark: "",
+  });
 
   const response = await app.inject({
     method: "GET",
@@ -113,8 +121,12 @@ test("月度数据模板下载会带出当前单位员工参考信息", async ()
   });
 
   assert.equal(response.statusCode, 200);
-  assert.match(response.body, /工号,姓名,证件号,年度,月份/);
-  assert.match(response.body, /EMP001,张三,110101199001011234,2026,/);
+  const lines = response.body.trim().split(/\r?\n/);
+  assert.match(lines[0] ?? "", /工号,姓名,证件号,年度,月份,工资收入/);
+  assert.equal(lines.length, 13);
+  assert.match(lines[1] ?? "", /EMP001,张三,110101199001011234,2026,1,/);
+  assert.match(lines[12] ?? "", /EMP001,张三,110101199001011234,2026,12,/);
+  assert.equal(response.body.includes("EMP002"), false);
 
   await app.close();
 });

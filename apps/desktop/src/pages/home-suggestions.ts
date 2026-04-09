@@ -1,4 +1,4 @@
-import type { EmployeeCalculationStatus, ImportSummary } from "@dude-tax/core";
+import type { EmployeeCalculationStatus } from "@dude-tax/core";
 
 export type WorkSuggestion = {
   title: string;
@@ -14,7 +14,6 @@ type BuildHomeSuggestionsInput = {
   incompleteMonthCount: number;
   pendingRecalculateCount: number;
   invalidatedCount: number;
-  importSummary: ImportSummary | null;
   statuses: EmployeeCalculationStatus[];
 };
 
@@ -25,7 +24,6 @@ export const buildHomeSuggestions = ({
   incompleteMonthCount,
   pendingRecalculateCount,
   invalidatedCount,
-  importSummary,
   statuses,
 }: BuildHomeSuggestionsInput): WorkSuggestion[] => {
   if (!currentUnitId || !currentTaxYear) {
@@ -41,30 +39,12 @@ export const buildHomeSuggestions = ({
 
   const suggestions: WorkSuggestion[] = [];
 
-  if ((importSummary?.conflictRows ?? 0) > 0) {
-    suggestions.push({
-      title: "先处理导入冲突",
-      description: `当前最新导入预览中还有 ${importSummary?.conflictRows ?? 0} 行冲突，建议先确认处理策略。`,
-      path: "/import",
-      actionLabel: "前往批量导入",
-    });
-  }
-
-  if ((importSummary?.readyRows ?? 0) > 0) {
-    suggestions.push({
-      title: "执行批量导入",
-      description: `当前最新导入预览中还有 ${importSummary?.readyRows ?? 0} 行可直接导入，优先批量落库更高效。`,
-      path: "/import",
-      actionLabel: "继续导入",
-    });
-  }
-
   if (employeeCount === 0) {
     suggestions.push({
       title: "先补员工基础档案",
-      description: "当前单位下还没有员工，建议先通过批量导入或手工新增建立员工档案。",
-      path: importSummary ? "/import" : "/employees",
-      actionLabel: importSummary ? "前往批量导入" : "前往员工信息",
+      description: "当前单位下还没有员工，建议先前往员工信息模块手工新增或执行批量导入。",
+      path: "/employees",
+      actionLabel: "前往员工信息",
     });
 
     return suggestions.slice(0, 3);

@@ -21,7 +21,6 @@ import type {
   ImportCommitResponse,
   ImportConflictStrategy,
   ImportPreviewResponse,
-  ImportSummary,
   ImportType,
   MonthConfirmationState,
   QuickCalculatePayload,
@@ -371,10 +370,6 @@ export const apiClient = {
         conflictStrategy,
       }),
     });
-  },
-
-  getImportSummary(unitId: number) {
-    return request<ImportSummary | null>(`/api/import/summary?unitId=${unitId}`);
   },
 
   listCalculationStatuses(unitId: number, taxYear: number) {

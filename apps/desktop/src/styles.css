@@ -193,6 +193,26 @@ textarea {
   margin-bottom: 18px;
 }
 
+.import-workflow-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.import-workflow-group > .section-header {
+  margin-bottom: 0;
+}
+
+.import-workflow-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.import-workflow-group-body[hidden] {
+  display: none;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

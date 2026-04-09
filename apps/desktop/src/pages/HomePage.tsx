@@ -1,7 +1,6 @@
 import {
   buildDefaultTaxPolicySettings,
   type EmployeeCalculationStatus,
-  type ImportSummary,
   type TaxPolicyResponse,
 } from "@dude-tax/core";
 import { Link } from "react-router-dom";
@@ -21,7 +20,6 @@ export const HomePage = () => {
   const [taxPolicy, setTaxPolicy] = useState<TaxPolicyResponse | null>(null);
   const [taxPolicyLoading, setTaxPolicyLoading] = useState(false);
   const [taxPolicyErrorMessage, setTaxPolicyErrorMessage] = useState<string | null>(null);
-  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
   useEffect(() => {
     const loadTaxPolicy = async () => {
@@ -41,20 +39,6 @@ export const HomePage = () => {
   }, []);
 
   useEffect(() => {
-    const loadImportSummary = async () => {
-      if (!currentUnitId) {
-        setImportSummary(null);
-        return;
-      }
-
-      try {
-        const nextImportSummary = await apiClient.getImportSummary(currentUnitId);
-        setImportSummary(nextImportSummary);
-      } catch {
-        setImportSummary(null);
-      }
-    };
-
     const loadReminderStatuses = async () => {
       if (!currentUnitId || !currentTaxYear) {
         setStatuses([]);
@@ -75,8 +59,9 @@ export const HomePage = () => {
     };
 
     void loadReminderStatuses();
-    void loadImportSummary();
   }, [currentTaxYear, currentUnitId]);
+
+  const employeeCount = statuses.length;
 
   const reminderItems = useMemo(
     () => [
@@ -100,16 +85,15 @@ export const HomePage = () => {
         ),
       },
       {
-        title: "导入冲突待处理",
-        description: "点击前往批量导入查看冲突预览。",
-        path: "/import",
-        count: importSummary?.conflictRows ?? 0,
+        title: "员工档案待维护",
+        description: "点击前往员工信息维护基础档案，或使用新的页内导入入口。", 
+        path: "/employees",
+        count: employeeCount === 0 ? 1 : 0,
       },
     ],
-    [importSummary?.conflictRows, statuses],
+    [employeeCount, statuses],
   );
 
-  const employeeCount = statuses.length;
   const pendingRecalculateCount = reminderItems[0]?.count ?? 0;
   const incompleteMonthCount = reminderItems[1]?.count ?? 0;
   const currentTaxPolicy = taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
@@ -123,14 +107,12 @@ export const HomePage = () => {
         incompleteMonthCount,
         pendingRecalculateCount,
         invalidatedCount: statuses.filter((status) => status.isInvalidated).length,
-        importSummary,
         statuses,
       }),
     [
       currentTaxYear,
       currentUnitId,
       employeeCount,
-      importSummary,
       incompleteMonthCount,
       pendingRecalculateCount,
       statuses,

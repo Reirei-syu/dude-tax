@@ -2,7 +2,9 @@ import type { CreateEmployeePayload, Employee } from "@dude-tax/core";
 import { deriveEmployeeGeneralStatus } from "@dude-tax/core";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
 import { useAppContext } from "../context/AppContextProvider";
+import { downloadEmployeeImportTemplateWorkbook } from "./import-template";
 
 const emptyForm: CreateEmployeePayload = {
   employeeCode: "",
@@ -224,6 +226,17 @@ export const EmployeeManagementPage = () => {
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
       </article>
+
+      <ImportWorkflowSection
+        title="员工批量导入"
+        description="在员工信息模块内完成员工模板下载、预览、冲突处理和执行导入。"
+        importType="employee"
+        canOperate={Boolean(currentUnitId)}
+        currentUnitId={currentUnitId}
+        downloadButtonLabel="下载员工模板"
+        onDownloadTemplate={() => downloadEmployeeImportTemplateWorkbook()}
+        onImportCommitted={() => loadEmployees()}
+      />
 
       <article className="glass-card page-section">
         <div className="section-header">

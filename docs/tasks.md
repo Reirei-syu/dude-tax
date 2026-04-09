@@ -6,13 +6,69 @@
 
 ## 任务列表
 
-### [ ] Windows / Electron 手工烟测月度录入年度化计算主流程
+### [x] 修复月度批量导入工作区折叠样式失效
+- 类型：Fix
+- 模块：`apps/desktop`
+- 描述：修复月度批量导入工作区在默认折叠状态下仍然显示内容的问题，确保折叠视觉与状态一致。
+- 依赖：月度批量导入工作区默认折叠优化已完成
+- 风险：低
+- 优先级：4
+- 完成时间：2026-04-09
+- 修改文件：
+  - `apps/desktop/src/styles.css`
+  - `apps/desktop/src/components/import-workflow-section.test.ts`
+- 影响范围：
+  - 补齐折叠内容区的显式隐藏样式
+  - 新增回归测试覆盖 `hidden` 与样式联动
+
+### [x] 月度批量导入工作区默认折叠优化
+- 类型：Fix
+- 模块：`apps/desktop`
+- 描述：将月度数据页中的“月度数据批量导入 / 导入预览 / 导入回执”归入专门的批量导入工作区，并在首次进入页面时默认折叠。
+- 依赖：批量导入并入员工信息与月度数据录入已完成
+- 风险：低
+- 优先级：4
+- 完成时间：2026-04-09
+- 修改文件：
+  - `apps/desktop/src/components/ImportWorkflowSection.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/month-record-entry-page.test.ts`
+  - `apps/desktop/src/styles.css`
+- 影响范围：
+  - 月度数据页批量导入能力统一归入专门工作区
+  - 工作区默认折叠，展开后保留原有模板下载、导入预览与导入回执流程
+  - 员工信息页导入区块不受影响
+
+### [ ] Windows / Electron 手工烟测导入合并后的主流程
 - 类型：Test
 - 模块：`apps/desktop`
-- 描述：手工检查月度数据录入页的员工选择弹层、折叠区块、年度工作台、执行计算、结果汇总与明细弹层，以及结果确认页的全员覆盖门禁与当前待确认结果展示。
-- 依赖：月度数据录入模块年度化计算改造已完成
+- 描述：手工检查员工信息页和月度数据录入页的页内导入、模板下载、预览、执行导入、自动补零、结果刷新，以及结果汇总导出链路。
+- 依赖：批量导入并入员工信息与月度数据录入已完成
 - 风险：中
 - 优先级：4
+
+### [x] 批量导入并入员工信息与月度数据录入
+- 完成时间：2026-04-09
+- 修改文件：
+  - `packages/config/src/index.ts`
+  - `packages/core/src/index.ts`
+  - `apps/api/src/services/import-service.ts`
+  - `apps/api/src/import-template.test.ts`
+  - `apps/api/src/import.test.ts`
+  - `apps/desktop/src/main.tsx`
+  - `apps/desktop/src/components/ImportWorkflowSection.tsx`
+  - `apps/desktop/src/pages/EmployeeManagementPage.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/HomePage.tsx`
+  - `apps/desktop/src/pages/home-suggestions.ts`
+  - `apps/desktop/src/pages/import-file-parser.ts`
+  - `apps/desktop/src/pages/import-template.ts`
+- 影响范围：
+  - 取消独立批量导入导航与路由
+  - 员工导入并入员工信息页
+  - 月度导入并入月度数据录入页
+  - 月度导入支持缺失行自动补零
+  - 月度录入导出迁移到计算结果汇总卡片
 
 ### [x] 月度数据录入模块年度化计算改造
 - 完成时间：2026-04-09

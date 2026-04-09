@@ -11,6 +11,7 @@ const modulesPromise = Promise.all([
   import("./routes/import.js"),
   import("./routes/employees.js"),
   import("./routes/month-records.js"),
+  import("./repositories/month-confirmation-repository.js"),
   import("./repositories/unit-repository.js"),
   import("./repositories/employee-repository.js"),
   import("./repositories/month-record-repository.js"),
@@ -23,8 +24,9 @@ before(() => {
 });
 
 beforeEach(async () => {
-  const [, , , , , , { database }] = await modulesPromise;
+  const [, , , , , , , { database }] = await modulesPromise;
   database.exec(`
+    DELETE FROM month_confirmations;
     DELETE FROM annual_tax_results;
     DELETE FROM annual_calculation_runs;
     DELETE FROM employee_month_records;
@@ -37,7 +39,7 @@ beforeEach(async () => {
 });
 
 after(async () => {
-  const [, , , , , , { closeDatabase }] = await modulesPromise;
+  const [, , , , , , , { closeDatabase }] = await modulesPromise;
   closeDatabase();
   fs.rmSync(testDatabasePath, { force: true });
 });
@@ -60,7 +62,7 @@ test("导入模板接口返回员工 CSV 模板", async () => {
 });
 
 test("预览接口可识别员工工号冲突", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+  const [{ registerImportRoutes }, , , , { unitRepository }, { employeeRepository }] =
     await modulesPromise;
 
   const app = Fastify({ logger: false });
@@ -114,6 +116,7 @@ test("执行导入接口可导入月度数据并支持覆盖策略", async () =>
     { registerImportRoutes },
     { registerEmployeeRoutes },
     { registerMonthRecordRoutes },
+    ,
     { unitRepository },
     { employeeRepository },
     { monthRecordRepository },
@@ -208,6 +211,7 @@ test("存在冲突时提交不会部分成功写入其他月度记录", async ()
     { registerImportRoutes },
     ,
     { registerMonthRecordRoutes },
+    ,
     { unitRepository },
     { employeeRepository },
     { monthRecordRepository },
@@ -288,7 +292,7 @@ test("存在冲突时提交不会部分成功写入其他月度记录", async ()
 });
 
 test("预览接口可识别同一份员工 CSV 内的重复工号", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }] = await modulesPromise;
+  const [{ registerImportRoutes }, , , , { unitRepository }] = await modulesPromise;
 
   const app = Fastify({ logger: false });
   await registerImportRoutes(app);
@@ -320,7 +324,7 @@ test("预览接口可识别同一份员工 CSV 内的重复工号", async () => 
 });
 
 test("月度导入预览会限制在当前年份作用域内", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+  const [{ registerImportRoutes }, , , , { unitRepository }, { employeeRepository }] =
     await modulesPromise;
 
   const app = Fastify({ logger: false });
@@ -362,8 +366,163 @@ test("月度导入预览会限制在当前年份作用域内", async () => {
   await app.close();
 });
 
+test("月度导入会为缺失月份自动补零", async () => {
+  const [
+    { registerImportRoutes },
+    ,
+    { registerMonthRecordRoutes },
+    ,
+    { unitRepository },
+    { employeeRepository },
+    { monthRecordRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+  await registerMonthRecordRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "补零导入测试单位",
+    remark: "",
+    startYear: 2026,
+  });
+
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP800",
+    employeeName: "补零员工",
+    idNumber: "110101199001018888",
+    hireDate: "2024-01-01",
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthRecordRepository.upsert(unit.id, employee.id, 2026, 1, {
+    status: "completed",
+    salaryIncome: 5000,
+    annualBonus: 0,
+    pensionInsurance: 0,
+    medicalInsurance: 0,
+    occupationalAnnuity: 0,
+    housingFund: 0,
+    supplementaryHousingFund: 0,
+    unemploymentInsurance: 0,
+    workInjuryInsurance: 0,
+    withheldTax: 10,
+    infantCareDeduction: 0,
+    childEducationDeduction: 0,
+    continuingEducationDeduction: 0,
+    housingLoanInterestDeduction: 0,
+    housingRentDeduction: 0,
+    elderCareDeduction: 0,
+    otherDeduction: 0,
+    taxReductionExemption: 0,
+    remark: "",
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/import/commit",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      scopeTaxYear: 2026,
+      csvText:
+        "employeeCode,employeeName,idNumber,taxYear,taxMonth,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,otherIncome,otherIncomeRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP800,补零员工,110101199001018888,2026,1,8000,0,0,0,0,0,0,0,0,100,0,,0,0,0,0,0,0,0,0,导入覆盖",
+      conflictStrategy: "overwrite",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as Record<string, unknown>;
+  assert.equal(body.successCount, 12);
+
+  const listResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records`,
+  });
+  const records = listResponse.json() as Array<Record<string, unknown>>;
+  const january = records.find((record) => record.taxMonth === 1);
+  const february = records.find((record) => record.taxMonth === 2);
+  const december = records.find((record) => record.taxMonth === 12);
+
+  assert.equal(january?.salaryIncome, 8000);
+  assert.equal(january?.withheldTax, 100);
+  assert.equal(february?.salaryIncome, 0);
+  assert.equal(february?.withheldTax, 0);
+  assert.equal(december?.salaryIncome, 0);
+
+  await app.close();
+});
+
+test("月度导入缺失行若命中已确认月份则会被阻断", async () => {
+  const [
+    { registerImportRoutes },
+    ,
+    { registerMonthRecordRoutes },
+    { monthConfirmationRepository },
+    { unitRepository },
+    { employeeRepository },
+  ] = await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerImportRoutes(app);
+  await registerMonthRecordRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "导入锁定测试单位",
+    remark: "",
+    startYear: 2026,
+  });
+
+  employeeRepository.create(unit.id, {
+    employeeCode: "EMP900",
+    employeeName: "锁定员工",
+    idNumber: "110101199001019999",
+    hireDate: "2024-01-01",
+    leaveDate: null,
+    remark: "",
+  });
+
+  monthConfirmationRepository.confirm(unit.id, 2026, 2);
+
+  const previewResponse = await app.inject({
+    method: "POST",
+    url: "/api/import/preview",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      scopeTaxYear: 2026,
+      csvText:
+        "employeeCode,employeeName,idNumber,taxYear,taxMonth,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,otherIncome,otherIncomeRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP900,锁定员工,110101199001019999,2026,1,8000,0,0,0,0,0,0,0,0,100,0,,0,0,0,0,0,0,0,0,导入覆盖",
+    },
+  });
+
+  assert.equal(previewResponse.statusCode, 200);
+  const previewBody = previewResponse.json() as Record<string, unknown>;
+  assert.equal(previewBody.errorRows, 1);
+
+  const commitResponse = await app.inject({
+    method: "POST",
+    url: "/api/import/commit",
+    payload: {
+      importType: "month_record",
+      unitId: unit.id,
+      scopeTaxYear: 2026,
+      csvText:
+        "employeeCode,employeeName,idNumber,taxYear,taxMonth,salaryIncome,annualBonus,pensionInsurance,medicalInsurance,occupationalAnnuity,housingFund,supplementaryHousingFund,unemploymentInsurance,workInjuryInsurance,withheldTax,otherIncome,otherIncomeRemark,infantCareDeduction,childEducationDeduction,continuingEducationDeduction,housingLoanInterestDeduction,housingRentDeduction,elderCareDeduction,otherDeduction,taxReductionExemption,remark\nEMP900,锁定员工,110101199001019999,2026,1,8000,0,0,0,0,0,0,0,0,100,0,,0,0,0,0,0,0,0,0,导入覆盖",
+      conflictStrategy: "overwrite",
+    },
+  });
+
+  assert.equal(commitResponse.statusCode, 200);
+  const commitBody = commitResponse.json() as Record<string, unknown>;
+  assert.equal(commitBody.failureCount, 1);
+
+  await app.close();
+});
+
 test("月度导入预览可识别同一文件内重复月份记录", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+  const [{ registerImportRoutes }, , , , { unitRepository }, { employeeRepository }] =
     await modulesPromise;
 
   const app = Fastify({ logger: false });
@@ -406,7 +565,7 @@ test("月度导入预览可识别同一文件内重复月份记录", async () =>
 });
 
 test("执行导入可正确解析带引号、逗号和换行的员工字段", async () => {
-  const [{ registerImportRoutes }, , , { unitRepository }, { employeeRepository }] =
+  const [{ registerImportRoutes }, , , , { unitRepository }, { employeeRepository }] =
     await modulesPromise;
 
   const app = Fastify({ logger: false });

@@ -9,11 +9,13 @@ import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
+import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
 import { YearEntryEmployeeSelectionDialog } from "../components/YearEntryEmployeeSelectionDialog";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
+import { downloadMonthRecordImportTemplateWorkbook } from "./import-template";
 import { buildYearRecordWorkbookBuffer } from "./year-record-export";
 import {
   applyWorkspaceMonthToFutureMonths,
@@ -66,29 +68,55 @@ type ResultSummaryRow = {
   cumulativeExpectedWithheldTax: number;
   lastAppliedRate: number | null;
   selectedScheme: EmployeeAnnualTaxResult["selectedScheme"];
+  annualBonusTax: number | null;
+  annualBonusRate: number | null;
   alternativeTaxAmount: number;
 };
 
-const buildResultSummaryRows = (results: EmployeeAnnualTaxResult[]): ResultSummaryRow[] =>
-  results.map((result) => {
-    const lastTraceItem = result.withholdingTraceItems?.at(-1) ?? null;
-    const alternativeSchemeResult =
-      result.selectedScheme === "separate_bonus"
-        ? result.schemeResults.combinedBonus
-        : result.schemeResults.separateBonus;
+const buildResultSummaryRows = (
+  results: EmployeeAnnualTaxResult[],
+  bonusTaxBrackets: Awaited<
+    ReturnType<typeof apiClient.getTaxPolicy>
+  >["currentSettings"]["bonusTaxBrackets"],
+): ResultSummaryRow[] =>
+  [...results]
+    .sort((left, right) =>
+      left.employeeCode.localeCompare(right.employeeCode, "zh-CN", { numeric: true }),
+    )
+    .map((result) => {
+      const lastTraceItem = result.withholdingTraceItems?.at(-1) ?? null;
+      const alternativeSchemeResult =
+        result.selectedScheme === "separate_bonus"
+          ? result.schemeResults.combinedBonus
+          : result.schemeResults.separateBonus;
+      const selectedSchemeResult =
+        result.selectedScheme === "separate_bonus"
+          ? result.schemeResults.separateBonus
+          : result.schemeResults.combinedBonus;
+      const annualBonusRate =
+        result.selectedScheme === "separate_bonus" && selectedSchemeResult.bonusBracketLevel
+          ? bonusTaxBrackets.find(
+              (bracket) => bracket.level === selectedSchemeResult.bonusBracketLevel,
+            )?.rate ?? null
+          : null;
 
-    return {
-      employeeId: result.employeeId,
-      employeeCode: result.employeeCode,
-      employeeName: result.employeeName,
-      cumulativeExpectedWithheldTax:
-        lastTraceItem?.cumulativeExpectedWithheldTax ??
-        result.withholdingSummary.expectedWithheldTaxTotal,
-      lastAppliedRate: lastTraceItem?.appliedRate ?? null,
-      selectedScheme: result.selectedScheme,
-      alternativeTaxAmount: alternativeSchemeResult.finalTax,
-    };
-  });
+      return {
+        employeeId: result.employeeId,
+        employeeCode: result.employeeCode,
+        employeeName: result.employeeName,
+        cumulativeExpectedWithheldTax:
+          lastTraceItem?.cumulativeExpectedWithheldTax ??
+          result.withholdingSummary.expectedWithheldTaxTotal,
+        lastAppliedRate: lastTraceItem?.appliedRate ?? null,
+        selectedScheme: result.selectedScheme,
+        annualBonusTax:
+          result.selectedScheme === "separate_bonus"
+            ? selectedSchemeResult.annualBonusTax
+            : null,
+        annualBonusRate,
+        alternativeTaxAmount: alternativeSchemeResult.finalTax,
+      };
+    });
 
 export const MonthRecordEntryPage = () => {
   const { context } = useAppContext();
@@ -171,8 +199,8 @@ export const MonthRecordEntryPage = () => {
   }, [scopeKey]);
 
   const resultSummaryRows = useMemo(
-    () => buildResultSummaryRows(annualResults),
-    [annualResults],
+    () => buildResultSummaryRows(annualResults, bonusTaxBrackets),
+    [annualResults, bonusTaxBrackets],
   );
   const selectedEmployeeIdSet = useMemo(
     () => new Set(selectedEmployeeIds),
@@ -314,7 +342,7 @@ export const MonthRecordEntryPage = () => {
   };
 
   const downloadWorkbook = async () => {
-    if (!currentUnitId || !currentTaxYear || !currentUnit || !selectedEmployees.length) {
+    if (!currentUnitId || !currentTaxYear || !currentUnit || !annualResults.length) {
       return;
     }
 
@@ -322,7 +350,7 @@ export const MonthRecordEntryPage = () => {
       setSaving(true);
       setErrorMessage(null);
       const workspaces = await Promise.all(
-        selectedEmployees.map((employee) =>
+        annualResults.map((employee) =>
           apiClient.getEmployeeYearWorkspace(
             currentUnitId,
             currentTaxYear,
@@ -335,22 +363,18 @@ export const MonthRecordEntryPage = () => {
         summaryColumns: [
           { key: "employeeCode", label: "工号" },
           { key: "employeeName", label: "姓名" },
-          { key: "recordedMonthCount", label: "已录入月份" },
-          { key: "totalWithheldTax", label: "预扣税额合计" },
-          { key: "optimalScheme", label: "方案" },
-          { key: "uneditedMonths", label: "未编辑月份" },
+          { key: "selectedScheme", label: "采用方案" },
+          { key: "annualTaxWithheld", label: "本年税额" },
+          { key: "lastAppliedRate", label: "末月税率" },
+          { key: "alternativeTaxAmount", label: "另一方案应扣税额" },
         ],
-        summaryRows: selectedEmployees.map((employee) => ({
-          employeeCode: employee.employeeCode,
-          employeeName: employee.employeeName,
-          recordedMonthCount: String(employee.recordedMonthCount),
-          totalWithheldTax: employee.totalWithheldTax.toFixed(2),
-          optimalScheme: employee.optimalScheme
-            ? taxCalculationSchemeLabelMap[employee.optimalScheme]
-            : "-",
-          uneditedMonths: employee.uneditedMonths.length
-            ? employee.uneditedMonths.join("、")
-            : "-",
+        summaryRows: resultSummaryRows.map((row) => ({
+          employeeCode: row.employeeCode,
+          employeeName: row.employeeName,
+          selectedScheme: taxCalculationSchemeLabelMap[row.selectedScheme],
+          annualTaxWithheld: formatCurrency(row.cumulativeExpectedWithheldTax),
+          lastAppliedRate: row.lastAppliedRate === null ? "-" : `${row.lastAppliedRate}%`,
+          alternativeTaxAmount: formatCurrency(row.alternativeTaxAmount),
         })),
         employees: workspaces.map((item) => ({
           employeeCode: item.employeeCode,
@@ -361,14 +385,14 @@ export const MonthRecordEntryPage = () => {
       });
 
       await saveFileWithDesktopFallback({
-        defaultPath: `月度数据录入_${currentUnit.unitName}_${currentTaxYear}_全年.xlsx`,
+        defaultPath: `月度数据结果_${currentUnit.unitName}_${currentTaxYear}.xlsx`,
         filters: [{ name: "Excel 文件", extensions: ["xlsx"] }],
         mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         content: workbookArray,
       });
-      setNoticeMessage("月度数据录入导出已生成。");
+      setNoticeMessage("当前计算结果导出已生成。");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "导出月度数据录入失败");
+      setErrorMessage(error instanceof Error ? error.message : "导出当前计算结果失败");
     } finally {
       setSaving(false);
     }
@@ -444,14 +468,6 @@ export const MonthRecordEntryPage = () => {
             选择员工
           </button>
           <button
-            className="ghost-button"
-            disabled={saving || !selectedEmployees.length}
-            type="button"
-            onClick={() => void downloadWorkbook()}
-          >
-            导出 Excel
-          </button>
-          <button
             className="primary-button"
             disabled={saving || !selectedEmployeeIds.length}
             type="button"
@@ -469,6 +485,24 @@ export const MonthRecordEntryPage = () => {
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
       </article>
+
+      <ImportWorkflowSection
+        title="月度数据批量导入"
+        description="在月度数据录入模块内完成模板下载、导入预览、冲突处理和执行导入。"
+        importType="month_record"
+        canOperate={Boolean(currentUnitId && currentTaxYear)}
+        currentUnitId={currentUnitId}
+        scopeTaxYear={currentTaxYear}
+        downloadButtonLabel="下载月度模板"
+        groupTitle="月度批量导入工作区"
+        groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
+        defaultCollapsed={true}
+        defaultConflictStrategy="overwrite"
+        onDownloadTemplate={() =>
+          downloadMonthRecordImportTemplateWorkbook(currentUnitId as number, currentTaxYear as number)
+        }
+        onImportCommitted={() => loadPageData()}
+      />
 
       <article className="glass-card page-section placeholder-card">
         <div className="section-header">
@@ -560,6 +594,14 @@ export const MonthRecordEntryPage = () => {
             <span className="tag">{resultSummaryRows.length} 条结果</span>
             <button
               className="ghost-button"
+              disabled={saving || !resultSummaryRows.length}
+              type="button"
+              onClick={() => void downloadWorkbook()}
+            >
+              导出当前结果
+            </button>
+            <button
+              className="ghost-button"
               type="button"
               onClick={() => setIsResultListCollapsed((currentValue) => !currentValue)}
             >
@@ -573,10 +615,13 @@ export const MonthRecordEntryPage = () => {
             <thead>
               <tr>
                 <th>工号</th>
+                <th aria-label="明细操作"></th>
                 <th>姓名</th>
-                <th>年度累计应预扣额</th>
-                <th>最后一个月适用税率</th>
+                <th>本年税额</th>
+                <th>末月税率</th>
                 <th>采用方案</th>
+                <th>年终奖税额</th>
+                <th>年终奖税率</th>
                 <th>另一方案应扣税额</th>
               </tr>
             </thead>
@@ -589,30 +634,32 @@ export const MonthRecordEntryPage = () => {
                     onClick={() => setDetailEmployeeId(row.employeeId)}
                   >
                     <td>{row.employeeCode}</td>
-                    <td>
-                      <div className="table-inline-actions">
-                        <button
-                          className="ghost-button table-action-button"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setDetailEmployeeId(row.employeeId);
-                          }}
-                        >
-                          明细
-                        </button>
-                        <span>{row.employeeName}</span>
-                      </div>
+                    <td className="table-action-cell">
+                      <button
+                        className="ghost-button table-action-button"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDetailEmployeeId(row.employeeId);
+                        }}
+                      >
+                        明细
+                      </button>
                     </td>
-                    <td>{formatCurrency(row.cumulativeExpectedWithheldTax)}</td>
+                    <td>{row.employeeName}</td>
+                    <td>
+                      {formatCurrency(row.cumulativeExpectedWithheldTax)}
+                    </td>
                     <td>{row.lastAppliedRate === null ? "-" : `${row.lastAppliedRate}%`}</td>
                     <td>{taxCalculationSchemeLabelMap[row.selectedScheme]}</td>
+                    <td>{row.annualBonusTax === null ? "-" : formatCurrency(row.annualBonusTax)}</td>
+                    <td>{row.annualBonusRate === null ? "-" : `${row.annualBonusRate}%`}</td>
                     <td>{formatCurrency(row.alternativeTaxAmount)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6}>当前暂无已计算结果，请先执行计算。</td>
+                  <td colSpan={8}>当前暂无已计算结果，请先执行计算。</td>
                 </tr>
               )}
             </tbody>

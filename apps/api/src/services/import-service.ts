@@ -9,9 +9,11 @@ import type {
   ImportType,
   UpsertEmployeeMonthRecordPayload,
 } from "@dude-tax/core";
+import { isEmployeeActiveInTaxYear } from "@dude-tax/core";
 import { database } from "../db/database.js";
 import { employeeRepository } from "../repositories/employee-repository.js";
 import { importSummaryRepository } from "../repositories/import-summary-repository.js";
+import { monthConfirmationRepository } from "../repositories/month-confirmation-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 
 const employeeTemplateHeader = [
@@ -52,6 +54,33 @@ const monthRecordTemplateHeader = [
   "remark",
 ];
 
+const currentMonthRecordTemplateChineseHeader = [
+  "工号",
+  "年度",
+  "月份",
+  "工资收入",
+  "年终奖",
+  "养老保险",
+  "医疗保险",
+  "职业年金",
+  "住房公积金",
+  "补充住房公积金",
+  "失业保险",
+  "工伤保险",
+  "已预扣税额",
+  "其他收入",
+  "其他收入备注",
+  "婴幼儿照护扣除",
+  "子女教育扣除",
+  "继续教育扣除",
+  "住房贷款利息扣除",
+  "住房租金扣除",
+  "赡养老人扣除",
+  "其他扣除",
+  "减免税额",
+  "备注",
+];
+
 const legacyMonthRecordTemplateHeader = [
   "employeeCode",
   "taxYear",
@@ -82,7 +111,7 @@ const legacyMonthRecordTemplateHeader = [
   "remark",
 ];
 
-const monthRecordTemplateChineseHeader = [
+const legacyMonthRecordTemplateChineseHeader = [
   "工号",
   "年度",
   "月份",
@@ -130,8 +159,17 @@ const monthRecordTemplateWithReferenceChineseHeader = [
   "工号",
   "姓名",
   "证件号",
-  ...monthRecordTemplateChineseHeader.slice(1),
+  ...currentMonthRecordTemplateChineseHeader.slice(1),
 ];
+
+const legacyMonthRecordTemplateWithReferenceChineseHeader = [
+  "工号",
+  "姓名",
+  "证件号",
+  ...legacyMonthRecordTemplateChineseHeader.slice(1),
+];
+
+const TAX_MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 type NumericMonthRecordField =
   | "salaryIncome"
@@ -305,6 +343,106 @@ const parseNumber = (value: string) => {
   return Number.isNaN(nextValue) ? null : nextValue;
 };
 
+const formatTemplateValue = (value: unknown) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value);
+};
+
+const escapeCsvValue = (value: unknown) => {
+  const text = formatTemplateValue(value);
+  if (!/[",\r\n]/.test(text)) {
+    return text;
+  }
+
+  return `"${text.replace(/"/g, "\"\"")}"`;
+};
+
+const buildCsvLine = (values: unknown[]) => values.map((value) => escapeCsvValue(value)).join(",");
+
+const createZeroMonthRecordPayload = (): UpsertEmployeeMonthRecordPayload => ({
+  salaryIncome: 0,
+  annualBonus: 0,
+  pensionInsurance: 0,
+  medicalInsurance: 0,
+  occupationalAnnuity: 0,
+  housingFund: 0,
+  supplementaryHousingFund: 0,
+  unemploymentInsurance: 0,
+  workInjuryInsurance: 0,
+  withheldTax: 0,
+  otherIncome: 0,
+  otherIncomeRemark: "",
+  infantCareDeduction: 0,
+  childEducationDeduction: 0,
+  continuingEducationDeduction: 0,
+  housingLoanInterestDeduction: 0,
+  housingRentDeduction: 0,
+  elderCareDeduction: 0,
+  otherDeduction: 0,
+  taxReductionExemption: 0,
+  remark: "",
+});
+
+const buildMonthRecordTemplateRows = (unitId: number, taxYear: number) => {
+  const employeeList = employeeRepository
+    .listByUnitId(unitId)
+    .filter((employee) => isEmployeeActiveInTaxYear(employee, taxYear))
+    .sort((left, right) =>
+      left.employeeCode.localeCompare(right.employeeCode, "zh-CN", { numeric: true }),
+    );
+  const existingRecords = monthRecordRepository.listExistingByUnitAndYears(unitId, [taxYear]);
+  const existingRecordMap = new Map(
+    existingRecords.map((record) => [
+      `${record.employeeId}:${record.taxYear}:${record.taxMonth}`,
+      record,
+    ]),
+  );
+
+  const rows: string[] = [];
+  employeeList.forEach((employee) => {
+    TAX_MONTHS.forEach((taxMonth) => {
+      const record =
+        existingRecordMap.get(`${employee.id}:${taxYear}:${taxMonth}`) ?? null;
+
+      rows.push(
+        buildCsvLine([
+          employee.employeeCode,
+          employee.employeeName,
+          employee.idNumber,
+          taxYear,
+          taxMonth,
+          record?.salaryIncome ?? 0,
+          record?.annualBonus ?? 0,
+          record?.pensionInsurance ?? 0,
+          record?.medicalInsurance ?? 0,
+          record?.occupationalAnnuity ?? 0,
+          record?.housingFund ?? 0,
+          record?.supplementaryHousingFund ?? 0,
+          record?.unemploymentInsurance ?? 0,
+          record?.workInjuryInsurance ?? 0,
+          record?.withheldTax ?? 0,
+          record?.otherIncome ?? 0,
+          record?.otherIncomeRemark ?? "",
+          record?.infantCareDeduction ?? 0,
+          record?.childEducationDeduction ?? 0,
+          record?.continuingEducationDeduction ?? 0,
+          record?.housingLoanInterestDeduction ?? 0,
+          record?.housingRentDeduction ?? 0,
+          record?.elderCareDeduction ?? 0,
+          record?.otherDeduction ?? 0,
+          record?.taxReductionExemption ?? 0,
+          record?.remark ?? "",
+        ]),
+      );
+    });
+  });
+
+  return rows;
+};
+
 const normalizeImportHeaders = (
   headers: string[],
   candidates: Array<{ englishHeaders: string[]; chineseHeaders: string[]; normalizedHeaders: string[] }>,
@@ -333,52 +471,15 @@ const normalizeImportHeaders = (
 
 const buildTemplate = (importType: ImportType, unitId?: number, taxYear?: number) => {
   if (importType === "employee") {
-    return `${employeeTemplateChineseHeader.join(",")}\n`;
+    return `${buildCsvLine(employeeTemplateChineseHeader)}\n`;
   }
 
-  const rows =
-    unitId && Number.isInteger(unitId) && unitId > 0
-      ? employeeRepository.listByUnitId(unitId)
-      : [];
-  const templateTaxYear = taxYear && Number.isInteger(taxYear) ? taxYear : "";
-  const headerLine = `${monthRecordTemplateWithReferenceChineseHeader.join(",")}\n`;
+  const validUnitId = unitId && Number.isInteger(unitId) && unitId > 0 ? unitId : null;
+  const validTaxYear = taxYear && Number.isInteger(taxYear) ? taxYear : null;
+  const headerLine = `${buildCsvLine(monthRecordTemplateWithReferenceChineseHeader)}\n`;
   const body =
-    rows.length > 0
-      ? rows
-          .map((employee) =>
-            [
-              employee.employeeCode,
-              employee.employeeName,
-              employee.idNumber,
-              templateTaxYear,
-              "",
-              "completed",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "",
-              employee.remark ?? "",
-            ].join(","),
-          )
-          .join("\n")
+    validUnitId && validTaxYear
+      ? buildMonthRecordTemplateRows(validUnitId, validTaxYear).join("\n")
       : "";
 
   return `${headerLine}${body}${body ? "\n" : ""}`;
@@ -437,12 +538,12 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     [
       {
         englishHeaders: monthRecordTemplateHeader,
-        chineseHeaders: monthRecordTemplateChineseHeader,
+        chineseHeaders: currentMonthRecordTemplateChineseHeader,
         normalizedHeaders: monthRecordTemplateHeader,
       },
       {
         englishHeaders: legacyMonthRecordTemplateHeader,
-        chineseHeaders: monthRecordTemplateChineseHeader,
+        chineseHeaders: legacyMonthRecordTemplateChineseHeader,
         normalizedHeaders: legacyMonthRecordTemplateHeader,
       },
       {
@@ -452,7 +553,7 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
       },
       {
         englishHeaders: legacyMonthRecordTemplateWithReferenceHeader,
-        chineseHeaders: monthRecordTemplateWithReferenceChineseHeader,
+        chineseHeaders: legacyMonthRecordTemplateWithReferenceChineseHeader,
         normalizedHeaders: legacyMonthRecordTemplateWithReferenceHeader,
       },
     ],
@@ -467,6 +568,7 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
 
   const taxYear = parseNumber(String(parsedData.taxYear ?? ""));
   const taxMonth = parseNumber(String(parsedData.taxMonth ?? ""));
+  const hasStatusColumn = normalizedHeaders.includes("status");
   const status = String(parsedData.status ?? "").trim() || "completed";
 
   if (!String(parsedData.employeeCode ?? "").trim()) {
@@ -481,7 +583,7 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
     errors.push("月份必须在 1 到 12 之间");
   }
 
-  if (!["incomplete", "completed"].includes(status)) {
+  if (hasStatusColumn && !["incomplete", "completed"].includes(status)) {
     errors.push("状态必须为 incomplete 或 completed");
   }
 
@@ -523,14 +625,6 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
   monthPayload.otherIncome =
     parseNumber(String(parsedData.otherIncome ?? parsedData.supplementarySalaryIncome ?? "")) ?? 0;
 
-  if ((monthPayload.supplementarySourcePeriodLabel ?? "").length > 100) {
-    errors.push("supplementarySourcePeriodLabel 不能超过 100 个字符");
-  }
-
-  if ((monthPayload.supplementaryRemark ?? "").length > 300) {
-    errors.push("supplementaryRemark 不能超过 300 个字符");
-  }
-
   return {
     errors,
     parsedData,
@@ -546,17 +640,54 @@ const parseMonthRecordRow = (headers: string[], values: string[]) => {
 const summarizePreview = (
   importType: ImportType,
   rows: ImportPreviewRow[],
+  extra: Pick<ImportPreviewResponse, "autoFillZeroEmployeeCount" | "autoFillZeroRowCount"> = {},
 ): ImportPreviewResponse => ({
   importType,
   totalRows: rows.length,
   readyRows: rows.filter((row) => row.status === "ready").length,
   conflictRows: rows.filter((row) => row.status === "conflict").length,
   errorRows: rows.filter((row) => row.status === "error").length,
+  autoFillZeroEmployeeCount: extra.autoFillZeroEmployeeCount ?? 0,
+  autoFillZeroRowCount: extra.autoFillZeroRowCount ?? 0,
   rows,
 });
 
 const buildMonthRecordKey = (employeeId: number, taxYear: number, taxMonth: number) =>
   `${employeeId}:${taxYear}:${taxMonth}`;
+
+const buildSyntheticMonthRecordParsedData = (
+  employee: Employee,
+  taxYear: number,
+  taxMonth: number,
+  payload: UpsertEmployeeMonthRecordPayload,
+) => ({
+  employeeCode: employee.employeeCode,
+  employeeName: employee.employeeName,
+  idNumber: employee.idNumber,
+  taxYear,
+  taxMonth,
+  salaryIncome: payload.salaryIncome,
+  annualBonus: payload.annualBonus,
+  pensionInsurance: payload.pensionInsurance,
+  medicalInsurance: payload.medicalInsurance,
+  occupationalAnnuity: payload.occupationalAnnuity,
+  housingFund: payload.housingFund,
+  supplementaryHousingFund: payload.supplementaryHousingFund,
+  unemploymentInsurance: payload.unemploymentInsurance,
+  workInjuryInsurance: payload.workInjuryInsurance,
+  withheldTax: payload.withheldTax,
+  otherIncome: payload.otherIncome ?? 0,
+  otherIncomeRemark: payload.otherIncomeRemark ?? "",
+  infantCareDeduction: payload.infantCareDeduction,
+  childEducationDeduction: payload.childEducationDeduction,
+  continuingEducationDeduction: payload.continuingEducationDeduction,
+  housingLoanInterestDeduction: payload.housingLoanInterestDeduction,
+  housingRentDeduction: payload.housingRentDeduction,
+  elderCareDeduction: payload.elderCareDeduction,
+  otherDeduction: payload.otherDeduction,
+  taxReductionExemption: payload.taxReductionExemption,
+  remark: payload.remark ?? "",
+});
 
 const buildEmployeeImportAnalysis = (
   unitId: number,
@@ -672,6 +803,9 @@ const buildMonthRecordImportAnalysis = (
         .map((row) => row.payload.taxYear),
     ),
   );
+  if (scopeTaxYear) {
+    taxYears.push(scopeTaxYear);
+  }
   const existingMonthRecords = monthRecordRepository.listExistingByUnitAndYears(unitId, taxYears);
   const monthRecordsByKey = new Map(
     existingMonthRecords.map((record) => [
@@ -680,8 +814,11 @@ const buildMonthRecordImportAnalysis = (
     ]),
   );
   const seenMonthKeys = new Set<string>();
+  const lockedMonthSet = scopeTaxYear
+    ? new Set(monthConfirmationRepository.getLockedMonths(unitId, scopeTaxYear))
+    : new Set<number>();
 
-  const rows = preParsedRows.map((row) => {
+  const explicitRows = preParsedRows.map((row) => {
     const errors = [...row.errors];
 
     if (!errors.length && scopeTaxYear && row.payload.taxYear !== scopeTaxYear) {
@@ -722,6 +859,22 @@ const buildMonthRecordImportAnalysis = (
         errors: ["员工工号不存在"],
         parsedData: row.parsedData,
       };
+    } else if (scopeTaxYear && !isEmployeeActiveInTaxYear(employee, scopeTaxYear)) {
+      previewRow = {
+        rowNumber: row.rowNumber,
+        status: "error",
+        conflictType: null,
+        errors: ["员工不在当前年度录入范围内"],
+        parsedData: row.parsedData,
+      };
+    } else if (scopeTaxYear && lockedMonthSet.has(row.payload.taxMonth)) {
+      previewRow = {
+        rowNumber: row.rowNumber,
+        status: "error",
+        conflictType: null,
+        errors: ["目标月份已确认，禁止导入"],
+        parsedData: row.parsedData,
+      };
     } else if (existingRecord) {
       previewRow = {
         rowNumber: row.rowNumber,
@@ -750,10 +903,100 @@ const buildMonthRecordImportAnalysis = (
     };
   });
 
+  const explicitMonthKeySet = new Set(
+    explicitRows
+      .filter((row) => row.employee)
+      .map((row) =>
+        buildMonthRecordKey(
+          row.employee!.id,
+          row.payload.taxYear,
+          row.payload.taxMonth,
+        ),
+      ),
+  );
+
+  const autoFillEligibleEmployees =
+    scopeTaxYear === undefined
+      ? []
+      : employeeList.filter((employee) => isEmployeeActiveInTaxYear(employee, scopeTaxYear));
+
+  const syntheticRows = autoFillEligibleEmployees.flatMap((employee, employeeIndex) =>
+    TAX_MONTHS.flatMap((taxMonth, monthIndex) => {
+      const monthKey = buildMonthRecordKey(employee.id, scopeTaxYear as number, taxMonth);
+      if (explicitMonthKeySet.has(monthKey)) {
+        return [];
+      }
+
+      const payload = {
+        employeeCode: employee.employeeCode,
+        taxYear: scopeTaxYear as number,
+        taxMonth,
+        ...createZeroMonthRecordPayload(),
+      } satisfies ParsedMonthRecordRow;
+      const parsedData = buildSyntheticMonthRecordParsedData(
+        employee,
+        scopeTaxYear as number,
+        taxMonth,
+        payload,
+      );
+      const existingRecord = monthRecordsByKey.get(monthKey) ?? null;
+      const rowNumber = parsedCsv.rows.length + employeeIndex * TAX_MONTHS.length + monthIndex + 2;
+
+      let previewRow: ImportPreviewRow;
+      if (lockedMonthSet.has(taxMonth)) {
+        previewRow = {
+          rowNumber,
+          rowLabel: "自动补零",
+          status: "error",
+          conflictType: null,
+          errors: ["目标月份已确认，禁止导入"],
+          parsedData,
+        };
+      } else if (existingRecord) {
+        previewRow = {
+          rowNumber,
+          rowLabel: "自动补零",
+          status: "conflict",
+          conflictType: "month_record_conflict",
+          errors: [],
+          parsedData,
+        };
+      } else {
+        previewRow = {
+          rowNumber,
+          rowLabel: "自动补零",
+          status: "ready",
+          conflictType: null,
+          errors: [],
+          parsedData,
+        };
+      }
+
+      return [
+        {
+          rowNumber,
+          parsedData,
+          payload,
+          previewRow,
+          employee,
+          existingRecord,
+        },
+      ];
+    }),
+  );
+
+  const rows = [...explicitRows, ...syntheticRows];
+
   return {
     preview: summarizePreview(
       "month_record",
       rows.map((row) => row.previewRow),
+      {
+        autoFillZeroEmployeeCount: new Set(
+          syntheticRows.map((row) => row.employee?.id).filter((employeeId): employeeId is number => Boolean(employeeId)),
+        ).size,
+        autoFillZeroRowCount: syntheticRows.length,
+      },
     ),
     rows,
   };
@@ -785,6 +1028,7 @@ const buildBlockingFailures = (
     )
     .map((row) => ({
       rowNumber: row.rowNumber,
+      rowLabel: row.rowLabel ?? null,
       reason:
         row.status === "error"
           ? row.errors.join("；")

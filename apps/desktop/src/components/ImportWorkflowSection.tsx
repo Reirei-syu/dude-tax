@@ -4,12 +4,10 @@ import type {
   ImportPreviewResponse,
   ImportType,
 } from "@dude-tax/core";
-import { type ChangeEvent, useMemo, useState } from "react";
+import { type ChangeEvent, useId, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
-import { useAppContext } from "../context/AppContextProvider";
-import { saveFileWithDesktopFallback } from "../utils/file-save";
-import { parseImportFileToCsvText } from "./import-file-parser";
-import { buildImportPreviewDetail } from "./import-preview-details";
+import { parseImportFileToCsvText } from "../pages/import-file-parser";
+import { buildImportPreviewDetail } from "../pages/import-preview-details";
 
 const importTypeLabelMap: Record<ImportType, string> = {
   employee: "员工基础信息",
@@ -28,20 +26,40 @@ const conflictTypeLabelMap: Record<string, string> = {
   month_record_conflict: "月份记录冲突",
 };
 
-const templateFilenameMap: Record<ImportType, string> = {
-  employee: "员工导入模板.csv",
-  month_record: "月度数据导入模板.csv",
+type Props = {
+  title: string;
+  description: string;
+  importType: ImportType;
+  canOperate: boolean;
+  currentUnitId: number | null;
+  scopeTaxYear?: number | null;
+  downloadButtonLabel: string;
+  groupTitle?: string;
+  groupDescription?: string;
+  defaultCollapsed?: boolean;
+  defaultConflictStrategy?: ImportConflictStrategy;
+  onDownloadTemplate: () => Promise<void>;
+  onImportCommitted?: (result: ImportCommitResponse) => Promise<void> | void;
 };
 
-export const ImportPage = () => {
-  const { context } = useAppContext();
-  const currentUnitId = context?.currentUnitId ?? null;
-  const currentTaxYear = context?.currentTaxYear ?? null;
-  const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
-
-  const [importType, setImportType] = useState<ImportType>("employee");
+export const ImportWorkflowSection = ({
+  title,
+  description,
+  importType,
+  canOperate,
+  currentUnitId,
+  scopeTaxYear,
+  downloadButtonLabel,
+  groupTitle,
+  groupDescription,
+  defaultCollapsed = false,
+  defaultConflictStrategy = "skip",
+  onDownloadTemplate,
+  onImportCommitted,
+}: Props) => {
   const [importText, setImportText] = useState("");
-  const [conflictStrategy, setConflictStrategy] = useState<ImportConflictStrategy>("skip");
+  const [conflictStrategy, setConflictStrategy] =
+    useState<ImportConflictStrategy>(defaultConflictStrategy);
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
   const [commitResult, setCommitResult] = useState<ImportCommitResponse | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
@@ -49,8 +67,10 @@ export const ImportPage = () => {
   const [committing, setCommitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const canOperate = Boolean(currentUnitId);
+  const [isGroupCollapsed, setIsGroupCollapsed] = useState(
+    Boolean(groupTitle && defaultCollapsed),
+  );
+  const groupContentId = useId();
 
   const previewSummary = useMemo(() => {
     if (!preview) {
@@ -60,22 +80,12 @@ export const ImportPage = () => {
     return `可导入 ${preview.readyRows} 行 / 冲突 ${preview.conflictRows} 行 / 错误 ${preview.errorRows} 行`;
   }, [preview]);
 
-  const downloadTemplate = async () => {
+  const handleDownloadTemplate = async () => {
     try {
       setLoadingTemplate(true);
       setErrorMessage(null);
       setSuccessMessage(null);
-      const templateText = await apiClient.downloadImportTemplate(
-        importType,
-        currentUnitId ?? undefined,
-        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
-      );
-      await saveFileWithDesktopFallback({
-        defaultPath: templateFilenameMap[importType],
-        filters: [{ name: "CSV 文件", extensions: ["csv"] }],
-        mimeType: "text/csv;charset=utf-8;",
-        content: `\uFEFF${templateText}`,
-      });
+      await onDownloadTemplate();
       setSuccessMessage("模板文件已生成，请在本地打开后填写。");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "下载模板失败");
@@ -119,7 +129,7 @@ export const ImportPage = () => {
         importType,
         currentUnitId,
         importText,
-        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
+        importType === "month_record" ? scopeTaxYear ?? undefined : undefined,
       );
       setPreview(nextPreview);
     } catch (error) {
@@ -145,7 +155,7 @@ export const ImportPage = () => {
         currentUnitId,
         importText,
         conflictStrategy,
-        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
+        importType === "month_record" ? scopeTaxYear ?? undefined : undefined,
       );
       setCommitResult(nextCommitResult);
       setSuccessMessage("导入执行完成，请查看回执结果。");
@@ -153,9 +163,10 @@ export const ImportPage = () => {
         importType,
         currentUnitId,
         importText,
-        importType === "month_record" ? currentTaxYear ?? undefined : undefined,
+        importType === "month_record" ? scopeTaxYear ?? undefined : undefined,
       );
       setPreview(nextPreview);
+      await onImportCommitted?.(nextCommitResult);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "执行导入失败");
     } finally {
@@ -163,33 +174,25 @@ export const ImportPage = () => {
     }
   };
 
-  return (
-    <section className="page-grid">
+  const workflowCards = (
+    <>
       <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
-            <h1>批量导入</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear ?? "-"} 年
-            </p>
+            <h2>{title}</h2>
+            <p>{description}</p>
           </div>
-          <span className="tag">{previewing || committing ? "处理中" : "导入模块已开启"}</span>
+          <span className="tag">{previewing || committing ? "处理中" : "导入能力已接入"}</span>
         </div>
 
         <div className="form-grid">
           <label className="form-field">
-            <span>导入类型</span>
-            <select value={importType} onChange={(event) => setImportType(event.target.value as ImportType)}>
-              <option value="employee">员工基础信息</option>
-              <option value="month_record">月度数据</option>
-            </select>
-          </label>
-
-          <label className="form-field">
             <span>冲突处理策略</span>
             <select
               value={conflictStrategy}
-              onChange={(event) => setConflictStrategy(event.target.value as ImportConflictStrategy)}
+              onChange={(event) =>
+                setConflictStrategy(event.target.value as ImportConflictStrategy)
+              }
             >
               <option value="skip">跳过冲突行</option>
               <option value="overwrite">覆盖冲突记录</option>
@@ -221,13 +224,15 @@ export const ImportPage = () => {
           <button
             className="ghost-button"
             disabled={loadingTemplate || !canOperate}
-            onClick={() => void downloadTemplate()}
+            type="button"
+            onClick={() => void handleDownloadTemplate()}
           >
-            {loadingTemplate ? "下载中" : "下载模板"}
+            {loadingTemplate ? "下载中" : downloadButtonLabel}
           </button>
           <button
             className="ghost-button"
             disabled={!importText.trim() || !canOperate || previewing}
+            type="button"
             onClick={() => void previewImport()}
           >
             导入预览
@@ -235,6 +240,7 @@ export const ImportPage = () => {
           <button
             className="primary-button"
             disabled={!importText.trim() || !canOperate || committing || !preview}
+            type="button"
             onClick={() => void commitImport()}
           >
             执行导入
@@ -249,7 +255,7 @@ export const ImportPage = () => {
         <div className="section-header">
           <div>
             <h2>导入预览</h2>
-            <p>当前支持 CSV、XLSX、XLSM；这里会细化展示字段映射、冲突字段和值。</p>
+            <p>当前支持 CSV、XLSX、XLSM；这里会展示冲突、错误和字段明细。</p>
           </div>
           <span className="tag">{previewSummary ?? "尚未预览"}</span>
         </div>
@@ -277,12 +283,24 @@ export const ImportPage = () => {
                 <span>错误行</span>
                 <strong>{preview.errorRows}</strong>
               </div>
+              {importType === "month_record" ? (
+                <div className="summary-card">
+                  <span>自动补零月份</span>
+                  <strong>{preview.autoFillZeroRowCount ?? 0}</strong>
+                </div>
+              ) : null}
+              {importType === "month_record" ? (
+                <div className="summary-card">
+                  <span>自动补零员工</span>
+                  <strong>{preview.autoFillZeroEmployeeCount ?? 0}</strong>
+                </div>
+              ) : null}
             </div>
 
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>行号</th>
+                  <th>来源</th>
                   <th>状态</th>
                   <th>关键字段</th>
                   <th>字段明细</th>
@@ -294,8 +312,10 @@ export const ImportPage = () => {
                   const detail = buildImportPreviewDetail(importType, row);
 
                   return (
-                    <tr key={row.rowNumber}>
-                      <td>{row.rowNumber}</td>
+                    <tr
+                      key={`${row.rowNumber}-${row.rowLabel ?? ""}-${detail.primaryText}`}
+                    >
+                      <td>{row.rowLabel ?? row.rowNumber}</td>
                       <td>
                         {row.status === "ready" ? (
                           <span className="tag">可导入</span>
@@ -320,7 +340,7 @@ export const ImportPage = () => {
                                   ? "preview-field-chip is-highlighted"
                                   : "preview-field-chip"
                               }
-                              key={field.key}
+                              key={`${detail.primaryText}-${field.key}`}
                             >
                               {field.label}：{field.value}
                             </span>
@@ -337,7 +357,9 @@ export const ImportPage = () => {
                           row.errors.join("；")
                         ) : row.status === "conflict" ? (
                           <>
-                            {conflictTypeLabelMap[row.conflictType ?? ""] ?? row.conflictType ?? "冲突"}
+                            {conflictTypeLabelMap[row.conflictType ?? ""] ??
+                              row.conflictType ??
+                              "冲突"}
                             {detail.conflictFieldLabels.length
                               ? `，冲突字段：${detail.conflictFieldLabels.join("、")}`
                               : ""}
@@ -392,14 +414,16 @@ export const ImportPage = () => {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>行号</th>
+                    <th>来源</th>
                     <th>失败原因</th>
                   </tr>
                 </thead>
                 <tbody>
                   {commitResult.failures.map((failure) => (
-                    <tr key={`${failure.rowNumber}-${failure.reason}`}>
-                      <td>{failure.rowNumber}</td>
+                    <tr
+                      key={`${failure.rowNumber}-${failure.rowLabel ?? ""}-${failure.reason}`}
+                    >
+                      <td>{failure.rowLabel ?? failure.rowNumber}</td>
                       <td>{failure.reason}</td>
                     </tr>
                   ))}
@@ -416,6 +440,39 @@ export const ImportPage = () => {
           </div>
         )}
       </article>
+    </>
+  );
+
+  if (!groupTitle) {
+    return workflowCards;
+  }
+
+  return (
+    <section className="glass-card page-section placeholder-card import-workflow-group">
+      <div className="section-header">
+        <div>
+          <h2>{groupTitle}</h2>
+          <p>{groupDescription ?? description}</p>
+        </div>
+        <div className="button-row compact">
+          <span className="tag">
+            {previewing || committing ? "处理中" : isGroupCollapsed ? "已折叠" : "展开中"}
+          </span>
+          <button
+            aria-controls={groupContentId}
+            aria-expanded={!isGroupCollapsed}
+            className="ghost-button"
+            type="button"
+            onClick={() => setIsGroupCollapsed((currentValue) => !currentValue)}
+          >
+            {isGroupCollapsed ? "展开" : "折叠"}
+          </button>
+        </div>
+      </div>
+
+      <div className="import-workflow-group-body" hidden={isGroupCollapsed} id={groupContentId}>
+        {workflowCards}
+      </div>
     </section>
   );
 };
