@@ -108,3 +108,56 @@ test("无 body 的 POST 和 DELETE 不再发送 JSON Content-Type", async () => 
   assert.equal(getHeaderValue(requests[1]?.init, "Content-Type"), null);
   assert.equal(requests[1]?.init?.body, undefined);
 });
+
+test("单位备份相关接口按约定请求草稿与执行备份", async () => {
+  installWindowMock();
+
+  const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const responseQueue = [
+    {
+      unitId: 3,
+      unitName: "测试单位",
+      includedTaxYears: [2026],
+      lastDirectoryPath: "C:\\backup",
+      suggestedFileName: "测试单位_20260410_120000.zip",
+    },
+    {
+      status: "success",
+      filePath: "C:\\backup\\测试单位_20260410_120000.zip",
+      exportedAt: "2026-04-10T12:00:00.000Z",
+      summaryCounts: {
+        units: 1,
+      },
+    },
+  ];
+
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ input, init });
+      return {
+        ok: true,
+        json: async () => responseQueue.shift(),
+      } as Response;
+    },
+  });
+
+  await apiClient.getUnitBackupDraft(3);
+  await apiClient.createUnitBackup(3, {
+    targetPath: "C:\\backup\\测试单位_20260410_120000.zip",
+  });
+
+  assert.equal(requests.length, 2);
+  assert.equal(String(requests[0]?.input), "http://127.0.0.1:3001/api/units/3/backup-draft");
+  assert.equal(requests[0]?.init?.method, undefined);
+
+  assert.equal(String(requests[1]?.input), "http://127.0.0.1:3001/api/units/3/backup");
+  assert.equal(requests[1]?.init?.method, "POST");
+  assert.equal(getHeaderValue(requests[1]?.init, "Content-Type"), "application/json");
+  assert.equal(
+    requests[1]?.init?.body,
+    JSON.stringify({
+      targetPath: "C:\\backup\\测试单位_20260410_120000.zip",
+    }),
+  );
+});

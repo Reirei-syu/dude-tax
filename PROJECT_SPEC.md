@@ -75,6 +75,10 @@
   - 条件保留单位、年份
   - 展示年度员工纳税列表与全年明细
   - 支持导出“汇总 sheet + 每员工 sheet”Excel
+- 系统维护
+  - 支持按当前单位导出全部年份业务数据 ZIP 备份
+  - 备份文件名默认采用“单位名称 + 日期时间”
+  - 支持记住最近一次成功备份目录，用于下次直接备份或重新选路径
 
 ## 5. 当前数据与接口约束
 
@@ -85,6 +89,7 @@
 - `supplementary_salary_income` 兼容映射到 `otherIncome`
 - `supplementary_remark` 兼容映射到 `otherIncomeRemark`
 - `supplementary_withheld_tax_adjustment` 与 `supplementary_source_period_label` 在新主流程中视为废弃字段
+- 单位备份只导出目标单位及其关联税率版本 / 审计日志，不导出整库 `app_preferences` 与其他单位数据
 
 ## 6. 关键非功能要求
 
@@ -92,5 +97,6 @@
 - Windows 优先
 - 桌面 UI 适配常见 PC 分辨率
 - 所有关键路径可测试、可回退
+- 单位备份 ZIP 在 Windows 环境下通过 PowerShell 原生命令生成
 - 确认后的月份数据不可被普通录入流程修改
 - 当前年度结果快照必须同时匹配当前税率签名和当前数据签名，才能视为可确认结果

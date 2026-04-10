@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld("salaryTaxDesktop", {
     managedApi: readRuntimeArgument("salary-tax-managed-api") === "1",
     databasePath: readRuntimeArgument("salary-tax-db-path"),
   },
+  pickSavePath: (input) => ipcRenderer.invoke("salary-tax:pick-save-path", input),
   saveFile: (input) => ipcRenderer.invoke("salary-tax:save-file", input),
 });

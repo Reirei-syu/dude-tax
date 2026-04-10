@@ -29,6 +29,9 @@ import type {
   TaxPolicyVersionRenamePayload,
   TaxPolicyUpdatePayload,
   TaxPolicyVersionImpactPreview,
+  CreateUnitBackupPayload,
+  CreateUnitBackupResponse,
+  UnitBackupDraftResponse,
   Unit,
   UpdateAnnualResultSelectedSchemePayload,
   UpsertEmployeeMonthRecordPayload,
@@ -119,6 +122,17 @@ export const apiClient = {
         confirmationCode,
         acknowledgeIrreversible: true,
       }),
+    });
+  },
+
+  getUnitBackupDraft(unitId: number) {
+    return request<UnitBackupDraftResponse>(`/api/units/${unitId}/backup-draft`);
+  },
+
+  createUnitBackup(unitId: number, payload: CreateUnitBackupPayload) {
+    return request<CreateUnitBackupResponse>(`/api/units/${unitId}/backup`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 

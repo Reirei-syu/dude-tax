@@ -26,6 +26,63 @@ export type DeleteUnitChallenge = {
   expiresAt: string;
 };
 
+export type UnitBackupSummaryCounts = {
+  units: number;
+  unitYears: number;
+  employees: number;
+  employeeMonthRecords: number;
+  monthConfirmations: number;
+  annualCalculationRuns: number;
+  annualTaxResults: number;
+  annualTaxResultVersions: number;
+  taxPolicyScopes: number;
+  taxPolicyVersions: number;
+  taxPolicyAuditLogs: number;
+};
+
+export type UnitBackupManifest = {
+  schemaVersion: 1;
+  exportedAt: string;
+  appVersion: string;
+  unitId: number;
+  unitName: string;
+  includedTaxYears: number[];
+  scopeDescription: string;
+  summaryCounts: UnitBackupSummaryCounts;
+  data: {
+    units: Record<string, unknown>[];
+    unitYears: Record<string, unknown>[];
+    employees: Record<string, unknown>[];
+    employeeMonthRecords: Record<string, unknown>[];
+    monthConfirmations: Record<string, unknown>[];
+    annualCalculationRuns: Record<string, unknown>[];
+    annualTaxResults: Record<string, unknown>[];
+    annualTaxResultVersions: Record<string, unknown>[];
+    taxPolicyScopes: Record<string, unknown>[];
+    taxPolicyVersions: Record<string, unknown>[];
+    taxPolicyAuditLogs: Record<string, unknown>[];
+  };
+};
+
+export type UnitBackupDraftResponse = {
+  unitId: number;
+  unitName: string;
+  includedTaxYears: number[];
+  lastDirectoryPath: string | null;
+  suggestedFileName: string;
+};
+
+export type CreateUnitBackupPayload = {
+  targetPath: string;
+};
+
+export type CreateUnitBackupResponse = {
+  status: "success";
+  filePath: string;
+  exportedAt: string;
+  summaryCounts: UnitBackupSummaryCounts;
+};
+
 export type Employee = {
   id: number;
   unitId: number;

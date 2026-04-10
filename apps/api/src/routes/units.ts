@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { contextRepository } from "../repositories/context-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
+import { UnitBackupError, unitBackupService } from "../services/unit-backup-service.js";
 
 const taxYearSchema = z.number().int().min(1900, "年份必须大于等于 1900");
 
@@ -22,6 +23,10 @@ const deleteChallengeSchema = z.object({
   acknowledgeIrreversible: z.literal(true),
 });
 
+const createUnitBackupSchema = z.object({
+  targetPath: z.string().trim().min(1, "备份文件路径不能为空").max(500, "备份文件路径过长"),
+});
+
 const deleteChallenges = new Map<string, { unitId: number; code: string; expiresAt: number }>();
 
 const challengeCharacters =
@@ -34,6 +39,17 @@ const generateChallengeCode = () =>
 
 export const registerUnitRoutes = async (app: FastifyInstance) => {
   app.get("/api/units", async () => unitRepository.list());
+
+  app.get("/api/units/:unitId/backup-draft", async (request, reply) => {
+    const unitId = Number((request.params as { unitId: string }).unitId);
+    const draft = unitBackupService.getDraft(unitId);
+
+    if (!draft) {
+      return reply.status(404).send({ message: "目标单位不存在" });
+    }
+
+    return draft;
+  });
 
   app.post("/api/units", async (request, reply) => {
     const parsedBody = createUnitSchema.safeParse(request.body);
@@ -129,6 +145,32 @@ export const registerUnitRoutes = async (app: FastifyInstance) => {
       confirmationCode: code,
       expiresAt: new Date(expiresAt).toISOString(),
     };
+  });
+
+  app.post("/api/units/:unitId/backup", async (request, reply) => {
+    const unitId = Number((request.params as { unitId: string }).unitId);
+    const parsedBody = createUnitBackupSchema.safeParse(request.body ?? {});
+
+    if (!parsedBody.success) {
+      return reply.status(400).send({
+        message: "备份参数不合法",
+        issues: parsedBody.error.flatten(),
+      });
+    }
+
+    try {
+      return await unitBackupService.createBackup(unitId, parsedBody.data);
+    } catch (error) {
+      if (error instanceof UnitBackupError) {
+        return reply.status(error.statusCode).send({
+          message: error.message,
+        });
+      }
+
+      return reply.status(500).send({
+        message: error instanceof Error ? error.message : "生成单位备份失败",
+      });
+    }
   });
 
   app.delete("/api/units/:unitId", async (request, reply) => {

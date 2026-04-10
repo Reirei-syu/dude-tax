@@ -5,12 +5,22 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：发布前全面 E2E 验证与缺陷修复已完成
-- 方案路径：`docs/plans/2026-04-10_release-preflight-e2e_plan.md`
+- 当前任务：系统维护新增单位备份模块已完成
+- 方案路径：`docs/plans/2026-04-10_unit-backup-module_plan.md`（按已确认实施计划执行）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 系统维护页新增“单位备份”独立卡片，支持查看纳入年份、最近目录、建议文件名与最近一次成功备份结果
+  - 本地 API 新增 `GET /api/units/:unitId/backup-draft` 与 `POST /api/units/:unitId/backup`
+  - 备份产物固定为 ZIP，内部包含 `backup.json`，范围限定为当前单位全部年份业务数据与关联税率版本/审计日志
+  - 备份目录按全局偏好记忆，后续备份可直接复用最近目录
+  - Electron 新增 `pickSavePath` 桥接，由主进程统一决定默认目录并返回目标路径
+  - `npm run test --workspace @dude-tax/api -- unit-backup.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- maintenance-page.test.ts api/client.test.ts`
+  - 新增浅色系、卡通风、`￥` 主题应用图标
+  - 图标已接入 Electron 窗口与 Windows 打包
+  - `npm run package:win` 已通过，验证 `ICO` 资源可被打包链路接受
   - 发布前 E2E 方案、任务和上下文文档已同步
   - `npm run test --workspaces --if-present`
   - `npm run typecheck --workspaces --if-present`
@@ -20,6 +30,9 @@
   - 新增 `scripts/e2e/release-preflight.mjs`，并完成真实发布包主流程回放
   - 修正后的 `desktop-full-chain-soak.mjs` 已完成严格 60 分钟单次复跑
 - 本轮修复：
+  - 新增单位维度 ZIP 备份能力，避免只能整库处理而无法单独按单位归档
+  - 修复桌面端缺少“仅选路径不直接写文件”桥接的问题
+  - 将备份文件名中的 Windows 非法字符统一安全化，避免保存失败
   - 修复发布包 E2E 脚本在 remote debugging 端口未就绪时直接失败的问题
   - 改用 `--user-data-dir=<temp>` 隔离发布包 userData，避免污染真实用户数据
   - 修复 React 受控表单 / 下拉框在自动化脚本中的填值兼容性
@@ -29,6 +42,11 @@
 
 ## 本轮修改
 
+- 单位备份模块：
+  - `packages/core` 新增单位备份协议类型、清单结构与摘要计数
+  - `apps/api` 新增 `unit-backup-service.ts`，负责草稿信息、数据抽取、`backup.json` 写入、PowerShell `Compress-Archive` 压缩和最近目录持久化
+  - `apps/desktop` 新增 `pickSavePath` 桥接、备份客户端接口与系统维护页“单位备份”卡片
+  - 文档同步更新 `AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
 - 后端稳定性修复：
   - `annual_tax_result_versions` 新增“完全相同结果不追加历史版本”保护，只刷新当前结果时间戳
   - `confirmed-results` 与 detail 改为一次性预加载当前单位 / 年度的员工、确认月份与月度记录，再按 `employeeId -> taxMonth` 内存分组
@@ -58,6 +76,7 @@
 
 - `apps/api`
 - `apps/desktop`
+- `packages/core`
 - `scripts/stress`
 - `docs`
 
@@ -65,6 +84,8 @@
 
 - 当前主任务进度：100%
 - 已完成：
+  - 单位备份草稿接口、执行接口、Electron 桥接与系统维护卡片落地
+  - 单位备份 API / Desktop 失败测试先行补齐并全部转绿
   - 年度结果版本历史去重修复
   - `confirmed-results` / detail 批量化查询修复
   - 压测 CLI 与工作区文档落地
@@ -78,6 +99,10 @@
 
 ## 验证结果
 
+- `npm run test --workspace @dude-tax/api -- unit-backup.test.ts`
+- `npm run test --workspace @dude-tax/desktop -- maintenance-page.test.ts api/client.test.ts`
+- `npm run typecheck --workspace @dude-tax/api`
+- `npm run typecheck --workspace @dude-tax/desktop`
 - `npm run test --workspace @dude-tax/api -- annual-results.test.ts confirmed-results.test.ts year-entry.test.ts`
 - `npm run build --workspace @dude-tax/api`
 - `npm run build --workspace @dude-tax/desktop`
@@ -101,6 +126,8 @@
 
 ## 风险备注
 
+- 单位备份 ZIP 当前依赖 Windows PowerShell `Compress-Archive`；符合现阶段 Windows-only 交付目标，但未来若扩到 macOS/Linux 需替换为跨平台压缩实现。
+- 单位备份本期仅做导出，不含恢复链路；恢复能力仍需后续单独设计与验收。
 - 发布前全面 E2E 已通过，但 `vite build` 仍有 bundle 过大 warning，当前不阻断发布。
 - 真实发布包与严格 60 分钟 soak 均已通过；当前未发现新的 P1/P0 稳定性问题。
 - `vite build` 仍有 bundle 过大 warning，但构建成功，不影响本轮交付。
@@ -109,6 +136,11 @@
 
 ## Lessons Learned
 
+- Windows-only 桌面能力优先复用 PowerShell 原生命令，先保证零新增依赖和可交付，再考虑跨平台抽象。
+- “选路径”和“写文件”需要分离；备份这类由后端生成内容的场景，不应复用前端直接写字节流的导出桥接。
+- 单位级备份若不追溯关联税率版本，后续恢复会丢失语义；至少要沿 `scope version id + policy_signature` 回收关联版本。
+- Windows `ICO` 不要手写二进制目录头；优先复用现有依赖生成，兼容性更稳。
+- 图标生成链路保留 `SVG -> 多尺寸 PNG -> ICO` 三层产物，后续调样式时回改成本最低。
 - 版本历史类长稳缺陷必须在“当前结果写入前”做精确比较，不能在写完之后再清理；后者会污染 `version_sequence` 和数据库增长曲线。
 - `confirmed-results` 这类纯读链路，一旦业务语义依赖“员工 + 确认月份 + 月度记录”三张表，优先做批量预加载与内存分组，避免服务层逐员工回表。
 - 同一 workspace 的 SQLite 文件型测试不能并行跑；并行执行会制造 `EPERM` 假失败，必须串行。

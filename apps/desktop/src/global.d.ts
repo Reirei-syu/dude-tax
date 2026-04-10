@@ -11,6 +11,12 @@ type SalaryTaxDesktopSaveFileInput = {
   base64Content: string;
 };
 
+type SalaryTaxDesktopPickSavePathInput = {
+  defaultFileName: string;
+  defaultDirectory?: string;
+  filters: SalaryTaxDesktopSaveFilter[];
+};
+
 type SalaryTaxDesktopSaveFileResult = {
   canceled: boolean;
   filePath?: string;
@@ -27,6 +33,9 @@ declare global {
     salaryTaxDesktop?: {
       version: string;
       runtimeConfig: SalaryTaxDesktopRuntimeConfig;
+      pickSavePath: (
+        input: SalaryTaxDesktopPickSavePathInput,
+      ) => Promise<SalaryTaxDesktopSaveFileResult>;
       saveFile: (
         input: SalaryTaxDesktopSaveFileInput,
       ) => Promise<SalaryTaxDesktopSaveFileResult>;

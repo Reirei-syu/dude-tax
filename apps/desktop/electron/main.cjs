@@ -100,6 +100,14 @@ const buildRuntimeConfig = (input) => ({
   databasePath: input.databasePath ?? "",
 });
 
+const resolveWindowIconPath = () => {
+  if (process.env.ELECTRON_RENDERER_URL) {
+    return path.join(__dirname, "..", "assets", "app-icon.png");
+  }
+
+  return path.join(app.getAppPath(), "apps", "desktop", "assets", "app-icon.png");
+};
+
 const startManagedApi = async () => {
   if (process.env.SALARY_TAX_API_BASE_URL) {
     return buildRuntimeConfig({
@@ -176,6 +184,7 @@ const createWindow = (runtimeConfig) => {
     minWidth: 1200,
     minHeight: 760,
     backgroundColor: "#f2f7ff",
+    icon: resolveWindowIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -214,6 +223,29 @@ const createWindow = (runtimeConfig) => {
 app.whenReady().then(async () => {
   try {
     const runtimeConfig = await startManagedApi();
+
+    ipcMain.handle("salary-tax:pick-save-path", async (_event, input) => {
+      const candidateDirectory =
+        input.defaultDirectory &&
+        fsSync.existsSync(input.defaultDirectory) &&
+        fsSync.statSync(input.defaultDirectory).isDirectory()
+          ? input.defaultDirectory
+          : app.getPath("documents");
+
+      const result = await dialog.showSaveDialog({
+        defaultPath: path.join(candidateDirectory, input.defaultFileName),
+        filters: input.filters,
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      return {
+        canceled: false,
+        filePath: result.filePath,
+      };
+    });
 
     ipcMain.handle("salary-tax:save-file", async (_event, input) => {
       const result = await dialog.showSaveDialog({

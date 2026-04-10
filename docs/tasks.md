@@ -6,6 +6,62 @@
 
 ## 任务列表
 
+### [x] 系统维护新增单位备份模块
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/api` / `apps/desktop`
+- 描述：在系统维护页新增单位维度 ZIP 备份能力，支持记住最近备份目录，并通过 Electron 保存路径桥接调用本地 API 生成备份包。
+- 依赖：无
+- 风险：高
+- 优先级：3
+- 完成时间：2026-04-10
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/routes/units.ts`
+  - `apps/api/src/services/unit-backup-service.ts`
+  - `apps/api/src/unit-backup.test.ts`
+  - `apps/desktop/electron/main.cjs`
+  - `apps/desktop/electron/preload.cjs`
+  - `apps/desktop/src/global.d.ts`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/api/client.test.ts`
+  - `apps/desktop/src/pages/MaintenancePage.tsx`
+  - `apps/desktop/src/pages/maintenance-page.test.ts`
+  - `AGENTS.md`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 系统维护页新增默认折叠的“单位备份”卡片
+  - 本地 API 支持获取备份草稿与生成单位级 ZIP 备份
+  - Electron 支持仅选择保存路径，不再由前端直接写备份文件
+  - 最近备份目录按全局偏好记忆，下次备份可直接复用
+
+### [x] 桌面端应用图标设计与打包接入
+
+- 类型：Feature
+- 模块：`apps/desktop` / `scripts`
+- 描述：新增浅色系、卡通风、`￥` 主题的应用图标资产，并接入 Electron 窗口图标与 Windows 打包图标。
+- 依赖：无
+- 风险：中
+- 优先级：4
+- 完成时间：2026-04-10
+- 修改文件：
+  - `apps/desktop/assets/app-icon.svg`
+  - `apps/desktop/assets/app-icon.png`
+  - `apps/desktop/assets/app-icon.ico`
+  - `apps/desktop/assets/icon-sizes/*`
+  - `scripts/generate-app-icon.ps1`
+  - `scripts/build-ico-from-pngs.mjs`
+  - `scripts/package-win.mjs`
+  - `apps/desktop/electron/main.cjs`
+- 影响范围：
+  - Windows 测试包使用新的 `ICO` 作为应用图标
+  - Electron 窗口运行时使用新的 `PNG` 图标
+  - 保留 `SVG + PNG + ICO` 三种资产，后续可继续微调复生成
+
 ### [x] 发布前全面 E2E 验证与缺陷修复
 
 - 类型：Test

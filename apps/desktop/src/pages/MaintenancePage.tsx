@@ -2,11 +2,13 @@ import {
   buildDefaultTaxPolicySettings,
   type BonusTaxBracket,
   type ComprehensiveTaxBracket,
+  type CreateUnitBackupResponse,
   type TaxPolicyAuditAction,
   type TaxPolicyItem,
   type TaxPolicyResponse,
   type TaxPolicySettings,
   type TaxPolicyVersionImpactPreview,
+  type UnitBackupDraftResponse,
 } from "@dude-tax/core";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
@@ -56,6 +58,7 @@ type MaintenanceSectionKey =
   | "bonus"
   | "versions"
   | "impact"
+  | "backup"
   | "audit";
 
 const defaultCollapsedSections: Record<MaintenanceSectionKey, boolean> = {
@@ -66,6 +69,7 @@ const defaultCollapsedSections: Record<MaintenanceSectionKey, boolean> = {
   bonus: true,
   versions: true,
   impact: true,
+  backup: true,
   audit: true,
 };
 
@@ -102,6 +106,9 @@ const readFileAsDataUrl = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+const joinWindowsLikePath = (directoryPath: string, fileName: string) =>
+  `${directoryPath.replace(/[\\/]+$/, "")}\\${fileName}`;
+
 export const MaintenancePage = () => {
   const { context } = useAppContext();
   const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
@@ -113,11 +120,18 @@ export const MaintenancePage = () => {
   const [draftSettings, setDraftSettings] = useState<TaxPolicySettings | null>(null);
   const [policyItems, setPolicyItems] = useState<TaxPolicyItem[]>([]);
   const [impactPreview, setImpactPreview] = useState<TaxPolicyVersionImpactPreview | null>(null);
+  const [backupDraft, setBackupDraft] = useState<UnitBackupDraftResponse | null>(null);
+  const [backupExecutionResult, setBackupExecutionResult] =
+    useState<CreateUnitBackupResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupSaving, setBackupSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [backupErrorMessage, setBackupErrorMessage] = useState<string | null>(null);
+  const [selectedBackupPath, setSelectedBackupPath] = useState<string | null>(null);
   const [customVersionName, setCustomVersionName] = useState("");
   const [collapsedSections, setCollapsedSections] = useState(defaultCollapsedSections);
   const [collapsedPolicyItems, setCollapsedPolicyItems] = useState<Record<string, boolean>>({});
@@ -167,6 +181,36 @@ export const MaintenancePage = () => {
   useEffect(() => {
     void loadTaxPolicy();
   }, [currentTaxYear, currentUnitId]);
+
+  const loadBackupDraft = async (options?: { resetResult?: boolean }) => {
+    if (!currentUnitId) {
+      setBackupDraft(null);
+      setBackupExecutionResult(null);
+      setBackupErrorMessage(null);
+      setSelectedBackupPath(null);
+      return;
+    }
+
+    try {
+      setBackupLoading(true);
+      setBackupErrorMessage(null);
+      if (options?.resetResult ?? true) {
+        setBackupExecutionResult(null);
+      }
+      setSelectedBackupPath(null);
+      const nextDraft = await apiClient.getUnitBackupDraft(currentUnitId);
+      setBackupDraft(nextDraft);
+    } catch (error) {
+      setBackupDraft(null);
+      setBackupErrorMessage(error instanceof Error ? error.message : "加载单位备份信息失败");
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadBackupDraft();
+  }, [currentUnitId]);
 
   const currentSettings =
     draftSettings ?? taxPolicy?.currentSettings ?? buildDefaultTaxPolicySettings();
@@ -520,6 +564,69 @@ export const MaintenancePage = () => {
       setErrorMessage(error instanceof Error ? error.message : "更新版本名称失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const preferredBackupTargetPath =
+    selectedBackupPath ??
+    (backupDraft?.lastDirectoryPath
+      ? joinWindowsLikePath(backupDraft.lastDirectoryPath, backupDraft.suggestedFileName)
+      : null);
+
+  const pickBackupPath = async () => {
+    if (!backupDraft) {
+      setBackupErrorMessage("请先选择单位，再选择备份位置。");
+      return;
+    }
+
+    if (!window.salaryTaxDesktop?.pickSavePath) {
+      setBackupErrorMessage("当前环境不支持桌面备份路径选择。");
+      return;
+    }
+
+    try {
+      setBackupErrorMessage(null);
+      const result = await window.salaryTaxDesktop.pickSavePath({
+        defaultFileName: backupDraft.suggestedFileName,
+        defaultDirectory: backupDraft.lastDirectoryPath ?? undefined,
+        filters: [{ name: "ZIP 压缩包", extensions: ["zip"] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return;
+      }
+
+      setSelectedBackupPath(result.filePath);
+      setBackupExecutionResult(null);
+    } catch (error) {
+      setBackupErrorMessage(error instanceof Error ? error.message : "选择备份位置失败");
+    }
+  };
+
+  const startBackup = async () => {
+    if (!currentUnitId) {
+      setBackupErrorMessage("请先选择单位。");
+      return;
+    }
+
+    if (!preferredBackupTargetPath) {
+      setBackupErrorMessage("请先选择备份位置。");
+      return;
+    }
+
+    try {
+      setBackupSaving(true);
+      setBackupErrorMessage(null);
+      const result = await apiClient.createUnitBackup(currentUnitId, {
+        targetPath: preferredBackupTargetPath,
+      });
+      setBackupExecutionResult(result);
+      await loadBackupDraft({ resetResult: false });
+    } catch (error) {
+      setBackupExecutionResult(null);
+      setBackupErrorMessage(error instanceof Error ? error.message : "生成单位备份失败");
+    } finally {
+      setBackupSaving(false);
     }
   };
 
@@ -1361,6 +1468,98 @@ export const MaintenancePage = () => {
               <strong>请选择一个税率版本查看影响。</strong>
               <p>影响预览会基于当前单位 / 年份统计结果和重算记录范围。</p>
             </div>
+          )}
+        </div>
+      </article>
+
+      <article className="glass-card page-section placeholder-card">
+        <div className="section-header">
+          <div>
+            <h2>单位备份</h2>
+            <p>按当前单位导出全部年份业务数据，生成单个 ZIP 备份包。</p>
+          </div>
+          <div className="button-row compact">
+            <span className="tag">
+              {backupSaving ? "备份中" : backupLoading ? "加载中" : "待执行"}
+            </span>
+            <button className="ghost-button" type="button" onClick={() => toggleSection("backup")}>
+              {collapsedSections.backup ? "展开" : "折叠"}
+            </button>
+          </div>
+        </div>
+        <div className="collapsible-card-body" hidden={collapsedSections.backup}>
+          {!currentUnit ? (
+            <div className="empty-state">
+              <strong>请先选择单位。</strong>
+              <p>单位备份以当前单位为范围，不支持整库导出。</p>
+            </div>
+          ) : (
+            <>
+              <div className="summary-grid results-summary-grid">
+                <div className="summary-card">
+                  <span>当前单位</span>
+                  <strong>{currentUnit.unitName}</strong>
+                </div>
+                <div className="summary-card">
+                  <span>纳入备份年份</span>
+                  <strong>
+                    {backupDraft?.includedTaxYears.length
+                      ? `${backupDraft.includedTaxYears.join("、")} 年`
+                      : "加载中"}
+                  </strong>
+                </div>
+                <div className="summary-card">
+                  <span>最近备份目录</span>
+                  <strong>{backupDraft?.lastDirectoryPath ?? "未记录"}</strong>
+                </div>
+                <div className="summary-card">
+                  <span>建议文件名</span>
+                  <strong>{backupDraft?.suggestedFileName ?? "加载中"}</strong>
+                </div>
+              </div>
+              <div className="reminder-list">
+                <div className="maintenance-note-card">
+                  <strong>当前备份路径</strong>
+                  <p>{preferredBackupTargetPath ?? "尚未选择，将在首次备份时要求选择位置"}</p>
+                </div>
+                {backupExecutionResult ? (
+                  <div className="maintenance-note-card">
+                    <strong>上次成功备份结果</strong>
+                    <p>导出时间：{formatLocalDateTime(backupExecutionResult.exportedAt)}</p>
+                    <p>文件路径：{backupExecutionResult.filePath}</p>
+                    <p>
+                      数据摘要：员工 {backupExecutionResult.summaryCounts.employees} 条，月度记录{" "}
+                      {backupExecutionResult.summaryCounts.employeeMonthRecords} 条，税率版本{" "}
+                      {backupExecutionResult.summaryCounts.taxPolicyVersions} 条
+                    </p>
+                  </div>
+                ) : null}
+                {backupErrorMessage ? (
+                  <div className="maintenance-note-card">
+                    <strong>备份失败</strong>
+                    <p>{backupErrorMessage}</p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="button-row">
+                <button
+                  className="ghost-button"
+                  disabled={!backupDraft || backupLoading || backupSaving}
+                  onClick={() => void pickBackupPath()}
+                  type="button"
+                >
+                  选择备份位置
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!backupDraft || backupLoading || backupSaving}
+                  onClick={() => void startBackup()}
+                  type="button"
+                >
+                  开始备份
+                </button>
+              </div>
+            </>
           )}
         </div>
       </article>

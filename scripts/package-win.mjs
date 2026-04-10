@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 
 const projectRoot = process.cwd();
 const outputDir = path.join(projectRoot, "dist-electron");
+const iconPath = path.join(projectRoot, "apps", "desktop", "assets", "app-icon.ico");
 const desktopPackageJson = JSON.parse(
   await readFile(path.join(projectRoot, "apps", "desktop", "package.json"), "utf8"),
 );
@@ -46,6 +47,7 @@ try {
     dir: projectRoot,
     name: "dude-tax",
     executableName: "dude-tax",
+    icon: iconPath,
     out: outputDir,
     overwrite: true,
     platform: "win32",
