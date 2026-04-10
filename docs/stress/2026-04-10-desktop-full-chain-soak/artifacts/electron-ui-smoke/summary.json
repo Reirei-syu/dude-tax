@@ -1,0 +1,233 @@
+{
+  "status": "success",
+  "steps": [
+    {
+      "step": "api-start-and-seed-unit",
+      "ok": true,
+      "apiBaseUrl": "http://127.0.0.1:3112",
+      "unitId": 1,
+      "unitName": "Electron烟测单位-1775820679923"
+    },
+    {
+      "step": "electron-start",
+      "ok": true,
+      "targetUrl": "file:///D:/coding/dude-tax/apps/desktop/dist/index.html"
+    },
+    {
+      "step": "unit-management-smoke",
+      "ok": true,
+      "addedYear": 2027
+    },
+    {
+      "step": "employee-import",
+      "ok": true,
+      "employeeCount": 2
+    },
+    {
+      "step": "month-import-and-calculate",
+      "ok": true
+    },
+    {
+      "step": "result-confirmation",
+      "ok": true,
+      "confirmedMonth": 1
+    },
+    {
+      "step": "history-query",
+      "ok": true
+    },
+    {
+      "step": "policy-item-save-and-readback",
+      "ok": true,
+      "policyItemCount": 7
+    },
+    {
+      "step": "maintenance-main-flow",
+      "ok": true,
+      "versionNameAfterCreate": "Electron烟测版本",
+      "versionNameAfterRename": "Electron烟测版本-改名",
+      "versionNameAfterBind": "初始税率版本",
+      "versionNameAfterUnbind": "Electron烟测版本-改名",
+      "tableFits": [
+        {
+          "clientWidth": 0,
+          "scrollWidth": 0,
+          "fits": true
+        },
+        {
+          "clientWidth": 0,
+          "scrollWidth": 0,
+          "fits": true
+        }
+      ]
+    },
+    {
+      "step": "top-level-collapse-smoke",
+      "ok": true,
+      "toggleMatrix": {
+        "首页": [
+          {
+            "title": "首页",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "政策口径",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "当前税率表",
+            "toggled": false,
+            "before": "展开",
+            "afterFirst": "展开",
+            "afterSecond": "展开"
+          }
+        ],
+        "单位管理": [
+          {
+            "title": "单位管理",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "单位列表",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "年份管理",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "员工信息": [
+          {
+            "title": "员工信息",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "员工列表",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "月度数据录入": [
+          {
+            "title": "月度数据录入",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "员工编辑列表",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "计算结果汇总",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "快速计算": [
+          {
+            "title": "快速计算",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "结果确认": [
+          {
+            "title": "结果确认",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "历史查询": [
+          {
+            "title": "历史查询",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ],
+        "政策参考": [
+          {
+            "title": "政策参考",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          },
+          {
+            "title": "综合税率表",
+            "toggled": false,
+            "before": "展开",
+            "afterFirst": "展开",
+            "afterSecond": "展开"
+          },
+          {
+            "title": "年终奖单独计税税率表",
+            "toggled": false,
+            "before": "展开",
+            "afterFirst": "展开",
+            "afterSecond": "展开"
+          },
+          {
+            "title": "扣除项说明",
+            "toggled": false,
+            "before": "折叠",
+            "afterFirst": "折叠",
+            "afterSecond": "折叠"
+          }
+        ]
+      }
+    }
+  ],
+  "issues": [],
+  "artifacts": {
+    "employeeCsvPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\employees.csv",
+    "monthCsvPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\months.csv",
+    "homeInitialScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\01-home-initial.png",
+    "unitPageScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\02-unit-page.png",
+    "employeePageScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\03-employee-imported.png",
+    "entryPageScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\04-entry-calculated.png",
+    "resultConfirmationScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\05-result-confirmed.png",
+    "historyQueryScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\06-history-query.png",
+    "policyPageAfterSaveA": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\07-policy-title-a.png",
+    "maintenanceScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\08-maintenance-flow.png",
+    "policyPageAfterScopeRestore": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\09-policy-title-restored-a.png",
+    "finalHomeScreenshot": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\electron-ui-smoke\\10-home-final.png",
+    "apiStdoutPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\api-stdout.log",
+    "apiStderrPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\api-stderr.log",
+    "electronStdoutPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\electron-stdout.log",
+    "electronStderrPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb\\electron-stderr.log"
+  },
+  "tempRoot": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-electron-ui-smoke-736bb802-ae6b-4443-b306-ec760334b1cb"
+}

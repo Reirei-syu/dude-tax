@@ -1,0 +1,244 @@
+{
+  "status": "success",
+  "data": {
+    "args": {
+      "durationMinutes": 60,
+      "seedEmployees": 500,
+      "taxYear": 2026,
+      "apiBaseUrl": "http://127.0.0.1:3102",
+      "dbPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-full-soak-be0116ce-7e53-40f8-972c-b11d761ee88b\\dude-tax.db",
+      "unitName": "一小时压测单位",
+      "outputDir": "D:\\coding\\dude-tax\\docs\\stress\\2026-04-10-desktop-full-chain-soak\\artifacts\\full-run-1h",
+      "phaseProfile": "desktop-full-chain"
+    },
+    "unitId": 1,
+    "employeeCount": 500,
+    "phaseMetrics": {
+      "baseline": {
+        "durationMs": 8833.77,
+        "importPreview": {
+          "employee": {
+            "importType": "employee",
+            "totalRows": 500,
+            "readyRows": 500,
+            "conflictRows": 0,
+            "errorRows": 0,
+            "autoFillZeroEmployeeCount": 0,
+            "autoFillZeroRowCount": 0
+          },
+          "monthRecord": {
+            "importType": "month_record",
+            "totalRows": 6000,
+            "readyRows": 6000,
+            "conflictRows": 0,
+            "errorRows": 0,
+            "autoFillZeroEmployeeCount": 0,
+            "autoFillZeroRowCount": 0
+          }
+        },
+        "importCommit": {
+          "employee": {
+            "importType": "employee",
+            "totalRows": 500,
+            "successCount": 500,
+            "skippedCount": 0,
+            "failureCount": 0,
+            "failures": []
+          },
+          "monthRecord": {
+            "importType": "month_record",
+            "totalRows": 6000,
+            "successCount": 6000,
+            "skippedCount": 0,
+            "failureCount": 0,
+            "failures": []
+          }
+        },
+        "calculateMs": 1066.98,
+        "confirmationLatencies": [
+          {
+            "taxMonth": 1,
+            "durationMs": 529.51
+          },
+          {
+            "taxMonth": 2,
+            "durationMs": 552.23
+          },
+          {
+            "taxMonth": 3,
+            "durationMs": 535.94
+          },
+          {
+            "taxMonth": 4,
+            "durationMs": 538.5
+          },
+          {
+            "taxMonth": 5,
+            "durationMs": 549.31
+          },
+          {
+            "taxMonth": 6,
+            "durationMs": 532.6
+          },
+          {
+            "taxMonth": 7,
+            "durationMs": 533.45
+          },
+          {
+            "taxMonth": 8,
+            "durationMs": 538.35
+          },
+          {
+            "taxMonth": 9,
+            "durationMs": 565.61
+          },
+          {
+            "taxMonth": 10,
+            "durationMs": 553.85
+          },
+          {
+            "taxMonth": 11,
+            "durationMs": 535.52
+          },
+          {
+            "taxMonth": 12,
+            "durationMs": 557.59
+          }
+        ],
+        "queryMetrics": {
+          "latenciesMs": {
+            "confirmedResults": 52.52,
+            "confirmedResultDetail": 20.02,
+            "historyResults": 285.92,
+            "annualResults": 285.02
+          },
+          "rowCounts": {
+            "confirmedResults": 500,
+            "confirmedDetailMonths": 12,
+            "historyResults": 500,
+            "annualResults": 500
+          }
+        }
+      },
+      "burst": {
+        "iterations": 478,
+        "lastRecalculateLatencyMs": 1238.29,
+        "beforeStats": {
+          "dbBytes": 29839360,
+          "walBytes": 9117592,
+          "shmBytes": 32768,
+          "annualResultCount": 500,
+          "annualResultVersionCount": 500,
+          "calculationRunCount": 500,
+          "monthRecordCount": 6000,
+          "employeeCount": 500,
+          "unitCount": 1,
+          "confirmedMonthCount": 12
+        },
+        "afterStats": {
+          "dbBytes": 30330880,
+          "walBytes": 9117592,
+          "shmBytes": 32768,
+          "annualResultCount": 500,
+          "annualResultVersionCount": 500,
+          "calculationRunCount": 500,
+          "monthRecordCount": 6000,
+          "employeeCount": 500,
+          "unitCount": 1,
+          "confirmedMonthCount": 12
+        },
+        "dbGrowthRate": 1.65
+      },
+      "queryRamp": {
+        "sampleCount": 1024,
+        "peakConfirmedResultsMs": 80.11,
+        "peakHistoryResultsMs": 322.82,
+        "lastSample": {
+          "repeat": 4,
+          "capturedAt": "2026-04-10T09:42:10.362Z",
+          "latenciesMs": {
+            "confirmedResults": 51.54,
+            "confirmedResultDetail": 19.52,
+            "historyResults": 283.5,
+            "annualResults": 281
+          },
+          "rowCounts": {
+            "confirmedResults": 500,
+            "confirmedDetailMonths": 12,
+            "historyResults": 500,
+            "annualResults": 500
+          }
+        }
+      },
+      "steadyState": {
+        "cycles": 525
+      },
+      "recovery": {
+        "retrySuccessCount": 226,
+        "retryFailureCount": 0,
+        "beforeStats": {
+          "dbBytes": 30330880,
+          "walBytes": 9117592,
+          "shmBytes": 32768,
+          "annualResultCount": 500,
+          "annualResultVersionCount": 500,
+          "calculationRunCount": 500,
+          "monthRecordCount": 6000,
+          "employeeCount": 500,
+          "unitCount": 1,
+          "confirmedMonthCount": 12
+        },
+        "afterStats": {
+          "dbBytes": 30330880,
+          "walBytes": 9117592,
+          "shmBytes": 32768,
+          "annualResultCount": 500,
+          "annualResultVersionCount": 500,
+          "calculationRunCount": 500,
+          "monthRecordCount": 6000,
+          "employeeCount": 500,
+          "unitCount": 1,
+          "confirmedMonthCount": 12
+        },
+        "postRecoveryQueries": {
+          "latenciesMs": {
+            "confirmedResults": 46.65,
+            "confirmedResultDetail": 19.66,
+            "historyResults": 284.73,
+            "annualResults": 285.07
+          },
+          "rowCounts": {
+            "confirmedResults": 500,
+            "confirmedDetailMonths": 12,
+            "historyResults": 500,
+            "annualResults": 500
+          }
+        }
+      }
+    },
+    "dbStats": {
+      "dbBytes": 30330880,
+      "walBytes": 9117592,
+      "shmBytes": 32768,
+      "annualResultCount": 500,
+      "annualResultVersionCount": 500,
+      "calculationRunCount": 500,
+      "monthRecordCount": 6000,
+      "employeeCount": 500,
+      "unitCount": 1,
+      "confirmedMonthCount": 12
+    },
+    "operationCounters": {
+      "employeePreview": 525,
+      "monthPreview": 525,
+      "monthCommit": 525,
+      "recalculate": 1229,
+      "confirmationStateQuery": 525,
+      "confirmedResultsQuery": 1775,
+      "confirmedResultDetailQuery": 1775,
+      "historyQuery": 1775
+    },
+    "findings": []
+  },
+  "error": null
+}

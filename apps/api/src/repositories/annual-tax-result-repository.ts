@@ -39,6 +39,33 @@ const mapRowToAnnualTaxResult = (row: Record<string, unknown>): EmployeeAnnualTa
   };
 };
 
+type PersistedAnnualTaxResultRow = {
+  selected_scheme: string;
+  selected_tax_amount: number;
+  policy_signature: string;
+  data_signature: string;
+  calculation_snapshot: string;
+};
+
+const hasSamePersistedResult = (
+  row: PersistedAnnualTaxResultRow | undefined,
+  input: {
+    selectedScheme: string;
+    selectedTaxAmount: number;
+    policySignature: string;
+    dataSignature: string;
+    calculationSnapshot: string;
+  },
+) =>
+  Boolean(
+    row &&
+      row.selected_scheme === input.selectedScheme &&
+      Number(row.selected_tax_amount) === input.selectedTaxAmount &&
+      row.policy_signature === input.policySignature &&
+      row.data_signature === input.dataSignature &&
+      row.calculation_snapshot === input.calculationSnapshot,
+  );
+
 const getInvalidatedReason = (
   storedPolicySignature: string,
   currentPolicySignature: string,
@@ -260,6 +287,43 @@ export const annualTaxResultRepository = {
     const now = new Date().toISOString();
     const calculationSnapshot = JSON.stringify(calculation);
     const persistTransaction = database.transaction(() => {
+      const currentRow = database
+        .prepare(
+          `
+            SELECT
+              selected_scheme,
+              selected_tax_amount,
+              policy_signature,
+              data_signature,
+              calculation_snapshot
+            FROM annual_tax_results
+            WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+          `,
+        )
+        .get(unitId, employeeId, taxYear) as PersistedAnnualTaxResultRow | undefined;
+
+      if (
+        hasSamePersistedResult(currentRow, {
+          selectedScheme: calculation.selectedScheme,
+          selectedTaxAmount: calculation.selectedTaxAmount,
+          policySignature,
+          dataSignature,
+          calculationSnapshot,
+        })
+      ) {
+        database
+          .prepare(
+            `
+              UPDATE annual_tax_results
+              SET calculated_at = ?,
+                  updated_at = ?
+              WHERE unit_id = ? AND employee_id = ? AND tax_year = ?
+            `,
+          )
+          .run(now, now, unitId, employeeId, taxYear);
+        return;
+      }
+
       database
         .prepare(
           `             INSERT INTO annual_tax_results (               unit_id,               employee_id,               tax_year,               selected_scheme,               selected_tax_amount,               policy_signature,               data_signature,               calculation_snapshot,               calculated_at,               updated_at             )             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)             ON CONFLICT(unit_id, employee_id, tax_year) DO UPDATE SET               selected_scheme = excluded.selected_scheme,               selected_tax_amount = excluded.selected_tax_amount,               policy_signature = excluded.policy_signature,               data_signature = excluded.data_signature,               calculation_snapshot = excluded.calculation_snapshot,               calculated_at = excluded.calculated_at,               updated_at = excluded.updated_at           `,

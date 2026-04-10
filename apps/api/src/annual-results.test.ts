@@ -480,6 +480,97 @@ test("returns recalculation version history for the selected employee and year",
   assert.notEqual(versions[0]?.selectedTaxAmount, versions[1]?.selectedTaxAmount);
   await app.close();
 });
+test("does not append recalculation version history when result snapshot is unchanged", async () => {
+  const [
+    { registerCalculationRoutes },
+    { unitRepository },
+    { employeeRepository },
+    { monthRecordRepository },
+  ] = await modulesPromise;
+  const app = Fastify({ logger: false });
+  await registerCalculationRoutes(app);
+  const unit = unitRepository.create({ unitName: "版本历史单位-重复重算", remark: "" });
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-V-REPEAT-001",
+    employeeName: "版本员工-重复重算",
+    idNumber: "110101199001017778",
+    hireDate: null,
+    leaveDate: null,
+    remark: "",
+  });
+  for (let taxMonth = 1; taxMonth <= 10; taxMonth += 1) {
+    monthRecordRepository.upsert(
+      unit.id,
+      employee.id,
+      2026,
+      taxMonth,
+      createMonthRecordPayload({
+        salaryIncome: 19_000,
+        annualBonus: taxMonth === 1 ? 40_000 : 0,
+        withheldTax: 1_000,
+      }),
+    );
+  }
+  const firstRecalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+  assert.equal(firstRecalculateResponse.statusCode, 200);
+
+  const firstResultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/annual-results`,
+  });
+  assert.equal(firstResultsResponse.statusCode, 200);
+  const firstResults = firstResultsResponse.json() as Array<Record<string, unknown>>;
+  const firstCalculatedAt = String(firstResults[0]?.calculatedAt ?? "");
+
+  const firstStatusesResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses`,
+  });
+  assert.equal(firstStatusesResponse.statusCode, 200);
+  const firstStatuses = firstStatusesResponse.json() as Array<Record<string, unknown>>;
+  const firstLastCalculatedAt = String(firstStatuses[0]?.lastCalculatedAt ?? "");
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  const secondRecalculateResponse = await app.inject({
+    method: "POST",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses/recalculate`,
+    payload: {},
+  });
+  assert.equal(secondRecalculateResponse.statusCode, 200);
+
+  const versionsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/annual-result-versions`,
+  });
+  assert.equal(versionsResponse.statusCode, 200);
+  const versions = versionsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0]?.versionSequence, 1);
+
+  const secondResultsResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/annual-results`,
+  });
+  assert.equal(secondResultsResponse.statusCode, 200);
+  const secondResults = secondResultsResponse.json() as Array<Record<string, unknown>>;
+  assert.equal(secondResults.length, 1);
+  assert.notEqual(String(secondResults[0]?.calculatedAt ?? ""), firstCalculatedAt);
+
+  const secondStatusesResponse = await app.inject({
+    method: "GET",
+    url: `/api/units/${unit.id}/years/2026/calculation-statuses`,
+  });
+  assert.equal(secondStatusesResponse.statusCode, 200);
+  const secondStatuses = secondStatusesResponse.json() as Array<Record<string, unknown>>;
+  assert.notEqual(String(secondStatuses[0]?.lastCalculatedAt ?? ""), firstLastCalculatedAt);
+
+  await app.close();
+});
 test("does not create recalculation history when only switching selected scheme", async () => {
   const [
     { registerCalculationRoutes },

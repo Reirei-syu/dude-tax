@@ -6,78 +6,98 @@ import {
   type ConfirmedAnnualResultSummary,
   type EmployeeMonthRecord,
 } from "@dude-tax/core";
+import type { Employee } from "@dude-tax/core";
 import { employeeRepository } from "../repositories/employee-repository.js";
 import { monthConfirmationRepository } from "../repositories/month-confirmation-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 import { taxPolicyRepository } from "../repositories/tax-policy-repository.js";
 
-const getConfirmedMonths = (unitId: number, taxYear: number, throughMonth?: number) =>
-  monthConfirmationRepository
-    .getLockedMonths(unitId, taxYear)
-    .filter((taxMonth) => (throughMonth ? taxMonth <= throughMonth : true));
+type ConfirmedResultsContext = {
+  taxYear: number;
+  confirmedMonths: number[];
+  confirmationMap: Map<number, string>;
+  effectiveSettings: ReturnType<typeof taxPolicyRepository.getEffectiveSettingsForScope>;
+  recordsByEmployeeId: Map<number, Map<number, EmployeeMonthRecord>>;
+};
 
-const getConfirmedRecordsForEmployee = (
+const buildConfirmedResultsContext = (
   unitId: number,
   taxYear: number,
-  employeeId: number,
-  confirmedMonths: number[],
+  throughMonth?: number,
+): ConfirmedResultsContext => {
+  const confirmationRecords = monthConfirmationRepository
+    .listByUnitAndYear(unitId, taxYear)
+    .filter((record) => (throughMonth ? record.taxMonth <= throughMonth : true));
+  const confirmationMap = new Map(
+    confirmationRecords.map((record) => [record.taxMonth, record.confirmedAt]),
+  );
+  const recordsByEmployeeId = new Map<number, Map<number, EmployeeMonthRecord>>();
+
+  monthRecordRepository.listExistingByUnitAndYears(unitId, [taxYear]).forEach((record) => {
+    const employeeRecordMap =
+      recordsByEmployeeId.get(record.employeeId) ?? new Map<number, EmployeeMonthRecord>();
+    employeeRecordMap.set(record.taxMonth, record);
+    recordsByEmployeeId.set(record.employeeId, employeeRecordMap);
+  });
+
+  return {
+    taxYear,
+    confirmedMonths: confirmationRecords.map((record) => record.taxMonth),
+    confirmationMap,
+    effectiveSettings: taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear),
+    recordsByEmployeeId,
+  };
+};
+
+const getConfirmedRecordsForEmployee = (
+  employee: Employee,
+  context: ConfirmedResultsContext,
 ) => {
-  const employee = employeeRepository.getById(employeeId);
-  if (!employee || employee.unitId !== unitId || !isEmployeeActiveInTaxYear(employee, taxYear)) {
+  if (!isEmployeeActiveInTaxYear(employee, context.taxYear)) {
     return [];
   }
 
-  const records = monthRecordRepository.listByEmployeeAndYear(unitId, employeeId, taxYear);
-  return confirmedMonths
-    .filter((taxMonth) => isEmployeeActiveInTaxMonth(employee, taxYear, taxMonth))
-    .map((taxMonth) => records.find((record) => record.taxMonth === taxMonth) ?? null)
+  const employeeRecords = context.recordsByEmployeeId.get(employee.id) ?? new Map();
+  return context.confirmedMonths
+    .filter((taxMonth) => isEmployeeActiveInTaxMonth(employee, context.taxYear, taxMonth))
+    .map((taxMonth) => employeeRecords.get(taxMonth) ?? null)
     .filter((record): record is EmployeeMonthRecord => Boolean(record));
 };
 
-const buildCalculatedAt = (unitId: number, taxYear: number, confirmedMonths: number[]) => {
-  const confirmationMap = new Map(
-    monthConfirmationRepository
-      .listByUnitAndYear(unitId, taxYear)
-      .map((record) => [record.taxMonth, record.confirmedAt]),
-  );
-
-  return confirmedMonths
-    .map((taxMonth) => confirmationMap.get(taxMonth) ?? "")
+const buildCalculatedAt = (context: ConfirmedResultsContext) =>
+  context.confirmedMonths
+    .map((taxMonth) => context.confirmationMap.get(taxMonth) ?? "")
     .sort()
     .at(-1) ?? new Date().toISOString();
-};
 
 const buildSummary = (
   unitId: number,
-  taxYear: number,
-  employeeId: number,
-  confirmedMonths: number[],
+  employee: Employee,
+  context: ConfirmedResultsContext,
 ): ConfirmedAnnualResultSummary | null => {
-  const employee = employeeRepository.getById(employeeId);
-  if (!employee || employee.unitId !== unitId) {
+  if (employee.unitId !== unitId) {
     return null;
   }
 
-  const effectiveSettings = taxPolicyRepository.getEffectiveSettingsForScope(unitId, taxYear);
-  const confirmedRecords = getConfirmedRecordsForEmployee(unitId, taxYear, employeeId, confirmedMonths);
+  const confirmedRecords = getConfirmedRecordsForEmployee(employee, context);
   if (!confirmedRecords.length) {
     return null;
   }
 
   const calculation = calculateEmployeeAnnualTaxForMonths(
     confirmedRecords,
-    confirmedMonths,
-    effectiveSettings,
+    context.confirmedMonths,
+    context.effectiveSettings,
   );
 
   return {
     ...calculation,
     unitId,
-    employeeId,
+    employeeId: employee.id,
     employeeCode: employee.employeeCode,
     employeeName: employee.employeeName,
-    taxYear,
-    calculatedAt: buildCalculatedAt(unitId, taxYear, confirmedMonths),
+    taxYear: context.taxYear,
+    calculatedAt: buildCalculatedAt(context),
     confirmedMonthCount: confirmedRecords.length,
     confirmedMonths: confirmedRecords.map((record) => record.taxMonth),
   };
@@ -85,31 +105,36 @@ const buildSummary = (
 
 export const confirmedResultsService = {
   listResults(unitId: number, taxYear: number, throughMonth?: number) {
-    const confirmedMonths = getConfirmedMonths(unitId, taxYear, throughMonth);
-    if (!confirmedMonths.length) {
+    const context = buildConfirmedResultsContext(unitId, taxYear, throughMonth);
+    if (!context.confirmedMonths.length) {
       return [] as ConfirmedAnnualResultSummary[];
     }
 
     return employeeRepository
       .listByUnitId(unitId)
-      .map((employee) => buildSummary(unitId, taxYear, employee.id, confirmedMonths))
+      .map((employee) => buildSummary(unitId, employee, context))
       .filter((result): result is ConfirmedAnnualResultSummary => Boolean(result));
   },
 
   getResultDetail(unitId: number, taxYear: number, employeeId: number, throughMonth?: number) {
-    const confirmedMonths = getConfirmedMonths(unitId, taxYear, throughMonth);
-    if (!confirmedMonths.length) {
+    const context = buildConfirmedResultsContext(unitId, taxYear, throughMonth);
+    if (!context.confirmedMonths.length) {
       return null;
     }
 
-    const summary = buildSummary(unitId, taxYear, employeeId, confirmedMonths);
+    const employee = employeeRepository.getById(employeeId);
+    if (!employee || employee.unitId !== unitId) {
+      return null;
+    }
+
+    const summary = buildSummary(unitId, employee, context);
     if (!summary) {
       return null;
     }
 
     return {
       ...summary,
-      months: getConfirmedRecordsForEmployee(unitId, taxYear, employeeId, confirmedMonths),
+      months: getConfirmedRecordsForEmployee(employee, context),
     } satisfies ConfirmedAnnualResultDetail;
   },
 };

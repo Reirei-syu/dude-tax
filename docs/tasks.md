@@ -6,6 +6,71 @@
 
 ## 任务列表
 
+### [x] 发布前全面 E2E 验证与缺陷修复
+
+- 类型：Test
+- 模块：`apps/api` / `apps/desktop` / `scripts` / `docs`
+- 描述：执行发布前 workspaces 基线校验、Windows 测试包打包、真实 Electron 壳 / 发布包主流程回放与严格 60 分钟 soak；若发现错误，完成最小修复与回归。
+- 依赖：`2026-04-10_release-preflight-e2e_plan.md`
+- 风险：高
+- 优先级：2
+- 完成时间：2026-04-10
+- 修改文件：
+  - `scripts/e2e/release-preflight.mjs`
+  - `docs/plans/2026-04-10_release-preflight-e2e_plan.md`
+  - `docs/e2e/2026-04-10-release-preflight/artifacts/*`
+  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/full-run-1h-postfix/*`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - workspaces 测试、类型检查、构建与 Windows 测试包全部通过
+  - 新增真实发布包主流程 E2E CLI，覆盖 managed API、自建单位、年份新增、批量导入、年度计算、结果确认、历史查询、政策参考原图预览与系统维护页面加载
+  - 修正后的 `desktop-full-chain-soak` 脚本已完成严格 60 分钟单次复跑，`findings=[]`
+
+### [x] 桌面端全链路长稳压测与稳定性修复
+
+- 类型：Fix
+- 模块：`apps/api` / `scripts/stress` / `docs`
+- 描述：修复无变更重算导致的版本历史膨胀与 `confirmed-results` N+1 退化，新增结构化桌面端全链路压测 CLI，并完成一次正式 soak 验证。
+- 依赖：`2026-04-10_desktop-full-chain-soak-hardening-plan.md`
+- 风险：高
+- 优先级：2
+- 完成时间：2026-04-10
+- 修改文件：
+  - `apps/api/src/repositories/annual-tax-result-repository.ts`
+  - `apps/api/src/services/confirmed-results-service.ts`
+  - `apps/api/src/annual-results.test.ts`
+  - `apps/api/src/confirmed-results.test.ts`
+  - `scripts/stress/desktop-full-chain-soak.mjs`
+  - `scripts/stress/desktop-full-chain-soak.test.mjs`
+  - `docs/plans/2026-04-10_desktop-full-chain-soak-hardening-plan.md`
+  - `docs/stress/2026-04-10-desktop-full-chain-soak/*`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 无变更重复重算不再追加 `annual_tax_result_versions`
+  - `confirmed-results` 与 detail 查询改为批量预加载 + 内存分组
+  - 新增桌面端全链路长稳压测 CLI、工作区文档与正式 soak 产物
+  - 真实 Electron 壳前后两次启动检查通过，API 恢复阶段重启验证通过
+
+### [x] Electron 生产构建相对资源路径修复
+
+- 类型：Fix
+- 模块：`apps/desktop`
+- 描述：修复桌面端生产构建输出绝对 `/assets/...` 资源路径，避免 Electron `file://` 场景下 renderer 白屏。
+- 依赖：真实 Electron 壳页面级烟测
+- 风险：中
+- 优先级：2
+- 完成时间：2026-04-10
+- 修改文件：
+  - `apps/desktop/package.json`
+  - `apps/desktop/vite.config.ts`
+- 影响范围：
+  - 桌面端生产构建改为相对 `./assets/...` 引用
+  - 真实 Electron 壳可正常加载 renderer 页面
+
 ### [x] 首页精简并新增政策口径卡片
 
 - 类型：Fix
@@ -414,7 +479,7 @@
   - 税率版本改名后会重新拉取当前作用域配置，确保版本列表、当前版本、作用域绑定与审计日志同步刷新
   - 新增桌面页结构断言与带作用域参数的税率版本改名回归测试
 
-### [ ] Windows / Electron 手工烟测导入与系统维护主流程
+### [x] Windows / Electron 手工烟测导入与系统维护主流程
 
 - 类型：Test
 - 模块：`apps/desktop`
@@ -422,8 +487,18 @@
 - 依赖：批量导入并入员工信息与月度数据录入已完成
 - 风险：中
 - 优先级：4
+- 完成时间：2026-04-10
+- 修改文件：
+  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/summary.json`
+  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/*.png`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+- 影响范围：
+  - 真实 Electron 壳内完成单位管理、员工导入、月度导入、结果确认、历史查询、系统维护与政策参考主流程点按烟测
+  - 覆盖专项附加扣除单项保存、版本创建、版本改名、作用域绑定 / 解绑、政策参考回读与原图预览
 
-### [ ] Windows / Electron 手工烟测工作区卡片折叠交互
+### [x] Windows / Electron 手工烟测工作区卡片折叠交互
 
 - 类型：Test
 - 模块：`apps/desktop`
@@ -431,6 +506,14 @@
 - 依赖：工作区卡片统一折叠支持已完成
 - 风险：中
 - 优先级：4
+- 完成时间：2026-04-10
+- 修改文件：
+  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/toggle-summary.json`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+- 影响范围：
+  - 首页、单位管理、员工信息、月度数据录入、快速计算、结果确认、历史查询、政策参考的顶层折叠卡片在真实 Electron 壳中完成“展开 -> 收起”验证
 
 ### [x] 批量导入并入员工信息与月度数据录入
 

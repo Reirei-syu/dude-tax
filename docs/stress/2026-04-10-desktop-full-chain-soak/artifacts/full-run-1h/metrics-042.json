@@ -1,0 +1,27 @@
+{
+  "index": 42,
+  "capturedAt": "2026-04-10T09:58:30.764Z",
+  "currentPhase": "steadyState",
+  "operationCounters": {
+    "employeePreview": 429,
+    "monthPreview": 429,
+    "monthCommit": 429,
+    "recalculate": 907,
+    "confirmationStateQuery": 429,
+    "confirmedResultsQuery": 1453,
+    "confirmedResultDetailQuery": 1453,
+    "historyQuery": 1453
+  },
+  "dbStats": {
+    "dbBytes": 30330880,
+    "walBytes": 9117592,
+    "shmBytes": 32768,
+    "annualResultCount": 500,
+    "annualResultVersionCount": 500,
+    "calculationRunCount": 500,
+    "monthRecordCount": 6000,
+    "employeeCount": 500,
+    "unitCount": 1,
+    "confirmedMonthCount": 12
+  }
+}

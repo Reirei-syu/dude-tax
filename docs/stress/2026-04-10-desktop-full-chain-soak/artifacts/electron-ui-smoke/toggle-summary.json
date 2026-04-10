@@ -1,0 +1,144 @@
+{
+  "首页": [
+    {
+      "title": "首页",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "政策口径",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "当前税率表",
+      "before": "展开",
+      "afterFirst": "折叠",
+      "afterSecond": "展开",
+      "toggled": true
+    }
+  ],
+  "单位管理": [
+    {
+      "title": "单位管理",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "单位列表",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "年份管理",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "员工信息": [
+    {
+      "title": "员工信息",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "员工列表",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "月度数据录入": [
+    {
+      "title": "月度数据录入",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "员工编辑列表",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "计算结果汇总",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "快速计算": [
+    {
+      "title": "快速计算",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "结果确认": [
+    {
+      "title": "结果确认",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "历史查询": [
+    {
+      "title": "历史查询",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ],
+  "政策参考": [
+    {
+      "title": "政策参考",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    },
+    {
+      "title": "综合税率表",
+      "before": "展开",
+      "afterFirst": "折叠",
+      "afterSecond": "展开",
+      "toggled": true
+    },
+    {
+      "title": "年终奖单独计税税率表",
+      "before": "展开",
+      "afterFirst": "折叠",
+      "afterSecond": "展开",
+      "toggled": true
+    },
+    {
+      "title": "扣除项说明",
+      "before": "折叠",
+      "afterFirst": "展开",
+      "afterSecond": "折叠",
+      "toggled": true
+    }
+  ]
+}

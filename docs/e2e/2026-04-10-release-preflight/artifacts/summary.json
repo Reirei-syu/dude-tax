@@ -1,0 +1,89 @@
+{
+  "status": "success",
+  "data": {
+    "args": {
+      "appPath": "D:\\coding\\dude-tax\\dist-electron\\dude-tax-win32-x64\\dude-tax.exe",
+      "outputDir": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts",
+      "remoteDebuggingPort": 9222,
+      "taxYear": 2026,
+      "unitName": "发布前E2E单位"
+    },
+    "port": 9222,
+    "tempRoot": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-release-preflight-2216c842-64f8-4481-9017-284d1984a598",
+    "steps": [
+      {
+        "step": "package-start",
+        "ok": true,
+        "targetUrl": "file:///D:/coding/dude-tax/dist-electron/dude-tax-win32-x64/resources/app/apps/desktop/dist/index.html",
+        "runtimeConfig": {
+          "apiBaseUrl": "http://127.0.0.1:3001",
+          "managedApi": true,
+          "databasePath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-release-preflight-2216c842-64f8-4481-9017-284d1984a598\\profile\\data\\dude-tax.db"
+        }
+      },
+      {
+        "step": "unit-management-create",
+        "ok": true,
+        "unitId": 1,
+        "unitName": "发布前E2E单位",
+        "currentTaxYear": 2026,
+        "availableTaxYears": [
+          2026,
+          2027
+        ]
+      },
+      {
+        "step": "seed-import-data",
+        "ok": true,
+        "employeeCount": 2,
+        "employeePreviewRows": 2,
+        "monthPreviewRows": 24
+      },
+      {
+        "step": "employee-page-readback",
+        "ok": true,
+        "employeeCode": "E2E-001"
+      },
+      {
+        "step": "entry-calculate",
+        "ok": true
+      },
+      {
+        "step": "result-confirmation",
+        "ok": true,
+        "confirmedMonth": 1
+      },
+      {
+        "step": "history-query",
+        "ok": true,
+        "employeeCode": "E2E-001"
+      },
+      {
+        "step": "policy-reference",
+        "ok": true,
+        "openedIllustration": true
+      },
+      {
+        "step": "maintenance-render",
+        "ok": true,
+        "currentVersionName": "初始税率版本"
+      }
+    ],
+    "issues": [],
+    "artifacts": {
+      "home": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\01-home.png",
+      "unitManagement": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\02-unit-management.png",
+      "employees": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\03-employees.png",
+      "entry": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\04-entry.png",
+      "resultConfirmation": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\05-result-confirmation.png",
+      "history": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\06-history.png",
+      "policy": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\07-policy.png",
+      "maintenance": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\08-maintenance.png",
+      "electronStdoutPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-release-preflight-2216c842-64f8-4481-9017-284d1984a598\\electron-stdout.log",
+      "electronStderrPath": "C:\\Users\\11441\\AppData\\Local\\Temp\\dude-tax-release-preflight-2216c842-64f8-4481-9017-284d1984a598\\electron-stderr.log",
+      "employeeCsvPath": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\employees.csv",
+      "monthCsvPath": "D:\\coding\\dude-tax\\docs\\e2e\\2026-04-10-release-preflight\\artifacts\\month-records.csv"
+    }
+  },
+  "error": null
+}
