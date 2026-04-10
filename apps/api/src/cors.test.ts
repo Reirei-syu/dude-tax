@@ -24,7 +24,7 @@ await app.register(cors, {
   origin(origin, callback) {
     callback(null, isAllowedOrigin(origin));
   },
-  methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 });
 
@@ -47,6 +47,22 @@ test("CORS preflight allows PUT requests for local browser workflow", async () =
 
   assert.equal(response.statusCode, 204);
   assert.match(String(response.headers["access-control-allow-methods"] ?? ""), /PUT/);
+  assert.match(String(response.headers["access-control-allow-origin"] ?? ""), /127\.0\.0\.1:5173/);
+});
+
+test("CORS preflight allows PATCH requests for tax policy rename workflow", async () => {
+  const response = await app.inject({
+    method: "OPTIONS",
+    url: "/api/tax-policy/versions/1",
+    headers: {
+      origin: "http://127.0.0.1:5173",
+      "access-control-request-method": "PATCH",
+      "access-control-request-headers": "content-type",
+    },
+  });
+
+  assert.equal(response.statusCode, 204);
+  assert.match(String(response.headers["access-control-allow-methods"] ?? ""), /PATCH/);
   assert.match(String(response.headers["access-control-allow-origin"] ?? ""), /127\.0\.0\.1:5173/);
 });
 

@@ -1,6 +1,7 @@
 import type { DeleteUnitChallenge } from "@dude-tax/core";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { useAppContext } from "../context/AppContextProvider";
 
 export const UnitManagementPage = () => {
@@ -105,7 +106,10 @@ export const UnitManagementPage = () => {
 
       const updatedUnit = await apiClient.deleteUnitYear(selectedUnit.id, taxYear);
       await refresh();
-      if (context?.currentUnitId === selectedUnit.id && !updatedUnit.availableTaxYears.includes(context.currentTaxYear)) {
+      if (
+        context?.currentUnitId === selectedUnit.id &&
+        !updatedUnit.availableTaxYears.includes(context.currentTaxYear)
+      ) {
         await updateContext({
           currentTaxYear: updatedUnit.availableTaxYears[0] ?? context.currentTaxYear,
         });
@@ -157,14 +161,11 @@ export const UnitManagementPage = () => {
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h1>单位管理</h1>
-            <p>新增单位时只建立起始年份，后续年份由你按需手动管理。</p>
-          </div>
-        </div>
-
+      <CollapsibleSectionCard
+        description="新增单位时只建立起始年份，后续年份由你按需手动管理。"
+        headingTag="h1"
+        title="单位管理"
+      >
         <div className="form-grid">
           <label className="form-field">
             <span>单位名称</span>
@@ -197,23 +198,20 @@ export const UnitManagementPage = () => {
         </div>
 
         <div className="button-row">
-          <button className="primary-button" disabled={submitting} onClick={() => void createUnit()}>
+          <button
+            className="primary-button"
+            disabled={submitting}
+            onClick={() => void createUnit()}
+          >
             新增单位
           </button>
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {successMessage ? <div className="success-banner">{successMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>单位列表</h2>
-            <p>点击“进入工作”即可切换当前单位。</p>
-          </div>
-        </div>
-
+      <CollapsibleSectionCard description="点击“进入工作”即可切换当前单位。" title="单位列表">
         <div className="unit-list">
           {context?.units.length ? (
             context.units.map((unit) => (
@@ -230,16 +228,20 @@ export const UnitManagementPage = () => {
                     onClick={() =>
                       void updateContext({
                         currentUnitId: unit.id,
-                        currentTaxYear:
-                          unit.availableTaxYears.includes(context?.currentTaxYear ?? -1)
-                            ? (context?.currentTaxYear ?? unit.availableTaxYears[0] ?? startYear)
-                            : (unit.availableTaxYears[0] ?? startYear),
+                        currentTaxYear: unit.availableTaxYears.includes(
+                          context?.currentTaxYear ?? -1,
+                        )
+                          ? (context?.currentTaxYear ?? unit.availableTaxYears[0] ?? startYear)
+                          : (unit.availableTaxYears[0] ?? startYear),
                       })
                     }
                   >
                     {selectedUnit?.id === unit.id ? "当前单位" : "进入工作"}
                   </button>
-                  <button className="danger-button" onClick={() => void openDeleteChallenge(unit.id)}>
+                  <button
+                    className="danger-button"
+                    onClick={() => void openDeleteChallenge(unit.id)}
+                  >
                     删除
                   </button>
                 </div>
@@ -249,17 +251,13 @@ export const UnitManagementPage = () => {
             <div className="empty-state">当前还没有单位，请先创建单位。</div>
           )}
         </div>
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>年份管理</h2>
-            <p>只显示当前单位已有年份；可新增历史年份，也可新增未来年份。</p>
-          </div>
-          <span className="tag">{selectedUnit?.unitName ?? "未选择单位"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        description="只显示当前单位已有年份；可新增历史年份，也可新增未来年份。"
+        headerExtras={<span className="tag">{selectedUnit?.unitName ?? "未选择单位"}</span>}
+        title="年份管理"
+      >
         {selectedUnit ? (
           <>
             <div className="form-grid">
@@ -287,7 +285,9 @@ export const UnitManagementPage = () => {
                 <div className="year-chip-card" key={year}>
                   <button
                     className={
-                      context?.currentTaxYear === year ? "ghost-button selected-item" : "ghost-button"
+                      context?.currentTaxYear === year
+                        ? "ghost-button selected-item"
+                        : "ghost-button"
                     }
                     onClick={() => void updateContext({ currentTaxYear: year })}
                     type="button"
@@ -309,17 +309,13 @@ export const UnitManagementPage = () => {
         ) : (
           <div className="empty-state">请先在左侧切换到目标单位，再管理年份。</div>
         )}
-      </article>
+      </CollapsibleSectionCard>
 
       {deleteChallenge && deleteUnitId !== null ? (
-        <article className="glass-card page-section">
-          <div className="section-header">
-            <div>
-              <h2>删除单位认证</h2>
-              <p>删除后不可恢复。若需保留历史数据，请先备份。</p>
-            </div>
-          </div>
-
+        <CollapsibleSectionCard
+          description="删除后不可恢复。若需保留历史数据，请先备份。"
+          title="删除单位认证"
+        >
           <div className="delete-challenge-box">
             <div className="challenge-code">{deleteChallenge.confirmationCode}</div>
             <p>请输入上方 6 位认证字符，然后勾选不可恢复确认。</p>
@@ -354,7 +350,7 @@ export const UnitManagementPage = () => {
               确认删除
             </button>
           </div>
-        </article>
+        </CollapsibleSectionCard>
       ) : null}
     </section>
   );

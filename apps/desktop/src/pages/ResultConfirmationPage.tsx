@@ -4,6 +4,7 @@ import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 import { buildYearRecordWorkbookBuffer } from "./year-record-export";
@@ -25,16 +26,16 @@ export const ResultConfirmationPage = () => {
   const currentTaxYear = context?.currentTaxYear ?? null;
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
-  const [confirmationState, setConfirmationState] =
-    useState<Awaited<ReturnType<typeof apiClient.getMonthConfirmationState>> | null>(null);
+  const [confirmationState, setConfirmationState] = useState<Awaited<
+    ReturnType<typeof apiClient.getMonthConfirmationState>
+  > | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [results, setResults] = useState<EmployeeAnnualTaxResult[]>([]);
   const [detailEmployeeId, setDetailEmployeeId] = useState<number | null>(null);
   const [basicDeductionAmount, setBasicDeductionAmount] = useState(DEFAULT_BASIC_DEDUCTION_AMOUNT);
-  const [bonusTaxBrackets, setBonusTaxBrackets] =
-    useState<Awaited<ReturnType<typeof apiClient.getTaxPolicy>>["currentSettings"]["bonusTaxBrackets"]>(
-      [],
-    );
+  const [bonusTaxBrackets, setBonusTaxBrackets] = useState<
+    Awaited<ReturnType<typeof apiClient.getTaxPolicy>>["currentSettings"]["bonusTaxBrackets"]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -155,27 +156,25 @@ export const ResultConfirmationPage = () => {
   if (!currentUnitId || !currentTaxYear) {
     return (
       <section className="page-grid">
-        <article className="glass-card page-section placeholder-card">
-          <h1>结果确认</h1>
-          <p>请先在顶部选择单位和年份，再进入结果确认模块。</p>
-        </article>
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="请先在顶部选择单位和年份，再进入结果确认模块。"
+          headingTag="h1"
+          title="结果确认"
+        />
       </section>
     );
   }
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h1>结果确认</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
-            </p>
-          </div>
-          <span className="tag">{loading ? "加载中" : "待确认结果"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+        headingTag="h1"
+        headerExtras={<span className="tag">{loading ? "加载中" : "待确认结果"}</span>}
+        title="结果确认"
+      >
         <div className="month-selector-panel">
           {confirmationState?.months.map((month) => (
             <button
@@ -223,8 +222,7 @@ export const ResultConfirmationPage = () => {
           <button
             className={currentMonthState?.isConfirmed ? "ghost-button" : "primary-button"}
             disabled={
-              submitting ||
-              (!currentMonthState?.isConfirmed && !currentMonthState?.canConfirm)
+              submitting || (!currentMonthState?.isConfirmed && !currentMonthState?.canConfirm)
             }
             type="button"
             onClick={() => void handleConfirm()}
@@ -298,12 +296,14 @@ export const ResultConfirmationPage = () => {
             )}
           </tbody>
         </table>
-      </article>
+      </CollapsibleSectionCard>
 
       <AnnualTaxResultDialog
         open={Boolean(detailResult)}
         title={detailResult ? `${detailResult.employeeName} 全年计算结果` : ""}
-        subtitle={detailResult ? `${detailResult.employeeCode} / ${detailResult.taxYear} 年` : undefined}
+        subtitle={
+          detailResult ? `${detailResult.employeeCode} / ${detailResult.taxYear} 年` : undefined
+        }
         result={detailResult}
         bonusTaxBrackets={bonusTaxBrackets}
         onClose={() => setDetailEmployeeId(null)}

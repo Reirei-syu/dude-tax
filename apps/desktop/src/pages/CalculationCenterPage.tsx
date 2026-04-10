@@ -1,6 +1,7 @@
 import type { AnnualTaxWithholdingMode, EmployeeCalculationStatus } from "@dude-tax/core";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { useAppContext } from "../context/AppContextProvider";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
 
@@ -25,7 +26,8 @@ export const CalculationCenterPage = () => {
   const currentUnit = context?.units.find((unit) => unit.id === currentUnitId) ?? null;
 
   const [statuses, setStatuses] = useState<EmployeeCalculationStatus[]>([]);
-  const [withholdingMode, setWithholdingMode] = useState<AnnualTaxWithholdingMode>("standard_cumulative");
+  const [withholdingMode, setWithholdingMode] =
+    useState<AnnualTaxWithholdingMode>("standard_cumulative");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState<number | "all" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -88,27 +90,24 @@ export const CalculationCenterPage = () => {
   if (!currentUnitId || !currentTaxYear) {
     return (
       <section className="page-grid">
-        <article className="glass-card page-section placeholder-card">
-          <h1>计算中心</h1>
-          <p>请先在顶部选择单位和年份，再进入计算中心。</p>
-        </article>
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="请先在顶部选择单位和年份，再进入计算中心。"
+          headingTag="h1"
+          title="计算中心"
+        />
       </section>
     );
   }
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h1>计算中心</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
-            </p>
-          </div>
-          <span className="tag">已接入年度重算入口</span>
-        </div>
-
+      <CollapsibleSectionCard
+        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+        headingTag="h1"
+        headerExtras={<span className="tag">已接入年度重算入口</span>}
+        title="计算中心"
+      >
         <div className="summary-grid">
           <div className="summary-card">
             <span>员工总数</span>
@@ -164,17 +163,15 @@ export const CalculationCenterPage = () => {
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h2>员工计算准备状态</h2>
-            <p>只有“可计算”员工可执行重算；本次重算会带上当前选择的预扣规则模式。</p>
-          </div>
-          <span className="tag">{loading ? "加载中" : "已同步"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        defaultCollapsed
+        description="只有“可计算”员工可执行重算；本次重算会带上当前选择的预扣规则模式。"
+        headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
+        title="员工计算准备状态"
+      >
         <table className="data-table">
           <thead>
             <tr>
@@ -202,7 +199,9 @@ export const CalculationCenterPage = () => {
                   <td>
                     <button
                       className="ghost-button"
-                      disabled={submitting === status.employeeId || status.preparationStatus !== "ready"}
+                      disabled={
+                        submitting === status.employeeId || status.preparationStatus !== "ready"
+                      }
                       onClick={() => void triggerRecalculate(status.employeeId)}
                     >
                       重算
@@ -217,7 +216,7 @@ export const CalculationCenterPage = () => {
             )}
           </tbody>
         </table>
-      </article>
+      </CollapsibleSectionCard>
     </section>
   );
 };

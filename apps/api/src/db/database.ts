@@ -9,6 +9,7 @@ import {
   normalizeTaxPolicySettings,
   type TaxPolicySettingsInput,
 } from "@dude-tax/core";
+import { getDefaultPolicyContentJson } from "../default-policy-content.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
@@ -621,7 +622,14 @@ const getLegacyInitialSettings = () => {
   }
 };
 
-const getLegacyInitialNotes = () => getPreference("tax_policy_maintenance_notes") ?? "";
+const getLegacyInitialNotes = () => {
+  const storedValue = getPreference("tax_policy_maintenance_notes");
+  if (storedValue?.trim()) {
+    return storedValue;
+  }
+
+  return getDefaultPolicyContentJson();
+};
 
 const ensureActiveTaxPolicyVersion = () => {
   const versionCount = Number(
@@ -725,7 +733,9 @@ const ensureActiveTaxPolicyVersion = () => {
 ensureActiveTaxPolicyVersion();
 
 const ensureUnitYearsSeeded = () => {
-  const units = database.prepare("SELECT id FROM units ORDER BY id ASC").all() as Array<{ id: number }>;
+  const units = database.prepare("SELECT id FROM units ORDER BY id ASC").all() as Array<{
+    id: number;
+  }>;
 
   const insertStatement = database.prepare(
     `
@@ -771,7 +781,9 @@ const ensureUnitYearsSeeded = () => {
       }
 
       const now = new Date().toISOString();
-      const candidateYears = Array.from(collectCandidateYears(unit.id)).sort((left, right) => left - right);
+      const candidateYears = Array.from(collectCandidateYears(unit.id)).sort(
+        (left, right) => left - right,
+      );
       const yearsToSeed = candidateYears.length ? candidateYears : [DEFAULT_SEEDED_UNIT_YEAR];
 
       yearsToSeed.forEach((taxYear) => {

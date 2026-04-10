@@ -8,6 +8,7 @@ import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
 import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxCalculationResultPanel } from "../components/AnnualTaxCalculationResultPanel";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
@@ -137,27 +138,25 @@ export const QuickCalculatePage = () => {
   if (!currentUnitId || !currentTaxYear) {
     return (
       <section className="page-grid">
-        <article className="glass-card page-section placeholder-card">
-          <h1>快速计算</h1>
-          <p>请先在顶部选择单位和年份，再进入快速计算模块。</p>
-        </article>
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="请先在顶部选择单位和年份，再进入快速计算模块。"
+          headingTag="h1"
+          title="快速计算"
+        />
       </section>
     );
   }
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h1>快速计算</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
-            </p>
-          </div>
-          <span className="tag">全年速算</span>
-        </div>
-
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+        headingTag="h1"
+        headerExtras={<span className="tag">全年速算</span>}
+        title="快速计算"
+      >
         <div className="form-grid">
           <label className="form-field">
             <span>预扣模式</span>
@@ -188,7 +187,7 @@ export const QuickCalculatePage = () => {
               <td>
                 <div className="table-inline-actions">
                   <button
-                    className="ghost-button table-action-button"
+                    className="primary-button table-action-button quick-calc-edit-button"
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -228,24 +227,18 @@ export const QuickCalculatePage = () => {
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
       {result ? (
-        <article className="glass-card page-section placeholder-card">
-          <div className="section-header">
-            <div>
-              <h2>试算结果</h2>
-              <p>以下结果按当前临时案例即时试算，不写入正式月度数据。</p>
-            </div>
-          </div>
-
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="以下结果按当前临时案例即时试算，不写入正式月度数据。"
+          title="试算结果"
+        >
           <div data-result-signals={QUICK_CALCULATE_RESULT_SIGNALS}>
-            <AnnualTaxCalculationResultPanel
-              result={result}
-              bonusTaxBrackets={bonusTaxBrackets}
-            />
+            <AnnualTaxCalculationResultPanel result={result} bonusTaxBrackets={bonusTaxBrackets} />
           </div>
-        </article>
+        </CollapsibleSectionCard>
       ) : null}
 
       <YearRecordWorkspaceDialog

@@ -100,7 +100,7 @@ const buildYearEntryResultCoverage = (
   );
   const uncoveredEmployeeIds = effectiveEmployeeIds.filter(
     (employeeId) => !calculatedEmployeeIdSet.has(employeeId),
-  );
+  ).sort((left, right) => left - right);
 
   return {
     totalEffectiveEmployeeCount: effectiveEmployeeIds.length,

@@ -26,6 +26,7 @@ import type {
   QuickCalculatePayload,
   TaxPolicyResponse,
   TaxPolicySaveResponse,
+  TaxPolicyVersionRenamePayload,
   TaxPolicyUpdatePayload,
   TaxPolicyVersionImpactPreview,
   Unit,
@@ -59,6 +60,9 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    if (response.status === 413) {
+      throw new Error("上传内容过大，请压缩图片或减少提交内容后重试");
+    }
     throw new Error(errorBody?.message ?? "请求失败");
   }
 
@@ -281,6 +285,13 @@ export const apiClient = {
     });
   },
 
+  renameTaxPolicyVersion(versionId: number, payload: TaxPolicyVersionRenamePayload) {
+    return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   activateTaxPolicyVersion(versionId: number) {
     return request<TaxPolicySaveResponse>(`/api/tax-policy/versions/${versionId}/activate`, {
       method: "POST",
@@ -333,12 +344,14 @@ export const apiClient = {
       searchParams.set("taxYear", String(taxYear));
     }
     const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
-    return fetch(`${resolveApiBaseUrl()}/api/import/templates/${importType}${suffix}`).then((response) => {
-      if (!response.ok) {
-        throw new Error("下载导入模板失败");
-      }
-      return response.text();
-    });
+    return fetch(`${resolveApiBaseUrl()}/api/import/templates/${importType}${suffix}`).then(
+      (response) => {
+        if (!response.ok) {
+          throw new Error("下载导入模板失败");
+        }
+        return response.text();
+      },
+    );
   },
 
   previewImport(importType: ImportType, unitId: number, csvText: string, scopeTaxYear?: number) {

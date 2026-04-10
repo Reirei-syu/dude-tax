@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { useAppContext } from "../context/AppContextProvider";
 import {
   parseMaintenanceRichText,
@@ -44,6 +45,8 @@ const renderPolicyBlock = (block: RichTextBlock, index: number) => {
 };
 
 export const CurrentPolicyPage = () => {
+  const MAX_ILLUSTRATION_SCALE = 4;
+  const MIN_ILLUSTRATION_SCALE = 1;
   const { context } = useAppContext();
   const currentUnitId = context?.currentUnitId ?? undefined;
   const currentTaxYear = context?.currentTaxYear ?? undefined;
@@ -51,7 +54,41 @@ export const CurrentPolicyPage = () => {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [policy, setPolicy] = useState<Awaited<ReturnType<typeof apiClient.getTaxPolicy>> | null>(null);
+  const [policy, setPolicy] = useState<Awaited<ReturnType<typeof apiClient.getTaxPolicy>> | null>(
+    null,
+  );
+  const [selectedIllustration, setSelectedIllustration] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
+  const [illustrationScale, setIllustrationScale] = useState(1);
+  const [illustrationOffset, setIllustrationOffset] = useState({ x: 0, y: 0 });
+  const [isIllustrationDragging, setIsIllustrationDragging] = useState(false);
+  const illustrationDragStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+
+  const closeIllustrationPreview = () => {
+    illustrationDragStateRef.current = null;
+    setIsIllustrationDragging(false);
+    setSelectedIllustration(null);
+  };
+
+  const updateIllustrationScale = (nextScale: number) => {
+    const clampedScale = Math.min(
+      MAX_ILLUSTRATION_SCALE,
+      Math.max(MIN_ILLUSTRATION_SCALE, Number(nextScale.toFixed(2))),
+    );
+
+    setIllustrationScale(clampedScale);
+    if (clampedScale === MIN_ILLUSTRATION_SCALE) {
+      setIllustrationOffset({ x: 0, y: 0 });
+    }
+  };
 
   useEffect(() => {
     const loadPolicy = async () => {
@@ -71,34 +108,113 @@ export const CurrentPolicyPage = () => {
     void loadPolicy();
   }, [currentTaxYear, currentUnitId]);
 
-  const policyBlocks = useMemo(
-    () => parseMaintenanceRichText(policy?.policyBody ?? ""),
-    [policy?.policyBody],
+  useEffect(() => {
+    if (!selectedIllustration) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeIllustrationPreview();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIllustration]);
+
+  useEffect(() => {
+    if (!selectedIllustration) {
+      return;
+    }
+
+    setIllustrationScale(1);
+    setIllustrationOffset({ x: 0, y: 0 });
+    illustrationDragStateRef.current = null;
+    setIsIllustrationDragging(false);
+  }, [selectedIllustration]);
+
+  const policyItemBlocks = useMemo(
+    () =>
+      Object.fromEntries(
+        (policy?.policyItems ?? []).map((item) => [item.id, parseMaintenanceRichText(item.body)]),
+      ),
+    [policy?.policyItems],
   );
+
+  const handleIllustrationWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    updateIllustrationScale(illustrationScale + (event.deltaY < 0 ? 0.2 : -0.2));
+  };
+
+  const handleIllustrationPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || illustrationScale <= 1) {
+      return;
+    }
+
+    illustrationDragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: illustrationOffset.x,
+      originY: illustrationOffset.y,
+    };
+    setIsIllustrationDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleIllustrationPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (
+      !illustrationDragStateRef.current ||
+      illustrationDragStateRef.current.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    setIllustrationOffset({
+      x:
+        illustrationDragStateRef.current.originX +
+        event.clientX -
+        illustrationDragStateRef.current.startX,
+      y:
+        illustrationDragStateRef.current.originY +
+        event.clientY -
+        illustrationDragStateRef.current.startY,
+    });
+  };
+
+  const stopIllustrationDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (
+      !illustrationDragStateRef.current ||
+      illustrationDragStateRef.current.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    illustrationDragStateRef.current = null;
+    setIsIllustrationDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h1>政策参考</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear ?? "-"} 年
-            </p>
-          </div>
-          <span className="tag">{loading ? "加载中" : "已同步"}</span>
-        </div>
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear ?? "-"} 年`}
+        headingTag="h1"
+        headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
+        title="政策参考"
+      >
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>综合税率表</h2>
-            <p>显示当前生效税率版本下的综合所得税率档位。</p>
-          </div>
-        </div>
-
+      <CollapsibleSectionCard
+        defaultCollapsed
+        description="显示当前生效税率版本下的综合所得税率档位。"
+        title="综合税率表"
+      >
         <table className="data-table">
           <thead>
             <tr>
@@ -123,16 +239,13 @@ export const CurrentPolicyPage = () => {
             )}
           </tbody>
         </table>
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>年终奖单独计税税率表</h2>
-            <p>显示当前生效税率版本下的年终奖单独计税档位。</p>
-          </div>
-        </div>
-
+      <CollapsibleSectionCard
+        defaultCollapsed
+        description="显示当前生效税率版本下的年终奖单独计税档位。"
+        title="年终奖单独计税税率表"
+      >
         <table className="data-table">
           <thead>
             <tr>
@@ -157,38 +270,138 @@ export const CurrentPolicyPage = () => {
             )}
           </tbody>
         </table>
-      </article>
+      </CollapsibleSectionCard>
 
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h2>扣除项说明</h2>
-            <p>标题、正文与插图由系统维护模块统一维护。</p>
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description="条目由系统维护模块统一维护，可按顺序展示多条政策说明。"
+        title="扣除项说明"
+      >
+        {(policy?.policyItems.length ?? 0) ? (
+          <div className="policy-item-list">
+            {policy?.policyItems.map((item, index) => (
+              <div className="current-policy-card policy-item-card" key={item.id}>
+                <strong>{item.title || `未命名说明 ${index + 1}`}</strong>
+                {item.illustrationDataUrl ? (
+                  <button
+                    aria-label={`查看${item.title || `政策参考插图 ${index + 1}`}原图`}
+                    className="policy-illustration-button"
+                    type="button"
+                    onClick={() =>
+                      setSelectedIllustration({
+                        src: item.illustrationDataUrl,
+                        alt: item.title || `政策参考插图 ${index + 1}`,
+                      })
+                    }
+                  >
+                    <img
+                      alt={item.title || `政策参考插图 ${index + 1}`}
+                      className="policy-illustration"
+                      src={item.illustrationDataUrl}
+                    />
+                    <span className="field-hint">点击查看原图</span>
+                  </button>
+                ) : null}
+                {(policyItemBlocks[item.id] ?? []).length ? (
+                  <div className="rich-text-preview">
+                    {(policyItemBlocks[item.id] ?? []).map((block, blockIndex) =>
+                      renderPolicyBlock(block, blockIndex),
+                    )}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <strong>当前条目正文为空。</strong>
+                    <p>请前往系统维护模块补充该说明的正文内容。</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
-
-        <div className="current-policy-card">
-          <strong>{policy?.policyTitle || "未设置标题"}</strong>
-          {policy?.policyIllustrationDataUrl ? (
-            <img
-              alt={policy.policyTitle || "政策参考插图"}
-              className="policy-illustration"
-              src={policy.policyIllustrationDataUrl}
-            />
-          ) : null}
-
-          {policyBlocks.length ? (
-            <div className="rich-text-preview">
-              {policyBlocks.map((block, index) => renderPolicyBlock(block, index))}
-            </div>
-          ) : (
+        ) : (
+          <div className="current-policy-card">
             <div className="empty-state">
               <strong>当前还没有维护扣除项说明。</strong>
-              <p>请前往系统维护模块填写标题、正文和插图。</p>
+              <p>请前往系统维护模块新增并填写说明条目。</p>
             </div>
-          )}
+          </div>
+        )}
+      </CollapsibleSectionCard>
+
+      {selectedIllustration ? (
+        <div className="workspace-overlay" role="presentation" onClick={closeIllustrationPreview}>
+          <div
+            aria-modal="true"
+            className="policy-illustration-lightbox"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="section-header">
+              <div>
+                <h2>原图预览</h2>
+                <p>{selectedIllustration.alt}</p>
+              </div>
+              <button className="ghost-button" type="button" onClick={closeIllustrationPreview}>
+                关闭
+              </button>
+            </div>
+            <div className="policy-illustration-toolbar">
+              <span className="field-hint">滚轮缩放，按住鼠标左键拖动图片。</span>
+              <div className="button-row compact">
+                <button
+                  className="ghost-button"
+                  disabled={illustrationScale <= MIN_ILLUSTRATION_SCALE}
+                  type="button"
+                  onClick={() => updateIllustrationScale(illustrationScale - 0.25)}
+                >
+                  缩小
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={illustrationScale >= MAX_ILLUSTRATION_SCALE}
+                  type="button"
+                  onClick={() => updateIllustrationScale(illustrationScale + 0.25)}
+                >
+                  放大
+                </button>
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => {
+                    setIllustrationOffset({ x: 0, y: 0 });
+                    setIllustrationScale(1);
+                  }}
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+            <div
+              className={
+                isIllustrationDragging
+                  ? "policy-illustration-lightbox-viewport is-draggable is-dragging"
+                  : illustrationScale > 1
+                    ? "policy-illustration-lightbox-viewport is-draggable"
+                    : "policy-illustration-lightbox-viewport"
+              }
+              onPointerCancel={stopIllustrationDrag}
+              onPointerDown={handleIllustrationPointerDown}
+              onPointerMove={handleIllustrationPointerMove}
+              onPointerUp={stopIllustrationDrag}
+              onWheel={handleIllustrationWheel}
+            >
+              <img
+                alt={selectedIllustration.alt}
+                className="policy-illustration-lightbox-image"
+                draggable={false}
+                src={selectedIllustration.src}
+                style={{
+                  transform: `translate(${illustrationOffset.x}px, ${illustrationOffset.y}px) scale(${illustrationScale})`,
+                }}
+              />
+            </div>
+          </div>
         </div>
-      </article>
+      ) : null}
     </section>
   );
 };

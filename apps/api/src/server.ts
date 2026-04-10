@@ -16,7 +16,8 @@ const app = Fastify({ logger: false });
 const serverHost = process.env.HOST ?? "127.0.0.1";
 const serverPort = Number(process.env.PORT ?? "3001");
 const allowedOrigins = new Set(["http://127.0.0.1:5173", "http://localhost:5173"]);
-const isAllowedOrigin = (origin?: string) => !origin || origin === "null" || allowedOrigins.has(origin);
+const isAllowedOrigin = (origin?: string) =>
+  !origin || origin === "null" || allowedOrigins.has(origin);
 
 app.addHook("onRequest", async (request, reply) => {
   const origin = request.headers.origin;
@@ -33,7 +34,7 @@ await app.register(cors, {
   origin(origin, callback) {
     callback(null, isAllowedOrigin(origin));
   },
-  methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 });
 

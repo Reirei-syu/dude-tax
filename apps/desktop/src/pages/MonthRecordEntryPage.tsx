@@ -9,6 +9,7 @@ import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
 import { YearEntryEmployeeSelectionDialog } from "../components/YearEntryEmployeeSelectionDialog";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
@@ -95,9 +96,9 @@ const buildResultSummaryRows = (
           : result.schemeResults.combinedBonus;
       const annualBonusRate =
         result.selectedScheme === "separate_bonus" && selectedSchemeResult.bonusBracketLevel
-          ? bonusTaxBrackets.find(
+          ? (bonusTaxBrackets.find(
               (bracket) => bracket.level === selectedSchemeResult.bonusBracketLevel,
-            )?.rate ?? null
+            )?.rate ?? null)
           : null;
 
       return {
@@ -110,9 +111,7 @@ const buildResultSummaryRows = (
         lastAppliedRate: lastTraceItem?.appliedRate ?? null,
         selectedScheme: result.selectedScheme,
         annualBonusTax:
-          result.selectedScheme === "separate_bonus"
-            ? selectedSchemeResult.annualBonusTax
-            : null,
+          result.selectedScheme === "separate_bonus" ? selectedSchemeResult.annualBonusTax : null,
         annualBonusRate,
         alternativeTaxAmount: alternativeSchemeResult.finalTax,
       };
@@ -126,12 +125,14 @@ export const MonthRecordEntryPage = () => {
   const scopeKey =
     currentUnitId && currentTaxYear ? `${currentUnitId}:${currentTaxYear}` : "no-scope";
 
-  const [overview, setOverview] =
-    useState<Awaited<ReturnType<typeof apiClient.getYearEntryOverview>> | null>(null);
+  const [overview, setOverview] = useState<Awaited<
+    ReturnType<typeof apiClient.getYearEntryOverview>
+  > | null>(null);
   const [annualResults, setAnnualResults] = useState<EmployeeAnnualTaxResult[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([]);
-  const [workspace, setWorkspace] =
-    useState<Awaited<ReturnType<typeof apiClient.getEmployeeYearWorkspace>> | null>(null);
+  const [workspace, setWorkspace] = useState<Awaited<
+    ReturnType<typeof apiClient.getEmployeeYearWorkspace>
+  > | null>(null);
   const [workspaceRows, setWorkspaceRows] = useState<YearRecordUpsertItem[]>([]);
   const [originalWorkspaceRows, setOriginalWorkspaceRows] = useState<YearRecordUpsertItem[]>([]);
   const [selectedWorkspaceMonth, setSelectedWorkspaceMonth] = useState(1);
@@ -139,10 +140,9 @@ export const MonthRecordEntryPage = () => {
   const [withholdingMode, setWithholdingMode] =
     useState<AnnualTaxWithholdingMode>("standard_cumulative");
   const [basicDeductionAmount, setBasicDeductionAmount] = useState(DEFAULT_BASIC_DEDUCTION_AMOUNT);
-  const [bonusTaxBrackets, setBonusTaxBrackets] =
-    useState<Awaited<ReturnType<typeof apiClient.getTaxPolicy>>["currentSettings"]["bonusTaxBrackets"]>(
-      [],
-    );
+  const [bonusTaxBrackets, setBonusTaxBrackets] = useState<
+    Awaited<ReturnType<typeof apiClient.getTaxPolicy>>["currentSettings"]["bonusTaxBrackets"]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
@@ -202,10 +202,7 @@ export const MonthRecordEntryPage = () => {
     () => buildResultSummaryRows(annualResults, bonusTaxBrackets),
     [annualResults, bonusTaxBrackets],
   );
-  const selectedEmployeeIdSet = useMemo(
-    () => new Set(selectedEmployeeIds),
-    [selectedEmployeeIds],
-  );
+  const selectedEmployeeIdSet = useMemo(() => new Set(selectedEmployeeIds), [selectedEmployeeIds]);
   const selectedEmployees = useMemo(
     () =>
       (overview?.employees ?? []).filter((employee) =>
@@ -351,11 +348,7 @@ export const MonthRecordEntryPage = () => {
       setErrorMessage(null);
       const workspaces = await Promise.all(
         annualResults.map((employee) =>
-          apiClient.getEmployeeYearWorkspace(
-            currentUnitId,
-            currentTaxYear,
-            employee.employeeId,
-          ),
+          apiClient.getEmployeeYearWorkspace(currentUnitId, currentTaxYear, employee.employeeId),
         ),
       );
       const workbookArray = await buildYearRecordWorkbookBuffer({
@@ -401,27 +394,25 @@ export const MonthRecordEntryPage = () => {
   if (!currentUnitId || !currentTaxYear) {
     return (
       <section className="page-grid">
-        <article className="glass-card page-section placeholder-card">
-          <h1>月度数据录入</h1>
-          <p>请先在顶部选择单位和年份，再进入月度数据录入模块。</p>
-        </article>
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="请先在顶部选择单位和年份，再进入月度数据录入模块。"
+          headingTag="h1"
+          title="月度数据录入"
+        />
       </section>
     );
   }
 
   return (
     <section className="page-grid month-entry-page">
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h1>月度数据录入</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear} 年
-            </p>
-          </div>
-          <span className="tag">{loading ? "加载中" : "全年录入与计算"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+        headingTag="h1"
+        headerExtras={<span className="tag">{loading ? "加载中" : "全年录入与计算"}</span>}
+        title="月度数据录入"
+      >
         <div className="form-grid">
           <label className="form-field">
             <span>预扣模式</span>
@@ -484,7 +475,7 @@ export const MonthRecordEntryPage = () => {
         ) : null}
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
       <ImportWorkflowSection
         title="月度数据批量导入"
@@ -499,7 +490,10 @@ export const MonthRecordEntryPage = () => {
         defaultCollapsed={true}
         defaultConflictStrategy="overwrite"
         onDownloadTemplate={() =>
-          downloadMonthRecordImportTemplateWorkbook(currentUnitId as number, currentTaxYear as number)
+          downloadMonthRecordImportTemplateWorkbook(
+            currentUnitId as number,
+            currentTaxYear as number,
+          )
         }
         onImportCommitted={() => loadPageData()}
       />
@@ -559,18 +553,14 @@ export const MonthRecordEntryPage = () => {
                     </td>
                     <td>
                       <span
-                        className={
-                          employee.employeeGroup === "active" ? "tag" : "tag tag-warning"
-                        }
+                        className={employee.employeeGroup === "active" ? "tag" : "tag tag-warning"}
                       >
                         {employee.employeeGroup === "active" ? "在职" : "本年离职"}
                       </span>
                     </td>
                     <td>{employee.recordedMonthCount}</td>
                     <td>
-                      {employee.uneditedMonths.length
-                        ? employee.uneditedMonths.join("、")
-                        : "-"}
+                      {employee.uneditedMonths.length ? employee.uneditedMonths.join("、") : "-"}
                     </td>
                   </tr>
                 ))
@@ -647,12 +637,12 @@ export const MonthRecordEntryPage = () => {
                       </button>
                     </td>
                     <td>{row.employeeName}</td>
-                    <td>
-                      {formatCurrency(row.cumulativeExpectedWithheldTax)}
-                    </td>
+                    <td>{formatCurrency(row.cumulativeExpectedWithheldTax)}</td>
                     <td>{row.lastAppliedRate === null ? "-" : `${row.lastAppliedRate}%`}</td>
                     <td>{taxCalculationSchemeLabelMap[row.selectedScheme]}</td>
-                    <td>{row.annualBonusTax === null ? "-" : formatCurrency(row.annualBonusTax)}</td>
+                    <td>
+                      {row.annualBonusTax === null ? "-" : formatCurrency(row.annualBonusTax)}
+                    </td>
                     <td>{row.annualBonusRate === null ? "-" : `${row.annualBonusRate}%`}</td>
                     <td>{formatCurrency(row.alternativeTaxAmount)}</td>
                   </tr>
@@ -711,7 +701,9 @@ export const MonthRecordEntryPage = () => {
       <AnnualTaxResultDialog
         open={Boolean(detailResult)}
         title={detailResult ? `${detailResult.employeeName} 全年计算结果` : ""}
-        subtitle={detailResult ? `${detailResult.employeeCode} / ${detailResult.taxYear} 年` : undefined}
+        subtitle={
+          detailResult ? `${detailResult.employeeCode} / ${detailResult.taxYear} 年` : undefined
+        }
         result={detailResult}
         bonusTaxBrackets={bonusTaxBrackets}
         onClose={() => setDetailEmployeeId(null)}

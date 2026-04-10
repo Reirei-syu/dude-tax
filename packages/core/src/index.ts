@@ -301,7 +301,24 @@ export type TaxPolicyMaintenanceNotes = {
   notesCustomized: boolean;
 };
 
+export type TaxPolicyItemInput = {
+  id?: string;
+  title?: string;
+  body?: string;
+  illustrationDataUrl?: string;
+  sortOrder?: number;
+};
+
+export type TaxPolicyItem = {
+  id: string;
+  title: string;
+  body: string;
+  illustrationDataUrl: string;
+  sortOrder: number;
+};
+
 export type TaxPolicyContent = {
+  policyItems: TaxPolicyItem[];
   policyTitle: string;
   policyBody: string;
   policyIllustrationDataUrl: string;
@@ -321,7 +338,8 @@ export type TaxPolicyAuditAction =
   | "update_notes"
   | "activate_version"
   | "bind_scope"
-  | "unbind_scope";
+  | "unbind_scope"
+  | "rename_version";
 
 export type TaxPolicyAuditLog = {
   id: number;
@@ -375,9 +393,11 @@ export type TaxPolicyResponse = {
   versions: TaxPolicyVersionSummary[];
   currentScopeBinding: TaxPolicyScopeBindingSummary | null;
   auditLogs: TaxPolicyAuditLog[];
+  policyItems: TaxPolicyItem[];
   policyTitle: string;
   policyBody: string;
   policyIllustrationDataUrl: string;
+  defaultPolicyItems: TaxPolicyItem[];
   defaultPolicyTitle: string;
   defaultPolicyBody: string;
   defaultPolicyIllustrationDataUrl: string;
@@ -389,10 +409,20 @@ export type TaxPolicySaveResponse = TaxPolicyResponse & {
 };
 
 export type TaxPolicyUpdatePayload = TaxPolicySettingsInput & {
+  unitId?: number;
+  taxYear?: number;
   maintenanceNotes?: string;
+  policyItems?: TaxPolicyItemInput[];
+  versionName?: string;
   policyTitle?: string;
   policyBody?: string;
   policyIllustrationDataUrl?: string;
+};
+
+export type TaxPolicyVersionRenamePayload = {
+  versionName: string;
+  unitId?: number;
+  taxYear?: number;
 };
 
 export type QuickCalculateMonthInput = UpsertEmployeeMonthRecordPayload & {

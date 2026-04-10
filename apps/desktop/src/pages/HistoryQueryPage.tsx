@@ -3,6 +3,7 @@ import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
 import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
@@ -40,8 +41,9 @@ export const HistoryQueryPage = () => {
 
   const [unitId, setUnitId] = useState<number | null>(context?.currentUnitId ?? null);
   const [taxYear, setTaxYear] = useState<number | null>(context?.currentTaxYear ?? null);
-  const [results, setResults] =
-    useState<Awaited<ReturnType<typeof apiClient.listConfirmedResults>>>([]);
+  const [results, setResults] = useState<
+    Awaited<ReturnType<typeof apiClient.listConfirmedResults>>
+  >([]);
   const [detail, setDetail] = useState<ConfirmedAnnualResultDetail | null>(null);
   const [detailRows, setDetailRows] = useState<YearRecordUpsertItem[]>([]);
   const [detailSelectedMonth, setDetailSelectedMonth] = useState(1);
@@ -106,7 +108,9 @@ export const HistoryQueryPage = () => {
       setLoading(true);
       setErrorMessage(null);
       const details = await Promise.all(
-        results.map((result) => apiClient.getConfirmedResultDetail(unitId, taxYear, result.employeeId)),
+        results.map((result) =>
+          apiClient.getConfirmedResultDetail(unitId, taxYear, result.employeeId),
+        ),
       );
       const workbookArray = await buildYearRecordWorkbookBuffer({
         summarySheetName: "汇总",
@@ -147,15 +151,13 @@ export const HistoryQueryPage = () => {
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h1>历史查询</h1>
-            <p>仅查询已确认数据，按员工查看当年度纳税明细。</p>
-          </div>
-          <span className="tag">{loading ? "查询中" : "已确认历史数据"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        className="placeholder-card"
+        description="仅查询已确认数据，按员工查看当年度纳税明细。"
+        headingTag="h1"
+        headerExtras={<span className="tag">{loading ? "查询中" : "已确认历史数据"}</span>}
+        title="历史查询"
+      >
         <div className="form-grid">
           <label className="form-field">
             <span>单位</span>
@@ -180,7 +182,9 @@ export const HistoryQueryPage = () => {
             <span>年份</span>
             <select
               value={taxYear ?? ""}
-              onChange={(event) => setTaxYear(event.target.value ? Number(event.target.value) : null)}
+              onChange={(event) =>
+                setTaxYear(event.target.value ? Number(event.target.value) : null)
+              }
             >
               <option value="">请选择年份</option>
               {availableTaxYears.map((year) => (
@@ -254,7 +258,7 @@ export const HistoryQueryPage = () => {
             )}
           </tbody>
         </table>
-      </article>
+      </CollapsibleSectionCard>
 
       <YearRecordWorkspaceDialog
         open={Boolean(detail)}

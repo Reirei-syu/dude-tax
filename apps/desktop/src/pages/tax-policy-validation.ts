@@ -1,11 +1,12 @@
 import type {
   BonusTaxBracket,
   ComprehensiveTaxBracket,
+  TaxPolicyItem,
   TaxPolicySettings,
 } from "@dude-tax/core";
 
 export type TaxPolicyValidationIssue = {
-  section: "basic" | "notes" | "comprehensive" | "bonus";
+  section: "basic" | "policyItems" | "comprehensive" | "bonus";
   message: string;
   rowIndex?: number;
 };
@@ -76,7 +77,7 @@ const validateBracketGroup = <T extends ComprehensiveTaxBracket | BonusTaxBracke
 
 export const validateTaxPolicyDraft = (
   settings: TaxPolicySettings,
-  notes: string,
+  policyItems: TaxPolicyItem[],
 ): TaxPolicyValidationIssue[] => {
   const issues: TaxPolicyValidationIssue[] = [];
 
@@ -87,12 +88,23 @@ export const validateTaxPolicyDraft = (
     });
   }
 
-  if (notes.length > 2000) {
-    issues.push({
-      section: "notes",
-      message: "正文不能超过 2000 字",
-    });
-  }
+  policyItems.forEach((item, index) => {
+    if (item.title.length > 100) {
+      issues.push({
+        section: "policyItems",
+        rowIndex: index,
+        message: `第 ${index + 1} 条说明标题不能超过 100 字`,
+      });
+    }
+
+    if (item.body.length > 2000) {
+      issues.push({
+        section: "policyItems",
+        rowIndex: index,
+        message: `第 ${index + 1} 条说明正文不能超过 2000 字`,
+      });
+    }
+  });
 
   issues.push(
     ...validateBracketGroup(settings.comprehensiveTaxBrackets, {

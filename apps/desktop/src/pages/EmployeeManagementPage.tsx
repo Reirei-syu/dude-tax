@@ -2,6 +2,7 @@ import type { CreateEmployeePayload, Employee } from "@dude-tax/core";
 import { deriveEmployeeGeneralStatus } from "@dude-tax/core";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
 import { useAppContext } from "../context/AppContextProvider";
 import { downloadEmployeeImportTemplateWorkbook } from "./import-template";
@@ -133,25 +134,24 @@ export const EmployeeManagementPage = () => {
   if (!currentUnitId) {
     return (
       <section className="page-grid">
-        <article className="glass-card page-section placeholder-card">
-          <h1>员工信息</h1>
-          <p>请先在顶部选择单位，再进入员工信息模块。</p>
-        </article>
+        <CollapsibleSectionCard
+          className="placeholder-card"
+          description="请先在顶部选择单位，再进入员工信息模块。"
+          headingTag="h1"
+          title="员工信息"
+        />
       </section>
     );
   }
 
   return (
     <section className="page-grid">
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h1>员工信息</h1>
-            <p>当前仅维护 {currentUnit?.unitName ?? "当前单位"} 下的员工基础档案。</p>
-          </div>
-          <span className="tag">{selectedEmployee ? "编辑员工" : "新增员工"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        description={`当前仅维护 ${currentUnit?.unitName ?? "当前单位"} 下的员工基础档案。`}
+        headingTag="h1"
+        headerExtras={<span className="tag">{selectedEmployee ? "编辑员工" : "新增员工"}</span>}
+        title="员工信息"
+      >
         <div className="form-grid">
           <label className="form-field">
             <span>工号</span>
@@ -216,7 +216,11 @@ export const EmployeeManagementPage = () => {
         </div>
 
         <div className="button-row">
-          <button className="primary-button" disabled={submitting} onClick={() => void upsertEmployee()}>
+          <button
+            className="primary-button"
+            disabled={submitting}
+            onClick={() => void upsertEmployee()}
+          >
             {selectedEmployee ? "保存修改" : "新增员工"}
           </button>
           <button className="ghost-button" disabled={submitting} onClick={resetForm}>
@@ -225,7 +229,7 @@ export const EmployeeManagementPage = () => {
         </div>
 
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </article>
+      </CollapsibleSectionCard>
 
       <ImportWorkflowSection
         title="员工批量导入"
@@ -234,26 +238,27 @@ export const EmployeeManagementPage = () => {
         canOperate={Boolean(currentUnitId)}
         currentUnitId={currentUnitId}
         downloadButtonLabel="下载员工模板"
+        groupTitle="员工批量导入工作区"
+        groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
+        defaultCollapsed={true}
         onDownloadTemplate={() => downloadEmployeeImportTemplateWorkbook()}
         onImportCommitted={() => loadEmployees()}
       />
 
-      <article className="glass-card page-section">
-        <div className="section-header">
-          <div>
-            <h2>员工列表</h2>
-            <p>当前单位员工总数：{employees.length}，点击条目可编辑。</p>
-          </div>
-          <span className="tag">{loading ? "加载中" : "已同步"}</span>
-        </div>
-
+      <CollapsibleSectionCard
+        description={`当前单位员工总数：${employees.length}，点击条目可编辑。`}
+        headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
+        title="员工列表"
+      >
         <div className="unit-list">
           {employees.length ? (
             employees.map((employee) => {
               const status = deriveEmployeeGeneralStatus(employee);
               return (
                 <div
-                  className={selectedEmployeeId === employee.id ? "unit-item selected-item" : "unit-item"}
+                  className={
+                    selectedEmployeeId === employee.id ? "unit-item selected-item" : "unit-item"
+                  }
                   key={employee.id}
                 >
                   <div>
@@ -291,7 +296,7 @@ export const EmployeeManagementPage = () => {
             <div className="empty-state">当前单位还没有员工，请先新增员工。</div>
           )}
         </div>
-      </article>
+      </CollapsibleSectionCard>
     </section>
   );
 };

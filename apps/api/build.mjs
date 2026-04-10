@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,14 @@ const runtimeDir = path.join(currentDir, "dist-runtime");
 const publicDistDir = path.join(currentDir, "dist");
 const tsconfigBuildPath = path.join(currentDir, "tsconfig.build.json");
 const tscCliPath = path.join(currentDir, "..", "..", "node_modules", "typescript", "bin", "tsc");
+const defaultPolicyContentSourcePath = path.join(currentDir, "src", "default-policy-content.json");
+const defaultPolicyContentTargetPath = path.join(
+  runtimeDir,
+  "apps",
+  "api",
+  "src",
+  "default-policy-content.json",
+);
 
 const rewriteRuntimeImports = async (targetDir, replacements) => {
   const entries = await readdir(targetDir, { withFileTypes: true });
@@ -47,6 +55,8 @@ await execFileAsync(process.execPath, [tscCliPath, "-p", tsconfigBuildPath], {
   cwd: currentDir,
 });
 
+await copyFile(defaultPolicyContentSourcePath, defaultPolicyContentTargetPath);
+
 const compiledApiDir = path.join(runtimeDir, "apps", "api", "src");
 const compiledApiDirStats = await stat(compiledApiDir).catch(() => null);
 if (!compiledApiDirStats?.isDirectory()) {
@@ -72,6 +82,4 @@ await writeFile(
   "utf8",
 );
 
-process.stdout.write(
-  `API runtime build output: ${path.join(publicDistDir, "server.mjs")}\n`,
-);
+process.stdout.write(`API runtime build output: ${path.join(publicDistDir, "server.mjs")}\n`);
