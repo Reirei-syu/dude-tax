@@ -1,6 +1,5 @@
 # 项目进度与状态
 
-- 更新时间：2026-04-10
 - 更新时间：2026-04-12
 - 项目标识：dude-tax
 - 产品显示名：工资薪金个税计算器
@@ -13,6 +12,7 @@
 
 - 已完成：
   - 月度录入工作台新增“入职前 / 离职后收入录入”三选强提示，覆盖保存当前改动、应用到下月、应用到后续月份
+  - 已修复“跳过异常月份”分支会遗漏当前异常源月份、并错误保留离职后复制结果的问题
   - `EmployeeYearRecordWorkspace` 已补充 `hireDate` / `leaveDate`
   - 后端 `/year-record-workspace` 与单月 `/month-records/:taxMonth` 接口新增就业月份收入冲突硬阻断与显式确认放行
   - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
@@ -38,6 +38,8 @@
   - 修正后的 `desktop-full-chain-soak.mjs` 已完成严格 60 分钟单次复跑
 - 本轮修复：
   - 修复员工在入职前月份、离职后月份仍能静默保存收入的问题
+  - 修复复制场景下“跳过异常月份”未回退当前异常源月份的问题
+  - 修复复制到后续月份时“跳过异常月份”仍把收入带入离职后月份的问题
   - 新增“跳过异常月份，仅保存/复制合法月份”的快捷分支，减少手工回退
   - 新增单位维度 ZIP 备份能力，避免只能整库处理而无法单独按单位归档
   - 修复桌面端缺少“仅选路径不直接写文件”桥接的问题
@@ -117,6 +119,7 @@
 - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
 - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
 - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
+- `npm run typecheck --workspace @dude-tax/desktop`
 - `npm run typecheck --workspaces --if-present`
 - `npm run build:api`
 - `npm run build:desktop`

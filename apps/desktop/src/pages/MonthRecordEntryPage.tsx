@@ -23,6 +23,7 @@ import {
   buildEmploymentConflictDialogMessage,
   collectWorkspaceEmploymentConflictMonths,
   filterRowsByTaxMonths,
+  resolveWorkspaceRowsAfterSkippingEmploymentConflict,
 } from "./month-record-employment-conflict";
 import { buildYearRecordWorkbookBuffer } from "./year-record-export";
 import {
@@ -84,6 +85,7 @@ type ResultSummaryRow = {
 type EmploymentConflictDialogState = {
   actionKind: "save" | "apply_next_month" | "apply_future_months";
   conflict: EmploymentIncomeConflictMonths;
+  baseRows?: YearRecordUpsertItem[];
   pendingDirtyMonths?: YearRecordUpsertItem[];
   pendingRows?: YearRecordUpsertItem[];
   targetMonths?: number[];
@@ -292,7 +294,10 @@ export const MonthRecordEntryPage = () => {
   const openEmploymentConflictDialog = (
     actionKind: EmploymentConflictDialogState["actionKind"],
     conflict: EmploymentIncomeConflictMonths,
-    options?: Pick<EmploymentConflictDialogState, "pendingDirtyMonths" | "pendingRows" | "targetMonths">,
+    options?: Pick<
+      EmploymentConflictDialogState,
+      "baseRows" | "pendingDirtyMonths" | "pendingRows" | "targetMonths"
+    >,
   ) => {
     setEmploymentConflictDialogState({
       actionKind,
@@ -388,10 +393,14 @@ export const MonthRecordEntryPage = () => {
       return;
     }
 
-    const targetRows = filterRowsByTaxMonths(nextRows, targetMonths);
+    const relevantMonths = Array.from(
+      new Set([selectedWorkspaceMonth, ...targetMonths]),
+    ).sort((left, right) => left - right);
+    const targetRows = filterRowsByTaxMonths(nextRows, relevantMonths);
     const conflict = collectWorkspaceEmploymentConflictMonths(workspace, targetRows);
     if (conflict.conflictMonths.length) {
       openEmploymentConflictDialog(actionKind, conflict, {
+        baseRows: workspaceRows,
         pendingRows: nextRows,
         targetMonths,
       });
@@ -447,12 +456,19 @@ export const MonthRecordEntryPage = () => {
     const safeTargetMonths = (dialogState.targetMonths ?? []).filter(
       (taxMonth) => !dialogState.conflict.conflictMonths.includes(taxMonth),
     );
-    if (!dialogState.pendingRows || !safeTargetMonths.length) {
+    if (!dialogState.pendingRows || !dialogState.baseRows) {
       setNoticeMessage("已跳过异常月份，当前没有可复制的合法月份。");
       return;
     }
 
-    applyWorkspaceRowsForTargetMonths(dialogState.pendingRows, safeTargetMonths);
+    const nextRows = resolveWorkspaceRowsAfterSkippingEmploymentConflict(
+      dialogState.baseRows,
+      originalWorkspaceRows,
+      dialogState.pendingRows,
+      safeTargetMonths,
+      dialogState.conflict.conflictMonths,
+    );
+    setWorkspaceRows(nextRows);
     setNoticeMessage("已跳过异常月份，仅复制合法月份。");
   };
 

@@ -28,6 +28,31 @@ export const filterRowsByTaxMonths = (
   return rows.filter((row) => targetMonthSet.has(row.taxMonth));
 };
 
+export const resolveWorkspaceRowsAfterSkippingEmploymentConflict = (
+  baseRows: YearRecordUpsertItem[],
+  originalRows: YearRecordUpsertItem[],
+  pendingRows: YearRecordUpsertItem[],
+  safeTargetMonths: number[],
+  conflictMonths: number[],
+) => {
+  const safeTargetMonthSet = new Set(safeTargetMonths);
+  const conflictMonthSet = new Set(conflictMonths);
+  const pendingRowMap = new Map(pendingRows.map((row) => [row.taxMonth, row] as const));
+  const originalRowMap = new Map(originalRows.map((row) => [row.taxMonth, row] as const));
+
+  return baseRows.map((row) => {
+    if (conflictMonthSet.has(row.taxMonth)) {
+      return originalRowMap.get(row.taxMonth) ?? row;
+    }
+
+    if (safeTargetMonthSet.has(row.taxMonth)) {
+      return pendingRowMap.get(row.taxMonth) ?? row;
+    }
+
+    return row;
+  });
+};
+
 const formatMonths = (months: number[]) => months.map((month) => `${month} 月`).join("、");
 
 const getActionLabel = (actionKind: ConflictActionKind) => {

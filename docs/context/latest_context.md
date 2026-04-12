@@ -24,6 +24,7 @@
   - `month-record-employment-conflict.ts`
   - 保存当前改动、应用到下月、应用到后续月份三选强提示
   - “跳过异常月份，仅保存/复制合法月份”快捷分支
+  - 已修复复制场景下“跳过异常月份”会保留当前异常源月份、并错误保留离职后月份收入的问题
 
 ## 关键决策
 
@@ -41,6 +42,7 @@
   - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
   - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
   - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
+  - `npm run typecheck --workspace @dude-tax/desktop`
   - `npm run typecheck --workspaces --if-present`
   - `npm run build:api`
   - `npm run build:desktop`

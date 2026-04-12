@@ -5,6 +5,7 @@ import {
   buildEmploymentConflictDialogMessage,
   collectWorkspaceEmploymentConflictMonths,
   filterRowsByTaxMonths,
+  resolveWorkspaceRowsAfterSkippingEmploymentConflict,
 } from "./month-record-employment-conflict";
 
 const buildWorkspace = (
@@ -94,4 +95,42 @@ test("强提示文案会带出入职离职日期与异常月份", () => {
   assert.match(message.description, /离职日期 2026-09-30/);
   assert.match(message.description, /6 月/);
   assert.match(message.description, /10 月/);
+});
+
+test("跳过异常月份时会回退当前异常源月份，并且不把收入复制到离职后月份", () => {
+  const baseRows = [
+    buildRow(2, { salaryIncome: 6_000 }),
+    buildRow(3),
+    buildRow(7),
+    buildRow(8),
+    buildRow(9),
+  ];
+  const originalRows = [
+    buildRow(2),
+    buildRow(3),
+    buildRow(7),
+    buildRow(8),
+    buildRow(9),
+  ];
+  const pendingRows = [
+    buildRow(2, { salaryIncome: 6_000 }),
+    buildRow(3, { salaryIncome: 6_000 }),
+    buildRow(7, { salaryIncome: 6_000 }),
+    buildRow(8, { salaryIncome: 6_000 }),
+    buildRow(9, { salaryIncome: 6_000 }),
+  ];
+
+  const nextRows = resolveWorkspaceRowsAfterSkippingEmploymentConflict(
+    baseRows,
+    originalRows,
+    pendingRows,
+    [3, 7],
+    [2, 8, 9],
+  );
+
+  assert.equal(nextRows.find((row) => row.taxMonth === 2)?.salaryIncome, 0);
+  assert.equal(nextRows.find((row) => row.taxMonth === 3)?.salaryIncome, 6_000);
+  assert.equal(nextRows.find((row) => row.taxMonth === 7)?.salaryIncome, 6_000);
+  assert.equal(nextRows.find((row) => row.taxMonth === 8)?.salaryIncome, 0);
+  assert.equal(nextRows.find((row) => row.taxMonth === 9)?.salaryIncome, 0);
 });
