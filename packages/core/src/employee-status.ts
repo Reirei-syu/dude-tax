@@ -2,6 +2,7 @@ import type {
   Employee,
   EmployeeGeneralStatus,
   EmployeeMonthStatus,
+  EmployeeRosterStatusKind,
   EmploymentIncomeConflictMonths,
   EmploymentIncomeConflictType,
   YearRecordUpsertItem,
@@ -56,6 +57,8 @@ const parseYearMonth = (dateString: string | null | undefined) => {
   return { year, month };
 };
 
+const parseDateYear = (dateString: string | null | undefined) => parseYearMonth(dateString)?.year ?? null;
+
 const hasEmploymentIncome = (
   row: Pick<YearRecordUpsertItem, "salaryIncome" | "annualBonus" | "otherIncome">,
 ) =>
@@ -90,6 +93,27 @@ const getTaxYearLeaveMonth = (
 export const deriveEmployeeGeneralStatus = (
   employee: Pick<Employee, "leaveDate">,
 ): EmployeeGeneralStatus => (employee.leaveDate ? "left" : "active");
+
+export const deriveEmployeeRosterStatus = (
+  employee: Pick<Employee, "hireDate" | "leaveDate">,
+  taxYear: number,
+): EmployeeRosterStatusKind => {
+  const leaveYear = parseDateYear(employee.leaveDate);
+  if (leaveYear === taxYear) {
+    return "left_this_year";
+  }
+
+  if (leaveYear !== null && leaveYear < taxYear) {
+    return "left";
+  }
+
+  const hireYear = parseDateYear(employee.hireDate);
+  if (hireYear === taxYear) {
+    return "hired_this_year";
+  }
+
+  return "active";
+};
 
 export const isEmployeeActiveInTaxYear = (
   employee: Pick<Employee, "hireDate" | "leaveDate">,

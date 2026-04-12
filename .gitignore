@@ -7,3 +7,11 @@ build/
 coverage/
 data/
 *.log
+
+# ==================== AI Agent 内部协作文档（必须忽略） ====================
+/docs/context_memory/
+/docs/plans/
+/docs/context/latest_context.md
+PROGRESS.md
+AGENTS.md
+/docs/tasks.md

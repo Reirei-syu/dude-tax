@@ -5,12 +5,23 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：月度录入新增入离职月份收入强提示已完成
-- 方案路径：`docs/plans/2026-04-12_employment-income-conflict-warning_plan.md`
+- 当前任务：员工信息模块编辑弹窗与四态状态优化已完成
+- 方案路径：`docs/plans/2026-04-12_employee-management-edit-status-plan.md`
 
 ## 当前轮次目标
 
 - 已完成：
+  - 员工信息模块已改为“新增员工卡片 + 编辑员工独立对话框”双态结构，不再复用同一张表单卡片
+  - `packages/core` 新增 `EmployeeRosterStatusKind` 与 `deriveEmployeeRosterStatus(employee, taxYear)`
+  - 员工列表已按当前选中税年显示“YYYY-MM-DD入职 / 在职 / YYYY-MM-DD离职 / 已离职”四态
+  - 员工列表新增“隐藏已离职员工”开关，仅过滤以前年度离职员工
+  - 已补齐 `docs/context_memory/memory.md`
+  - 已补齐 `.gitignore` 中的 Agent 内部文档忽略规则
+  - `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
+  - `npm run typecheck --workspace @dude-tax/core`
+  - `npm run typecheck --workspace @dude-tax/desktop`
+  - `npm run typecheck --workspace @dude-tax/api`
+  - `git status --ignored --short`
   - 月度录入工作台新增“入职前 / 离职后收入录入”三选强提示，覆盖保存当前改动、应用到下月、应用到后续月份
   - 已修复“跳过异常月份”分支会遗漏当前异常源月份、并错误保留离职后复制结果的问题
   - `EmployeeYearRecordWorkspace` 已补充 `hireDate` / `leaveDate`
@@ -53,6 +64,12 @@
 
 ## 本轮修改
 
+- 员工信息模块：
+  - `packages/core` 新增员工列表四态状态类型与按税年派生函数
+  - `apps/desktop` 新增 `EmployeeEditDialog`，将已有员工编辑迁移到独立对话框
+  - `apps/desktop` 新增 `employee-list-filter.ts` 纯函数，统一状态标签与“隐藏已离职员工”过滤逻辑
+  - `EmployeeManagementPage` 改为新增 / 编辑双状态，并按当前税年展示员工四态状态
+  - 运行时文档补齐 `docs/context_memory/memory.md`，并补充 `.gitignore` 忽略规则
 - 就业月份收入冲突提示：
   - `packages/core` 新增入离职月份收入冲突判定能力与冲突月份聚合结果
   - `apps/api` 新增 `EmploymentIncomeConflictError` 与 409 结构化冲突响应
@@ -117,6 +134,12 @@
 ## 验证结果
 
 - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
+- `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
+- `npm run typecheck --workspace @dude-tax/core`
+- `npm run typecheck --workspace @dude-tax/desktop`
+- `npm run typecheck --workspace @dude-tax/api`
+- `git status --ignored --short`
+- `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
 - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
 - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
 - `npm run typecheck --workspace @dude-tax/desktop`
@@ -150,6 +173,8 @@
 
 ## 风险备注
 
+- 员工编辑弹窗目前以源码断言和纯函数测试为主，尚未补真实 Electron 壳交互 smoke。
+- “隐藏已离职员工”当前仅在页面内存态生效，刷新页面后恢复默认显示，这是本轮有意保持的最小实现。
 - 就业月份收入冲突提示当前只覆盖“工资收入 / 年终奖 / 其他收入”三类字段；预扣税额与扣除项仍不触发强提示，这是当前明确口径。
 - 当前桌面前端已做本地预检，后端也做硬阻断；如果未来导入模块也要复用同规则，建议抽到导入链路统一校验。
 - 单位备份 ZIP 当前依赖 Windows PowerShell `Compress-Archive`；符合现阶段 Windows-only 交付目标，但未来若扩到 macOS/Linux 需替换为跨平台压缩实现。
@@ -162,6 +187,8 @@
 
 ## Lessons Learned
 
+- 这类“新增态”和“编辑态”共存的页面，最好在首次复杂化时就拆成独立状态源，否则列表选中、高亮、错误提示会互相污染。
+- 与“自然月状态”不同，员工主档状态更适合封装成“相对当前税年”的纯函数，页面只消费结果，避免年份切换后多处规则漂移。
 - 这种“用户可继续，但必须强知情”的规则不适合用原生 `window.confirm`；一旦需要“继续 / 跳过 / 取消”三选，最好直接上自定义弹层。
 - 前端本地强提示和后端硬阻断必须共享同一套月份判定口径，否则很容易出现“前端允许、后端拒绝”或相反的分叉。
 - Windows-only 桌面能力优先复用 PowerShell 原生命令，先保证零新增依赖和可交付，再考虑跨平台抽象。

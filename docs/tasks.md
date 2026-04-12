@@ -6,6 +6,54 @@
 
 ## 任务列表
 
+### [x] 员工信息模块编辑弹窗与四态状态优化
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/desktop` / `docs`
+- 描述：将员工编辑从新增卡片中拆出为独立对话框，并基于当前选中税年增加员工列表四态状态展示与“隐藏已离职员工”开关。
+- 依赖：`docs/plans/2026-04-12_employee-management-edit-status-plan.md`
+- 风险：中
+- 优先级：3
+- 完成时间：2026-04-12
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `packages/core/src/employee-status.ts`
+  - `packages/core/src/employee-status.test.ts`
+  - `apps/desktop/src/components/EmployeeEditDialog.tsx`
+  - `apps/desktop/src/pages/EmployeeManagementPage.tsx`
+  - `apps/desktop/src/pages/employee-list-filter.ts`
+  - `apps/desktop/src/pages/employee-list-filter.test.ts`
+  - `apps/desktop/src/pages/employee-management-page.test.ts`
+  - `.gitignore`
+  - `docs/context_memory/memory.md`
+  - `docs/context/latest_context.md`
+  - `docs/plans/2026-04-12_employee-management-edit-status-plan.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+- 影响范围：
+  - 员工新增表单固定为新增用途，编辑已有员工时改为独立对话框
+  - 员工列表按 `currentTaxYear` 展示“YYYY-MM-DD入职 / 在职 / YYYY-MM-DD离职 / 已离职”四态
+  - 页面新增“隐藏已离职员工”开关，仅过滤以前年度离职员工
+  - 补齐 `docs/context_memory/memory.md` 与 Agent 文档忽略规则
+
+### [ ] 清理已追踪的 Agent 内部协作文档
+
+- 类型：Docs
+- 模块：`docs` / `git`
+- 描述：将已被 Git 跟踪但已加入 `.gitignore` 的 Agent 内部协作文档从版本控制中移除，避免后续 `git status --ignored` 长期混入运行时文件噪音。
+- 依赖：员工信息模块编辑弹窗与四态状态优化
+- 风险：中
+- 优先级：4
+- 测试要求：
+  - smoke: 必须
+  - unit: 否
+  - integration: 否
+  - e2e: 否
+  - regression: 否
+  - performance: 否
+  - stress: 否
+  - uat: 否
+
 ### [x] 月度录入新增入离职月份收入强提示
 
 - 类型：Feature

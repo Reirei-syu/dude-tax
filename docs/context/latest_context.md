@@ -6,54 +6,52 @@
 
 ## 当前任务
 
-- 月度录入新增入离职月份收入强提示已完成
+- 员工信息模块编辑弹窗与四态状态优化已完成
 
 ## 已完成
 
-- `packages/core` 新增就业月份收入冲突判定：
-  - `detectEmploymentIncomeConflictType`
-  - `collectEmploymentIncomeConflictMonths`
-  - `EmploymentIncomeConflictResponse`
-- `EmployeeYearRecordWorkspace` 已新增 `hireDate`、`leaveDate`
-- `apps/api` 已新增后端硬阻断：
-  - 年度工作台保存接口支持 `acknowledgedEmploymentConflictMonths`
-  - 单月保存接口支持 `acknowledgedEmploymentConflictMonths`
-  - 未确认的入职前 / 离职后收入录入返回 409 结构化冲突信息
-- `apps/desktop` 已新增：
-  - `EmploymentIncomeConflictDialog`
-  - `month-record-employment-conflict.ts`
-  - 保存当前改动、应用到下月、应用到后续月份三选强提示
-  - “跳过异常月份，仅保存/复制合法月份”快捷分支
-  - 已修复复制场景下“跳过异常月份”会保留当前异常源月份、并错误保留离职后月份收入的问题
+- `packages/core` 新增 `EmployeeRosterStatusKind`
+  - `hired_this_year`
+  - `active`
+  - `left_this_year`
+  - `left`
+- `packages/core` 新增 `deriveEmployeeRosterStatus(employee, taxYear)`
+- `apps/desktop` 新增 `EmployeeEditDialog`
+- `EmployeeManagementPage` 已拆分为：
+  - 固定“新增员工”卡片
+  - 独立“编辑员工”对话框
+- 员工列表已接入基于 `currentTaxYear` 的四态状态文案
+- 页面新增“隐藏已离职员工”开关，仅过滤以前年度离职员工
+- 已补齐：
+  - `docs/context_memory/memory.md`
+  - `.gitignore` 中的 Agent 内部文档忽略规则
 
 ## 关键决策
 
-- 强提示只针对三类收入字段：`salaryIncome`、`annualBonus`、`otherIncome`
-- 交互为自定义三选弹层，不使用原生确认框
-- 后端硬阻断覆盖：
-  - `/api/units/:unitId/years/:taxYear/employees/:employeeId/year-record-workspace`
-  - `/api/units/:unitId/years/:taxYear/employees/:employeeId/month-records/:taxMonth`
-- 入职月/离职月当月允许录入；仅入职前月份、离职后月份触发冲突
-- `QuickCalculatePage`、导入链路、员工列表筛选逻辑本轮不变
+- “本年/以前年度”统一相对 `AppContext.currentTaxYear`
+- 本年入职且本年离职时，状态优先显示为 `YYYY-MM-DD离职`
+- “隐藏已离职员工”默认关闭，不做本地持久化
+- 本轮不改数据库结构、不改 API 路由
 
 ## 当前测试状态
 
 - 已通过：
   - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
-  - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
+  - `npm run typecheck --workspace @dude-tax/core`
   - `npm run typecheck --workspace @dude-tax/desktop`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run build:api`
-  - `npm run build:desktop`
+  - `npm run typecheck --workspace @dude-tax/api`
+  - `git status --ignored --short`
 
 ## 剩余任务
 
-- 当前实现任务已完成
-- 如需更高置信度，可补真实 Electron 手工回放：保存冲突、复制冲突、跳过异常月份
+- 如需更高置信度，可补真实 Electron 壳手工回放：
+  - 编辑已有员工
+  - 切换年份观察四态变化
+  - 打开“隐藏已离职员工”验证列表过滤
 
 ## 下一步计划
 
-1. 如有需要，将同一“就业月份收入冲突”规则扩展到导入链路
-2. 评估是否将预扣税额也纳入强提示范围
-3. 在真实 Electron 壳里补一次人工交互回放
+1. 如有需要，将员工列表四态复用到其他员工选择场景
+2. 评估是否补一个桌面壳交互级 smoke
+3. 继续处理 `docs/tasks.md` 中下一个高优先级未完成任务

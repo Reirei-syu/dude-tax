@@ -27,3 +27,12 @@ test("员工信息页主卡片与员工列表接入共享折叠组件，不改�
   assert.equal(employeeManagementPageSource.includes('title="员工列表"'), true);
   assert.equal(employeeManagementPageSource.includes("defaultCollapsed={true}"), true);
 });
+
+test("员工信息页接入独立编辑弹窗与已离职隐藏开关", () => {
+  assert.equal(employeeManagementPageSource.includes("EmployeeEditDialog"), true);
+  assert.equal(employeeManagementPageSource.includes("隐藏已离职员工"), true);
+  assert.equal(
+    employeeManagementPageSource.includes('selectedEmployee ? "编辑员工" : "新增员工"'),
+    false,
+  );
+});

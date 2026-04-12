@@ -97,6 +97,7 @@ export type Employee = {
 };
 
 export type EmployeeGeneralStatus = "active" | "left";
+export type EmployeeRosterStatusKind = "hired_this_year" | "active" | "left_this_year" | "left";
 export type EmployeeMonthStatus = "active" | "left_this_month" | "left";
 export type EmploymentIncomeConflictType = "before_hire" | "after_leave";
 export type EmploymentIncomeConflictMonths = {
@@ -715,6 +716,7 @@ export {
   collectEmploymentIncomeConflictMonths,
   detectEmploymentIncomeConflictType,
   deriveEmployeeGeneralStatus,
+  deriveEmployeeRosterStatus,
   deriveEmployeeMonthStatus,
   isEmployeeActiveInTaxMonth,
   isEmployeeActiveInTaxYear,

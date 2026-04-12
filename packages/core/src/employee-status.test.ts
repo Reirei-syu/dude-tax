@@ -4,6 +4,7 @@ import {
   collectEmploymentIncomeConflictMonths,
   detectEmploymentIncomeConflictType,
   deriveEmployeeGeneralStatus,
+  deriveEmployeeRosterStatus,
   deriveEmployeeMonthStatus,
   isEmployeeActiveInTaxMonth,
   isEmployeeActiveInTaxYear,
@@ -35,6 +36,42 @@ test("填写离职日期的员工在员工页显示离职", () => {
   const employee = buildEmployee("2026-06-30");
 
   assert.equal(deriveEmployeeGeneralStatus(employee), "left");
+});
+
+test("员工列表四态会优先按本年离职判定", () => {
+  const employee: Employee = {
+    ...buildEmployee("2026-06-30"),
+    hireDate: "2026-02-01",
+  };
+
+  assert.equal(deriveEmployeeRosterStatus(employee, 2026), "left_this_year");
+});
+
+test("员工列表四态会将以前年度离职员工判定为已离职", () => {
+  const employee: Employee = {
+    ...buildEmployee("2025-12-31"),
+    hireDate: "2024-01-01",
+  };
+
+  assert.equal(deriveEmployeeRosterStatus(employee, 2026), "left");
+});
+
+test("员工列表四态会将本年入职且未离职员工判定为本年入职", () => {
+  const employee: Employee = {
+    ...buildEmployee(null),
+    hireDate: "2026-03-15",
+  };
+
+  assert.equal(deriveEmployeeRosterStatus(employee, 2026), "hired_this_year");
+});
+
+test("员工列表四态会将以前年度入职且未离职员工判定为在职", () => {
+  const employee: Employee = {
+    ...buildEmployee(null),
+    hireDate: "2025-03-15",
+  };
+
+  assert.equal(deriveEmployeeRosterStatus(employee, 2026), "active");
 });
 
 test("填写离职日期的员工在离职当月显示本月离职本月，后续月份显示离职", () => {
