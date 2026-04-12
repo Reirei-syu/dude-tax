@@ -100,6 +100,19 @@ const buildRuntimeConfig = (input) => ({
   databasePath: input.databasePath ?? "",
 });
 
+const buildRendererUrl = (baseUrl, runtimeConfig) => {
+  const nextUrl = new URL(baseUrl);
+  nextUrl.searchParams.set("salaryTaxApiBaseUrl", runtimeConfig.apiBaseUrl);
+  nextUrl.searchParams.set(
+    "salaryTaxManagedApi",
+    runtimeConfig.managedApi ? "1" : "0",
+  );
+  if (runtimeConfig.databasePath) {
+    nextUrl.searchParams.set("salaryTaxDbPath", runtimeConfig.databasePath);
+  }
+  return nextUrl.toString();
+};
+
 const resolveWindowIconPath = () => {
   if (process.env.ELECTRON_RENDERER_URL) {
     return path.join(__dirname, "..", "assets", "app-icon.png");
@@ -213,11 +226,17 @@ const createWindow = (runtimeConfig) => {
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+    mainWindow.loadURL(buildRendererUrl(process.env.ELECTRON_RENDERER_URL, runtimeConfig));
     return;
   }
 
-  mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  mainWindow.loadFile(path.join(__dirname, "../dist/index.html"), {
+    query: {
+      salaryTaxApiBaseUrl: runtimeConfig.apiBaseUrl,
+      salaryTaxManagedApi: runtimeConfig.managedApi ? "1" : "0",
+      salaryTaxDbPath: runtimeConfig.databasePath,
+    },
+  });
 };
 
 app.whenReady().then(async () => {

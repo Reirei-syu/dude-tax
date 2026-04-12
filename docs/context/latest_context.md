@@ -6,10 +6,21 @@
 
 ## 当前任务
 
-- Windows 安装包首发与 GitHub Release 发布已完成
+- 修复安装版 `Failed to fetch` 并重新打包本地安装包已完成
 
 ## 已完成
 
+- 已定位安装版 `Failed to fetch` 根因：
+  - 安装环境下前端可能拿不到 preload 注入的 `apiBaseUrl`
+  - `fetch` 退回 `file://` 地址后直接失败
+- 已完成修复：
+  - 主进程把 `salaryTaxApiBaseUrl` 注入到窗口 URL 查询参数
+  - API 客户端新增从查询参数读取本地 API 地址的兜底逻辑
+  - 已补充 `client.test.ts` 与 `electron-runtime-config.test.ts`
+- 已重新生成本地安装包：
+  - `D:\coding\completed\dude-tax\dude-tax-installer-x64.exe`
+- 当前版本保持不变：
+  - `0.1.0-alpha`
 - 根项目与各 workspace 版本已统一为 `0.1.0-alpha`
 - 已新增 Windows 安装包脚本：
   - `scripts/build-installer.mjs`
@@ -52,6 +63,9 @@
 ## 当前测试状态
 
 - 已通过：
+  - `npm run test --workspace @dude-tax/desktop -- src/api/client.test.ts src/electron-runtime-config.test.ts`
+  - `npm run typecheck --workspace @dude-tax/desktop`
+  - `npm run release:win`
   - `npm run test --workspaces --if-present`
   - `npm run typecheck --workspaces --if-present`
   - `npm run release:win`
@@ -64,11 +78,11 @@
 
 ## 剩余任务
 
-- 将本地首发版本提交并推送到 GitHub
-- 创建 GitHub 首个版本 release 与滚动稳定下载 release
+- 如需同步 GitHub 下载包，需要手动上传当前修复后的安装包
+- 如需让正式安装目录 `D:\DudeTax` 生效，需要重新安装这次新包
 
 ## 下一步计划
 
-1. 提交并推送当前首发版本链路改动
-2. 创建 `v0.1.0-alpha` 版本 release
-3. 上传 `installer-latest` 稳定下载资产并返回固定 URL
+1. 用新安装包覆盖安装到 `D:\DudeTax`
+2. 验证首页和“新建单位”不再出现 `Failed to fetch`
+3. 如有需要，再同步更新 GitHub Release 资产

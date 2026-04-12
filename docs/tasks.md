@@ -6,6 +6,28 @@
 
 ## 任务列表
 
+### [x] 修复安装版 `Failed to fetch` 并重新打包
+
+- 类型：Fix
+- 模块：`apps/desktop` / `scripts`
+- 描述：修复正式安装版在首页与新建单位场景下出现的 `Failed to fetch`，并在版本号不变的前提下重新生成本地安装包。
+- 依赖：Windows 安装包首发与 GitHub Release 发布链路
+- 风险：中
+- 优先级：2
+- 完成时间：2026-04-13
+- 修改文件：
+  - `apps/desktop/electron/main.cjs`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/api/client.test.ts`
+  - `apps/desktop/src/electron-runtime-config.test.ts`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+- 影响范围：
+  - 主进程会把本地 API 地址注入到窗口 URL 查询参数
+  - 前端即使拿不到 preload runtimeConfig，也能从查询参数恢复 API 基地址
+  - 已重新生成本地安装包 `D:\coding\completed\dude-tax\dude-tax-installer-x64.exe`
+
 ### [x] Windows 安装包首发与 GitHub Release 发布链路
 
 - 类型：Feature

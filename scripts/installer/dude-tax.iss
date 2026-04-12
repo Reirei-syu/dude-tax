@@ -14,6 +14,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\DudeTax
+UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=__OUTPUT_DIR__
@@ -25,6 +26,8 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 VersionInfoVersion=__VERSION_INFO__
+CloseApplications=no
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -41,3 +44,35 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "启动{#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function CloseRunningDudeTax(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Log('Attempting to close running dude-tax.exe processes before install.');
+  if Exec(
+    ExpandConstant('{cmd}'),
+    '/C taskkill /IM "dude-tax.exe" /T /F >nul 2>&1',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) then
+  begin
+    Log(Format('taskkill finished with exit code %d.', [ResultCode]));
+    Sleep(1500);
+    Result := True;
+  end
+  else
+  begin
+    Log('taskkill could not be started. Continuing without pre-close.');
+    Result := False;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningDudeTax();
+  Result := '';
+end;

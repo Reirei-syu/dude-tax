@@ -9,6 +9,10 @@ const installWindowMock = () => {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
+      location: {
+        origin: "file://",
+        search: "",
+      },
       salaryTaxDesktop: {
         runtimeConfig: {
           apiBaseUrl: "http://127.0.0.1:3001",
@@ -107,6 +111,36 @@ test("无 body 的 POST 和 DELETE 不再发送 JSON Content-Type", async () => 
   assert.equal(requests[1]?.init?.method, "DELETE");
   assert.equal(getHeaderValue(requests[1]?.init, "Content-Type"), null);
   assert.equal(requests[1]?.init?.body, undefined);
+});
+
+test("桌面桥接缺失时会回退到窗口查询参数中的本地 API 地址", async () => {
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      location: {
+        origin: "file://",
+        search: "?salaryTaxApiBaseUrl=http%3A%2F%2F127.0.0.1%3A3217",
+      },
+    },
+  });
+
+  const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ input, init });
+      return {
+        ok: true,
+        json: async () => [],
+      } as Response;
+    },
+  });
+
+  await apiClient.listUnits();
+
+  assert.equal(requests.length, 1);
+  assert.equal(String(requests[0]?.input), "http://127.0.0.1:3217/api/units");
 });
 
 test("单位备份相关接口按约定请求草稿与执行备份", async () => {

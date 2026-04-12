@@ -5,12 +5,18 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：Windows 安装包首发与 GitHub Release 发布已完成
-- 方案路径：无（按发布链路直接执行）
+- 当前任务：修复安装版 `Failed to fetch` 并重新打包本地安装包已完成
+- 方案路径：无（按故障排查直接执行）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 已定位安装版 `Failed to fetch` 根因：前端在安装环境下可能拿不到 preload 注入的 `apiBaseUrl`，回退为 `file://` 请求导致网络层直接失败
+  - `apps/desktop/electron/main.cjs` 已改为在窗口 URL 查询参数中显式注入 `salaryTaxApiBaseUrl`
+  - `apps/desktop/src/api/client.ts` 已新增从 `window.location.search` 读取本地 API 地址的兜底逻辑
+  - 已新增桌面端回归测试，覆盖查询参数兜底与主进程 URL 注入
+  - 已重新生成本地安装包，版本号保持 `0.1.0-alpha`
+  - 本地安装包路径：`D:\coding\completed\dude-tax\dude-tax-installer-x64.exe`
   - 根工作区与各 package 版本统一为 `0.1.0-alpha`
   - Electron preload 暴露的桌面端版本改为动态读取根 `package.json`
   - 新增 `scripts/build-installer.mjs` 与 `scripts/installer/dude-tax.iss`
@@ -72,6 +78,11 @@
 
 ## 本轮修改
 
+- 安装版 `Failed to fetch` 修复：
+  - `apps/desktop/electron/main.cjs` 新增 `buildRendererUrl`，在开发 URL 和生产 `loadFile` 两条路径都注入 runtime query
+  - `apps/desktop/src/api/client.ts` 新增 `salaryTaxApiBaseUrl` 查询参数兜底
+  - `apps/desktop/src/api/client.test.ts` 新增“桌面桥接缺失时回退到查询参数”的回归测试
+  - `apps/desktop/src/electron-runtime-config.test.ts` 新增主进程注入查询参数的源码断言
 - 发布链路：
   - 统一根项目、`apps/api`、`apps/desktop`、`packages/core`、`packages/config` 版本为 `0.1.0-alpha`
   - 新增 Inno Setup 安装包脚本，沿用 `package:win` 产物生成真正的安装器 `.exe`
@@ -146,6 +157,9 @@
 
 ## 验证结果
 
+- `npm run test --workspace @dude-tax/desktop -- src/api/client.test.ts src/electron-runtime-config.test.ts`
+- `npm run typecheck --workspace @dude-tax/desktop`
+- `npm run release:win`
 - `npm run test --workspaces --if-present`
 - `npm run typecheck --workspaces --if-present`
 - `npm run release:win`
@@ -190,6 +204,7 @@
 
 ## 风险备注
 
+- 这次修复解决的是“renderer 取不到 API 基地址”的链路；如果未来 preload 整体失效，查询参数兜底仍能保障 API 请求，但桌面桥接能力本身仍需单独关注。
 - GitHub Actions 的 Windows Release 工作流依赖 `windows-latest` 上可用的 Chocolatey 安装 Inno Setup；若 runner 镜像策略变化，需要同步调整安装命令。
 - 当前稳定下载链接采用滚动 release tag `installer-latest`，后续更新安装包时必须继续使用同名资产 `dude-tax-installer-x64.exe`。
 - 员工编辑弹窗目前以源码断言和纯函数测试为主，尚未补真实 Electron 壳交互 smoke。
@@ -206,6 +221,7 @@
 
 ## Lessons Learned
 
+- Electron 安装版里，依赖 `additionalArguments -> preload -> process.argv` 的 runtime 注入并不够稳，关键运行参数还应该有 URL / IPC 级兜底。
 - 在 Windows 上直接改动仓库根目录的 `better-sqlite3` Electron 预编译二进制非常容易撞到文件锁；正确做法是在打包临时副本里替换 ABI。
 - 如果希望 GitHub 下载链接长期不变，不应依赖 `releases/latest` 对 prerelease 的语义，而应维护一个固定 tag 的滚动 release。
 - 这类“新增态”和“编辑态”共存的页面，最好在首次复杂化时就拆成独立状态源，否则列表选中、高亮、错误提示会互相污染。

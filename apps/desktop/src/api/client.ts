@@ -41,6 +41,7 @@ import type {
 
 const resolveApiBaseUrl = () =>
   window.salaryTaxDesktop?.runtimeConfig.apiBaseUrl ||
+  new URLSearchParams(window.location.search).get("salaryTaxApiBaseUrl") ||
   import.meta.env.VITE_API_BASE_URL ||
   window.location.origin;
 

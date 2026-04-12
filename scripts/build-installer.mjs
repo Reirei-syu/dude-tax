@@ -19,6 +19,18 @@ const installerOutputDir = resolveInstallerOutputDir(projectRoot);
 const installerScriptPath = path.join(installerOutputDir, "dude-tax.generated.iss");
 const outputBaseFilename = INSTALLER_FILENAME.replace(/\.exe$/i, "");
 const setupIconPath = path.join(projectRoot, "apps", "desktop", "assets", "app-icon.ico");
+const installerOutputPath = path.join(installerOutputDir, INSTALLER_FILENAME);
+
+const tryTerminateProcessByImageName = async (imageName) => {
+  try {
+    await execFileAsync("taskkill.exe", ["/IM", imageName, "/F"], {
+      cwd: projectRoot,
+      windowsHide: true,
+    });
+  } catch {
+    // ignore if not running
+  }
+};
 
 const detectIscc = async () => {
   const candidates = [
@@ -72,6 +84,9 @@ await access(packageDir).catch(() => {
 });
 
 await mkdir(installerOutputDir, { recursive: true });
+await tryTerminateProcessByImageName("dude-tax-installer-x64.exe");
+await tryTerminateProcessByImageName("dude-tax-installer-x64.tmp");
+await rm(installerOutputPath, { force: true });
 await rm(installerScriptPath, { force: true });
 
 const issTemplate = await readFile(installerScriptTemplatePath, "utf8");
@@ -93,5 +108,5 @@ await execFileAsync(isccPath, [installerScriptPath], {
 });
 
 process.stdout.write(
-  `Windows installer output: ${path.join(installerOutputDir, `${outputBaseFilename}.exe`)}\n`,
+  `Windows installer output: ${installerOutputPath}\n`,
 );
