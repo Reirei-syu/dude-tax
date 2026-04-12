@@ -6,6 +6,40 @@
 
 ## 任务列表
 
+### [x] 月度录入新增入离职月份收入强提示
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/api` / `apps/desktop`
+- 描述：当员工在入职前月份或离职后月份录入收入时，月度录入工作台提供三选强提示，并在后端保存接口做硬阻断与显式确认放行。
+- 依赖：无
+- 风险：高
+- 优先级：3
+- 完成时间：2026-04-12
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `packages/core/src/employee-status.ts`
+  - `packages/core/src/employee-status.test.ts`
+  - `apps/api/src/services/year-entry-service.ts`
+  - `apps/api/src/routes/year-entry.ts`
+  - `apps/api/src/routes/month-records.ts`
+  - `apps/api/src/year-entry.test.ts`
+  - `apps/api/src/month-records.test.ts`
+  - `apps/desktop/src/components/EmploymentIncomeConflictDialog.tsx`
+  - `apps/desktop/src/pages/month-record-employment-conflict.ts`
+  - `apps/desktop/src/pages/month-record-employment-conflict.test.ts`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/month-record-entry-page.test.ts`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/plans/2026-04-12_employment-income-conflict-warning_plan.md`
+- 影响范围：
+  - 月度录入工作台保存与复制入口新增三选强提示
+  - 年度工作台和单月保存接口同时阻断未确认的入职前 / 离职后收入录入
+  - 异常月份可被前端显式确认放行，或一键跳过仅处理合法月份
+
 ### [x] 系统维护新增单位备份模块
 
 - 类型：Feature

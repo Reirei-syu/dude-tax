@@ -2,6 +2,7 @@ import type {
   AnnualTaxWithholdingMode,
   EmployeeAnnualTaxResult,
   EmployeeYearEntryOverview,
+  EmploymentIncomeConflictMonths,
   YearRecordUpsertItem,
 } from "@dude-tax/core";
 import { DEFAULT_BASIC_DEDUCTION_AMOUNT } from "@dude-tax/config";
@@ -10,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
+import { EmploymentIncomeConflictDialog } from "../components/EmploymentIncomeConflictDialog";
 import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
 import { YearEntryEmployeeSelectionDialog } from "../components/YearEntryEmployeeSelectionDialog";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
@@ -17,6 +19,11 @@ import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
 import { downloadMonthRecordImportTemplateWorkbook } from "./import-template";
+import {
+  buildEmploymentConflictDialogMessage,
+  collectWorkspaceEmploymentConflictMonths,
+  filterRowsByTaxMonths,
+} from "./month-record-employment-conflict";
 import { buildYearRecordWorkbookBuffer } from "./year-record-export";
 import {
   applyWorkspaceMonthToFutureMonths,
@@ -72,6 +79,14 @@ type ResultSummaryRow = {
   annualBonusTax: number | null;
   annualBonusRate: number | null;
   alternativeTaxAmount: number;
+};
+
+type EmploymentConflictDialogState = {
+  actionKind: "save" | "apply_next_month" | "apply_future_months";
+  conflict: EmploymentIncomeConflictMonths;
+  pendingDirtyMonths?: YearRecordUpsertItem[];
+  pendingRows?: YearRecordUpsertItem[];
+  targetMonths?: number[];
 };
 
 const buildResultSummaryRows = (
@@ -150,6 +165,8 @@ export const MonthRecordEntryPage = () => {
   const [isResultListCollapsed, setIsResultListCollapsed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+  const [employmentConflictDialogState, setEmploymentConflictDialogState] =
+    useState<EmploymentConflictDialogState | null>(null);
   const initializedScopeRef = useRef<string>("no-scope");
 
   const loadPageData = async () => {
@@ -222,6 +239,81 @@ export const MonthRecordEntryPage = () => {
     isComplete: false,
   };
 
+  const employmentConflictDialogMessage =
+    employmentConflictDialogState && workspace
+      ? buildEmploymentConflictDialogMessage(
+          workspace,
+          employmentConflictDialogState.conflict,
+          employmentConflictDialogState.actionKind,
+        )
+      : null;
+
+  const persistWorkspaceMonths = async (
+    months: YearRecordUpsertItem[],
+    options?: {
+      acknowledgedEmploymentConflictMonths?: number[];
+      successMessage?: string;
+    },
+  ) => {
+    if (!workspace || !currentUnitId || !currentTaxYear) {
+      return;
+    }
+
+    if (!months.length) {
+      setNoticeMessage("当前没有需要保存的合法改动。");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setErrorMessage(null);
+      const nextWorkspace = await apiClient.saveEmployeeYearWorkspace(
+        currentUnitId,
+        currentTaxYear,
+        workspace.employeeId,
+        {
+          months,
+          acknowledgedEmploymentConflictMonths: options?.acknowledgedEmploymentConflictMonths,
+        },
+      );
+      const editableRows = toEditableRows(nextWorkspace);
+      setWorkspace(nextWorkspace);
+      setWorkspaceRows(editableRows);
+      setOriginalWorkspaceRows(editableRows);
+      setNoticeMessage(options?.successMessage ?? "员工年度数据已保存。");
+      await loadPageData();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "保存员工年度数据失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openEmploymentConflictDialog = (
+    actionKind: EmploymentConflictDialogState["actionKind"],
+    conflict: EmploymentIncomeConflictMonths,
+    options?: Pick<EmploymentConflictDialogState, "pendingDirtyMonths" | "pendingRows" | "targetMonths">,
+  ) => {
+    setEmploymentConflictDialogState({
+      actionKind,
+      conflict,
+      ...options,
+    });
+  };
+
+  const applyWorkspaceRowsForTargetMonths = (
+    nextRows: YearRecordUpsertItem[],
+    targetMonths: number[],
+  ) => {
+    const replacementMap = new Map(
+      filterRowsByTaxMonths(nextRows, targetMonths).map((row) => [row.taxMonth, row] as const),
+    );
+
+    setWorkspaceRows((currentRows) =>
+      currentRows.map((row) => replacementMap.get(row.taxMonth) ?? row),
+    );
+  };
+
   const openWorkspace = async (employeeId: number) => {
     if (!currentUnitId || !currentTaxYear) {
       return;
@@ -240,6 +332,7 @@ export const MonthRecordEntryPage = () => {
       setWorkspaceRows(editableRows);
       setOriginalWorkspaceRows(editableRows);
       setSelectedWorkspaceMonth(1);
+      setEmploymentConflictDialogState(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "加载员工年度工作台失败");
     } finally {
@@ -275,26 +368,92 @@ export const MonthRecordEntryPage = () => {
       return;
     }
 
-    try {
-      setSaving(true);
-      setErrorMessage(null);
-      const nextWorkspace = await apiClient.saveEmployeeYearWorkspace(
-        currentUnitId,
-        currentTaxYear,
-        workspace.employeeId,
-        { months: dirtyMonths },
-      );
-      const editableRows = toEditableRows(nextWorkspace);
-      setWorkspace(nextWorkspace);
-      setWorkspaceRows(editableRows);
-      setOriginalWorkspaceRows(editableRows);
-      setNoticeMessage("员工年度数据已保存。");
-      await loadPageData();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "保存员工年度数据失败");
-    } finally {
-      setSaving(false);
+    const conflict = collectWorkspaceEmploymentConflictMonths(workspace, dirtyMonths);
+    if (conflict.conflictMonths.length) {
+      openEmploymentConflictDialog("save", conflict, {
+        pendingDirtyMonths: dirtyMonths,
+      });
+      return;
     }
+
+    await persistWorkspaceMonths(dirtyMonths);
+  };
+
+  const handleApplyWorkspaceRows = (
+    actionKind: EmploymentConflictDialogState["actionKind"],
+    nextRows: YearRecordUpsertItem[],
+    targetMonths: number[],
+  ) => {
+    if (!workspace) {
+      return;
+    }
+
+    const targetRows = filterRowsByTaxMonths(nextRows, targetMonths);
+    const conflict = collectWorkspaceEmploymentConflictMonths(workspace, targetRows);
+    if (conflict.conflictMonths.length) {
+      openEmploymentConflictDialog(actionKind, conflict, {
+        pendingRows: nextRows,
+        targetMonths,
+      });
+      return;
+    }
+
+    applyWorkspaceRowsForTargetMonths(nextRows, targetMonths);
+  };
+
+  const handleConfirmEmploymentConflict = async () => {
+    const dialogState = employmentConflictDialogState;
+    setEmploymentConflictDialogState(null);
+    if (!dialogState) {
+      return;
+    }
+
+    if (dialogState.actionKind === "save") {
+      await persistWorkspaceMonths(dialogState.pendingDirtyMonths ?? [], {
+        acknowledgedEmploymentConflictMonths: dialogState.conflict.conflictMonths,
+        successMessage: "已确认异常月份并完成保存。",
+      });
+      return;
+    }
+
+    if (dialogState.pendingRows && dialogState.targetMonths?.length) {
+      applyWorkspaceRowsForTargetMonths(dialogState.pendingRows, dialogState.targetMonths);
+      setNoticeMessage("已保留异常月份并完成复制。");
+    }
+  };
+
+  const handleSkipEmploymentConflict = async () => {
+    const dialogState = employmentConflictDialogState;
+    setEmploymentConflictDialogState(null);
+    if (!dialogState) {
+      return;
+    }
+
+    if (dialogState.actionKind === "save") {
+      const safeMonths = (dialogState.pendingDirtyMonths ?? []).filter(
+        (row) => !dialogState.conflict.conflictMonths.includes(row.taxMonth),
+      );
+      if (!safeMonths.length) {
+        setNoticeMessage("已跳过异常月份，当前没有可保存的合法改动。");
+        return;
+      }
+
+      await persistWorkspaceMonths(safeMonths, {
+        successMessage: "已跳过异常月份，仅保存合法月份。",
+      });
+      return;
+    }
+
+    const safeTargetMonths = (dialogState.targetMonths ?? []).filter(
+      (taxMonth) => !dialogState.conflict.conflictMonths.includes(taxMonth),
+    );
+    if (!dialogState.pendingRows || !safeTargetMonths.length) {
+      setNoticeMessage("已跳过异常月份，当前没有可复制的合法月份。");
+      return;
+    }
+
+    applyWorkspaceRowsForTargetMonths(dialogState.pendingRows, safeTargetMonths);
+    setNoticeMessage("已跳过异常月份，仅复制合法月份。");
   };
 
   const handleToggleEmployee = (employeeId: number) => {
@@ -687,15 +846,43 @@ export const MonthRecordEntryPage = () => {
         onSelectMonth={setSelectedWorkspaceMonth}
         onChangeRow={handleChangeWorkspaceRow}
         onApplyToNextMonth={() =>
-          setWorkspaceRows((currentRows) =>
-            applyWorkspaceMonthToNextMonth(currentRows, selectedWorkspaceMonth),
+          handleApplyWorkspaceRows(
+            "apply_next_month",
+            applyWorkspaceMonthToNextMonth(workspaceRows, selectedWorkspaceMonth),
+            [selectedWorkspaceMonth + 1].filter((taxMonth) => taxMonth <= 12),
           )
         }
         onApplyToFutureMonths={() =>
-          setWorkspaceRows((currentRows) =>
-            applyWorkspaceMonthToFutureMonths(currentRows, selectedWorkspaceMonth),
+          handleApplyWorkspaceRows(
+            "apply_future_months",
+            applyWorkspaceMonthToFutureMonths(workspaceRows, selectedWorkspaceMonth),
+            workspaceRows
+              .filter((row) => row.taxMonth > selectedWorkspaceMonth)
+              .map((row) => row.taxMonth),
           )
         }
+      />
+
+      <EmploymentIncomeConflictDialog
+        open={Boolean(employmentConflictDialogState && workspace && employmentConflictDialogMessage)}
+        title={employmentConflictDialogMessage?.title ?? ""}
+        description={employmentConflictDialogMessage?.description ?? ""}
+        beforeHireMonths={employmentConflictDialogState?.conflict.beforeHireMonths ?? []}
+        afterLeaveMonths={employmentConflictDialogState?.conflict.afterLeaveMonths ?? []}
+        confirmLabel={
+          employmentConflictDialogState?.actionKind === "save"
+            ? "继续保存异常月份"
+            : "继续复制异常月份"
+        }
+        skipLabel={
+          employmentConflictDialogState?.actionKind === "save"
+            ? "跳过异常月份，仅保存合法月份"
+            : "跳过异常月份，仅复制合法月份"
+        }
+        cancelLabel="取消"
+        onConfirm={() => void handleConfirmEmploymentConflict()}
+        onSkip={() => void handleSkipEmploymentConflict()}
+        onCancel={() => setEmploymentConflictDialogState(null)}
       />
 
       <AnnualTaxResultDialog

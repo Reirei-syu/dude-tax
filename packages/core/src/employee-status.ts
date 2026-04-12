@@ -1,4 +1,11 @@
-import type { Employee, EmployeeGeneralStatus, EmployeeMonthStatus } from "./index.js";
+import type {
+  Employee,
+  EmployeeGeneralStatus,
+  EmployeeMonthStatus,
+  EmploymentIncomeConflictMonths,
+  EmploymentIncomeConflictType,
+  YearRecordUpsertItem,
+} from "./index.js";
 
 const parseDateOnly = (dateString: string | null | undefined) => {
   if (!dateString) {
@@ -47,6 +54,37 @@ const parseYearMonth = (dateString: string | null | undefined) => {
   }
 
   return { year, month };
+};
+
+const hasEmploymentIncome = (
+  row: Pick<YearRecordUpsertItem, "salaryIncome" | "annualBonus" | "otherIncome">,
+) =>
+  Number(row.salaryIncome ?? 0) > 0 ||
+  Number(row.annualBonus ?? 0) > 0 ||
+  Number(row.otherIncome ?? 0) > 0;
+
+const getTaxYearHireMonth = (
+  employee: Pick<Employee, "hireDate">,
+  taxYear: number,
+) => {
+  const hireYearMonth = parseYearMonth(employee.hireDate);
+  if (!hireYearMonth || hireYearMonth.year !== taxYear) {
+    return null;
+  }
+
+  return hireYearMonth.month;
+};
+
+const getTaxYearLeaveMonth = (
+  employee: Pick<Employee, "leaveDate">,
+  taxYear: number,
+) => {
+  const leaveYearMonth = parseYearMonth(employee.leaveDate);
+  if (!leaveYearMonth || leaveYearMonth.year !== taxYear) {
+    return null;
+  }
+
+  return leaveYearMonth.month;
 };
 
 export const deriveEmployeeGeneralStatus = (
@@ -116,4 +154,56 @@ export const deriveEmployeeMonthStatus = (
   }
 
   return "left";
+};
+
+export const detectEmploymentIncomeConflictType = (
+  employee: Pick<Employee, "hireDate" | "leaveDate">,
+  taxYear: number,
+  row: Pick<YearRecordUpsertItem, "taxMonth" | "salaryIncome" | "annualBonus" | "otherIncome">,
+): EmploymentIncomeConflictType | null => {
+  if (!hasEmploymentIncome(row)) {
+    return null;
+  }
+
+  const hireMonth = getTaxYearHireMonth(employee, taxYear);
+  if (hireMonth !== null && row.taxMonth < hireMonth) {
+    return "before_hire";
+  }
+
+  const leaveMonth = getTaxYearLeaveMonth(employee, taxYear);
+  if (leaveMonth !== null && row.taxMonth > leaveMonth) {
+    return "after_leave";
+  }
+
+  return null;
+};
+
+export const collectEmploymentIncomeConflictMonths = (
+  employee: Pick<Employee, "hireDate" | "leaveDate">,
+  taxYear: number,
+  rows: Array<
+    Pick<YearRecordUpsertItem, "taxMonth" | "salaryIncome" | "annualBonus" | "otherIncome">
+  >,
+): EmploymentIncomeConflictMonths => {
+  const beforeHireMonths: number[] = [];
+  const afterLeaveMonths: number[] = [];
+
+  rows.forEach((row) => {
+    const conflictType = detectEmploymentIncomeConflictType(employee, taxYear, row);
+    if (conflictType === "before_hire" && !beforeHireMonths.includes(row.taxMonth)) {
+      beforeHireMonths.push(row.taxMonth);
+    }
+    if (conflictType === "after_leave" && !afterLeaveMonths.includes(row.taxMonth)) {
+      afterLeaveMonths.push(row.taxMonth);
+    }
+  });
+
+  beforeHireMonths.sort((left, right) => left - right);
+  afterLeaveMonths.sort((left, right) => left - right);
+
+  return {
+    conflictMonths: [...beforeHireMonths, ...afterLeaveMonths].sort((left, right) => left - right),
+    beforeHireMonths,
+    afterLeaveMonths,
+  };
 };

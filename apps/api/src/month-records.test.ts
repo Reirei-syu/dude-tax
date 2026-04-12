@@ -169,3 +169,91 @@ test("单月保存接口会阻止修改已确认月份", async () => {
 
   await app.close();
 });
+
+test("单月保存接口会阻断离职后收入录入，确认后才允许保存", async () => {
+  const [{ registerMonthRecordRoutes }, { unitRepository }, { employeeRepository }] =
+    await modulesPromise;
+
+  const app = Fastify({ logger: false });
+  await registerMonthRecordRoutes(app);
+
+  const unit = unitRepository.create({
+    unitName: "单月就业月份冲突测试单位",
+    remark: "",
+  });
+
+  const employee = employeeRepository.create(unit.id, {
+    employeeCode: "EMP-CONFLICT-002",
+    employeeName: "离职冲突员工",
+    idNumber: "110101199001017777",
+    hireDate: "2026-01-01",
+    leaveDate: "2026-06-30",
+    remark: "",
+  });
+
+  const blockedResponse = await app.inject({
+    method: "PUT",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records/7`,
+    payload: {
+      salaryIncome: 9_000,
+      annualBonus: 0,
+      pensionInsurance: 0,
+      medicalInsurance: 0,
+      occupationalAnnuity: 0,
+      housingFund: 0,
+      supplementaryHousingFund: 0,
+      unemploymentInsurance: 0,
+      workInjuryInsurance: 0,
+      withheldTax: 0,
+      otherIncome: 0,
+      otherIncomeRemark: "",
+      infantCareDeduction: 0,
+      childEducationDeduction: 0,
+      continuingEducationDeduction: 0,
+      housingLoanInterestDeduction: 0,
+      housingRentDeduction: 0,
+      elderCareDeduction: 0,
+      otherDeduction: 0,
+      taxReductionExemption: 0,
+      remark: "",
+    },
+  });
+
+  assert.equal(blockedResponse.statusCode, 409);
+  const blockedBody = blockedResponse.json() as Record<string, unknown>;
+  assert.equal(blockedBody.conflictType, "employment_income_conflict");
+  assert.deepEqual(blockedBody.afterLeaveMonths, [7]);
+
+  const acknowledgedResponse = await app.inject({
+    method: "PUT",
+    url: `/api/units/${unit.id}/years/2026/employees/${employee.id}/month-records/7`,
+    payload: {
+      salaryIncome: 9_000,
+      annualBonus: 0,
+      pensionInsurance: 0,
+      medicalInsurance: 0,
+      occupationalAnnuity: 0,
+      housingFund: 0,
+      supplementaryHousingFund: 0,
+      unemploymentInsurance: 0,
+      workInjuryInsurance: 0,
+      withheldTax: 0,
+      otherIncome: 0,
+      otherIncomeRemark: "",
+      infantCareDeduction: 0,
+      childEducationDeduction: 0,
+      continuingEducationDeduction: 0,
+      housingLoanInterestDeduction: 0,
+      housingRentDeduction: 0,
+      elderCareDeduction: 0,
+      otherDeduction: 0,
+      taxReductionExemption: 0,
+      remark: "",
+      acknowledgedEmploymentConflictMonths: [7],
+    },
+  });
+
+  assert.equal(acknowledgedResponse.statusCode, 200);
+
+  await app.close();
+});

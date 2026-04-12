@@ -3,6 +3,7 @@ import { z } from "zod";
 import { employeeRepository } from "../repositories/employee-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
 import {
+  EmploymentIncomeConflictError,
   MonthConfirmationConflictError,
   yearEntryService,
 } from "../services/year-entry-service.js";
@@ -39,6 +40,9 @@ const yearRecordItemSchema = z.object({
 
 const batchUpsertSchema = z.object({
   months: z.array(yearRecordItemSchema),
+  acknowledgedEmploymentConflictMonths: z
+    .array(z.number().int().min(1).max(12))
+    .optional(),
 });
 
 const yearEntryCalculateSchema = z.object({
@@ -196,6 +200,8 @@ export const registerYearEntryRoutes = async (app: FastifyInstance) => {
       try {
         return yearEntryService.saveEmployeeYearWorkspace(unitId, taxYear, employeeId, {
           months: parsedBody.data.months.map(toCanonicalPayload),
+          acknowledgedEmploymentConflictMonths:
+            parsedBody.data.acknowledgedEmploymentConflictMonths,
         });
       } catch (error) {
         if (error instanceof MonthConfirmationConflictError) {
@@ -203,6 +209,9 @@ export const registerYearEntryRoutes = async (app: FastifyInstance) => {
             message: error.message,
             lockedMonths: error.lockedMonths,
           });
+        }
+        if (error instanceof EmploymentIncomeConflictError) {
+          return reply.status(409).send(error.conflictResponse);
         }
 
         throw error;

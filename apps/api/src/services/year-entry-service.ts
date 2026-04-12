@@ -1,5 +1,7 @@
 import {
   calculateEmployeeAnnualTax,
+  collectEmploymentIncomeConflictMonths,
+  type EmploymentIncomeConflictResponse,
   isEmployeeActiveInTaxMonth,
   isEmployeeActiveInTaxYear,
   type AnnualTaxWithholdingContext,
@@ -131,6 +133,56 @@ const buildYearEntryCalculationSummaryRow = (
   };
 };
 
+const buildEmploymentConflictMessage = (
+  employeeName: string,
+  beforeHireMonths: number[],
+  afterLeaveMonths: number[],
+) => {
+  const segments: string[] = [];
+
+  if (beforeHireMonths.length) {
+    segments.push(`入职前月份：${beforeHireMonths.join("、")} 月`);
+  }
+  if (afterLeaveMonths.length) {
+    segments.push(`离职后月份：${afterLeaveMonths.join("、")} 月`);
+  }
+
+  return `${employeeName} 存在就业月份收入录入冲突，${segments.join("；")}。`;
+};
+
+export const buildEmploymentIncomeConflictResponse = (
+  employee: Pick<NonNullable<ReturnType<typeof employeeRepository.getById>>, "employeeName" | "hireDate" | "leaveDate">,
+  taxYear: number,
+  months: Array<Pick<BatchUpsertEmployeeYearRecordsPayload["months"][number], "taxMonth" | "salaryIncome" | "annualBonus" | "otherIncome">>,
+  acknowledgedEmploymentConflictMonths: number[] = [],
+): EmploymentIncomeConflictResponse | null => {
+  const allConflicts = collectEmploymentIncomeConflictMonths(employee, taxYear, months);
+  const acknowledgedMonthSet = new Set(acknowledgedEmploymentConflictMonths);
+  const conflictMonths = allConflicts.conflictMonths.filter(
+    (taxMonth) => !acknowledgedMonthSet.has(taxMonth),
+  );
+  const beforeHireMonths = allConflicts.beforeHireMonths.filter(
+    (taxMonth) => !acknowledgedMonthSet.has(taxMonth),
+  );
+  const afterLeaveMonths = allConflicts.afterLeaveMonths.filter(
+    (taxMonth) => !acknowledgedMonthSet.has(taxMonth),
+  );
+
+  if (!conflictMonths.length) {
+    return null;
+  }
+
+  return {
+    message: buildEmploymentConflictMessage(employee.employeeName, beforeHireMonths, afterLeaveMonths),
+    conflictType: "employment_income_conflict",
+    conflictMonths,
+    beforeHireMonths,
+    afterLeaveMonths,
+    hireDate: employee.hireDate,
+    leaveDate: employee.leaveDate,
+  };
+};
+
 type ConfirmabilityResult = {
   canConfirm: boolean;
   blockedReason: string | null;
@@ -176,6 +228,15 @@ export class MonthConfirmationConflictError extends Error {
     readonly lockedMonths: number[] = [],
   ) {
     super(message);
+  }
+}
+
+export class EmploymentIncomeConflictError extends Error {
+  readonly conflictResponse: EmploymentIncomeConflictResponse;
+
+  constructor(conflictResponse: EmploymentIncomeConflictResponse) {
+    super(conflictResponse.message);
+    this.conflictResponse = conflictResponse;
   }
 }
 
@@ -315,6 +376,8 @@ export const yearEntryService = {
       employeeId,
       employeeCode: employee.employeeCode,
       employeeName: employee.employeeName,
+      hireDate: employee.hireDate,
+      leaveDate: employee.leaveDate,
       taxYear,
       lockedMonths: monthConfirmationRepository.getLockedMonths(unitId, taxYear),
       months: getEmployeeRecords(unitId, employeeId, taxYear),
@@ -327,6 +390,11 @@ export const yearEntryService = {
     employeeId: number,
     payload: BatchUpsertEmployeeYearRecordsPayload,
   ) {
+    const employee = employeeRepository.getById(employeeId);
+    if (!employee || employee.unitId !== unitId) {
+      throw new Error("employee_not_found");
+    }
+
     const lockedMonths = monthConfirmationRepository.getLockedMonths(unitId, taxYear);
     const targetLockedMonths = payload.months
       .map((item) => item.taxMonth)
@@ -337,6 +405,16 @@ export const yearEntryService = {
 
     if (targetLockedMonths.length) {
       throw new MonthConfirmationConflictError("目标月份已确认，禁止修改。", targetLockedMonths);
+    }
+
+    const employmentConflict = buildEmploymentIncomeConflictResponse(
+      employee,
+      taxYear,
+      payload.months,
+      payload.acknowledgedEmploymentConflictMonths,
+    );
+    if (employmentConflict) {
+      throw new EmploymentIncomeConflictError(employmentConflict);
     }
 
     payload.months.forEach((item) => {

@@ -98,6 +98,22 @@ export type Employee = {
 
 export type EmployeeGeneralStatus = "active" | "left";
 export type EmployeeMonthStatus = "active" | "left_this_month" | "left";
+export type EmploymentIncomeConflictType = "before_hire" | "after_leave";
+export type EmploymentIncomeConflictMonths = {
+  conflictMonths: number[];
+  beforeHireMonths: number[];
+  afterLeaveMonths: number[];
+};
+
+export type EmploymentIncomeConflictResponse = {
+  message: string;
+  conflictType: "employment_income_conflict";
+  conflictMonths: number[];
+  beforeHireMonths: number[];
+  afterLeaveMonths: number[];
+  hireDate: string | null;
+  leaveDate: string | null;
+};
 
 export type CreateEmployeePayload = {
   employeeCode: string;
@@ -204,6 +220,8 @@ export type EmployeeYearRecordWorkspace = {
   employeeId: number;
   employeeCode: string;
   employeeName: string;
+  hireDate: string | null;
+  leaveDate: string | null;
   taxYear: number;
   lockedMonths: number[];
   months: EmployeeMonthRecord[];
@@ -229,6 +247,7 @@ export type UpsertEmployeeMonthRecordPayload = {
   otherDeduction: number;
   taxReductionExemption: number;
   remark?: string;
+  acknowledgedEmploymentConflictMonths?: number[];
 } & EmployeeMonthOtherIncomeFields &
   EmployeeMonthLegacyCompatibilityFields;
 
@@ -238,6 +257,7 @@ export type YearRecordUpsertItem = UpsertEmployeeMonthRecordPayload & {
 
 export type BatchUpsertEmployeeYearRecordsPayload = {
   months: YearRecordUpsertItem[];
+  acknowledgedEmploymentConflictMonths?: number[];
 };
 
 export type CalculationPreparationStatus = "not_started" | "draft" | "ready";
@@ -692,6 +712,8 @@ export {
   hasOtherIncomeEntry,
 } from "./annual-tax-calculator.js";
 export {
+  collectEmploymentIncomeConflictMonths,
+  detectEmploymentIncomeConflictType,
   deriveEmployeeGeneralStatus,
   deriveEmployeeMonthStatus,
   isEmployeeActiveInTaxMonth,

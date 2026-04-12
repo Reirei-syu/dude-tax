@@ -4,6 +4,7 @@ import { employeeRepository } from "../repositories/employee-repository.js";
 import { monthConfirmationRepository } from "../repositories/month-confirmation-repository.js";
 import { monthRecordRepository } from "../repositories/month-record-repository.js";
 import { unitRepository } from "../repositories/unit-repository.js";
+import { buildEmploymentIncomeConflictResponse } from "../services/year-entry-service.js";
 
 const monthRecordPayloadSchema = z.object({
   salaryIncome: z.number().min(0),
@@ -32,6 +33,9 @@ const monthRecordPayloadSchema = z.object({
   supplementaryWithheldTaxAdjustment: z.number().optional(),
   supplementarySourcePeriodLabel: z.string().trim().max(100).optional(),
   supplementaryRemark: z.string().trim().max(300).optional(),
+  acknowledgedEmploymentConflictMonths: z
+    .array(z.number().int().min(1).max(12))
+    .optional(),
 });
 
 const toCanonicalPayload = (payload: z.infer<typeof monthRecordPayloadSchema>) => ({
@@ -124,12 +128,28 @@ export const registerMonthRecordRoutes = async (app: FastifyInstance) => {
         });
       }
 
+      const canonicalPayload = toCanonicalPayload(parsedBody.data);
+      const employmentConflict = buildEmploymentIncomeConflictResponse(
+        employee,
+        taxYear,
+        [
+          {
+            taxMonth,
+            ...canonicalPayload,
+          },
+        ],
+        parsedBody.data.acknowledgedEmploymentConflictMonths,
+      );
+      if (employmentConflict) {
+        return reply.status(409).send(employmentConflict);
+      }
+
       return monthRecordRepository.upsert(
         unitId,
         employeeId,
         taxYear,
         taxMonth,
-        toCanonicalPayload(parsedBody.data),
+        canonicalPayload,
       );
     },
   );

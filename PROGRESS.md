@@ -1,16 +1,23 @@
 # 项目进度与状态
 
 - 更新时间：2026-04-10
+- 更新时间：2026-04-12
 - 项目标识：dude-tax
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：系统维护新增单位备份模块已完成
-- 方案路径：`docs/plans/2026-04-10_unit-backup-module_plan.md`（按已确认实施计划执行）
+- 当前任务：月度录入新增入离职月份收入强提示已完成
+- 方案路径：`docs/plans/2026-04-12_employment-income-conflict-warning_plan.md`
 
 ## 当前轮次目标
 
 - 已完成：
+  - 月度录入工作台新增“入职前 / 离职后收入录入”三选强提示，覆盖保存当前改动、应用到下月、应用到后续月份
+  - `EmployeeYearRecordWorkspace` 已补充 `hireDate` / `leaveDate`
+  - 后端 `/year-record-workspace` 与单月 `/month-records/:taxMonth` 接口新增就业月份收入冲突硬阻断与显式确认放行
+  - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
+  - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
   - 系统维护页新增“单位备份”独立卡片，支持查看纳入年份、最近目录、建议文件名与最近一次成功备份结果
   - 本地 API 新增 `GET /api/units/:unitId/backup-draft` 与 `POST /api/units/:unitId/backup`
   - 备份产物固定为 ZIP，内部包含 `backup.json`，范围限定为当前单位全部年份业务数据与关联税率版本/审计日志
@@ -30,6 +37,8 @@
   - 新增 `scripts/e2e/release-preflight.mjs`，并完成真实发布包主流程回放
   - 修正后的 `desktop-full-chain-soak.mjs` 已完成严格 60 分钟单次复跑
 - 本轮修复：
+  - 修复员工在入职前月份、离职后月份仍能静默保存收入的问题
+  - 新增“跳过异常月份，仅保存/复制合法月份”的快捷分支，减少手工回退
   - 新增单位维度 ZIP 备份能力，避免只能整库处理而无法单独按单位归档
   - 修复桌面端缺少“仅选路径不直接写文件”桥接的问题
   - 将备份文件名中的 Windows 非法字符统一安全化，避免保存失败
@@ -42,6 +51,10 @@
 
 ## 本轮修改
 
+- 就业月份收入冲突提示：
+  - `packages/core` 新增入离职月份收入冲突判定能力与冲突月份聚合结果
+  - `apps/api` 新增 `EmploymentIncomeConflictError` 与 409 结构化冲突响应
+  - `apps/desktop` 新增自定义三选弹层、工作台本地预检与“仅处理合法月份”分支
 - 单位备份模块：
   - `packages/core` 新增单位备份协议类型、清单结构与摘要计数
   - `apps/api` 新增 `unit-backup-service.ts`，负责草稿信息、数据抽取、`backup.json` 写入、PowerShell `Compress-Archive` 压缩和最近目录持久化
@@ -84,6 +97,8 @@
 
 - 当前主任务进度：100%
 - 已完成：
+  - 就业月份收入强提示 core / api / desktop 全链路落地
+  - 入离职月份冲突测试、后端阻断测试、页面强提示测试全部转绿
   - 单位备份草稿接口、执行接口、Electron 桥接与系统维护卡片落地
   - 单位备份 API / Desktop 失败测试先行补齐并全部转绿
   - 年度结果版本历史去重修复
@@ -99,6 +114,12 @@
 
 ## 验证结果
 
+- `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
+- `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
+- `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
+- `npm run typecheck --workspaces --if-present`
+- `npm run build:api`
+- `npm run build:desktop`
 - `npm run test --workspace @dude-tax/api -- unit-backup.test.ts`
 - `npm run test --workspace @dude-tax/desktop -- maintenance-page.test.ts api/client.test.ts`
 - `npm run typecheck --workspace @dude-tax/api`
@@ -126,6 +147,8 @@
 
 ## 风险备注
 
+- 就业月份收入冲突提示当前只覆盖“工资收入 / 年终奖 / 其他收入”三类字段；预扣税额与扣除项仍不触发强提示，这是当前明确口径。
+- 当前桌面前端已做本地预检，后端也做硬阻断；如果未来导入模块也要复用同规则，建议抽到导入链路统一校验。
 - 单位备份 ZIP 当前依赖 Windows PowerShell `Compress-Archive`；符合现阶段 Windows-only 交付目标，但未来若扩到 macOS/Linux 需替换为跨平台压缩实现。
 - 单位备份本期仅做导出，不含恢复链路；恢复能力仍需后续单独设计与验收。
 - 发布前全面 E2E 已通过，但 `vite build` 仍有 bundle 过大 warning，当前不阻断发布。
@@ -136,6 +159,8 @@
 
 ## Lessons Learned
 
+- 这种“用户可继续，但必须强知情”的规则不适合用原生 `window.confirm`；一旦需要“继续 / 跳过 / 取消”三选，最好直接上自定义弹层。
+- 前端本地强提示和后端硬阻断必须共享同一套月份判定口径，否则很容易出现“前端允许、后端拒绝”或相反的分叉。
 - Windows-only 桌面能力优先复用 PowerShell 原生命令，先保证零新增依赖和可交付，再考虑跨平台抽象。
 - “选路径”和“写文件”需要分离；备份这类由后端生成内容的场景，不应复用前端直接写字节流的导出桥接。
 - 单位级备份若不追溯关联税率版本，后续恢复会丢失语义；至少要沿 `scope version id + policy_signature` 回收关联版本。
