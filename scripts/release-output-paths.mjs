@@ -1,7 +1,7 @@
 import path from "node:path";
 import process from "node:process";
 
-export const LOCAL_RELEASE_OUTPUT_ROOT = "D:\\coding\\completed";
+export const LOCAL_RELEASE_OUTPUT_ROOT = "D:\\coding\\completed\\dude-tax";
 export const INSTALLER_FILENAME = "dude-tax-installer-x64.exe";
 export const PACKAGED_APP_DIRNAME = "dude-tax-win32-x64";
 
