@@ -3,16 +3,21 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
+import {
+  INSTALLER_FILENAME,
+  resolveInstallerOutputDir,
+  resolvePackagedAppDir,
+} from "./release-output-paths.mjs";
 
 const execFileAsync = promisify(execFile);
 
 const projectRoot = process.cwd();
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-const packageDir = path.join(projectRoot, "dist-electron", "dude-tax-win32-x64");
+const packageDir = resolvePackagedAppDir(projectRoot);
 const installerScriptTemplatePath = path.join(projectRoot, "scripts", "installer", "dude-tax.iss");
-const installerOutputDir = path.join(projectRoot, "dist-electron", "installer");
+const installerOutputDir = resolveInstallerOutputDir(projectRoot);
 const installerScriptPath = path.join(installerOutputDir, "dude-tax.generated.iss");
-const outputBaseFilename = "dude-tax-installer-x64";
+const outputBaseFilename = INSTALLER_FILENAME.replace(/\.exe$/i, "");
 const setupIconPath = path.join(projectRoot, "apps", "desktop", "assets", "app-icon.ico");
 
 const detectIscc = async () => {

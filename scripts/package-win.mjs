@@ -3,12 +3,17 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
+import {
+  resolvePackagedAppDir,
+  resolveReleaseOutputRoot,
+} from "./release-output-paths.mjs";
 import packager from "@electron/packager";
 
 const execFileAsync = promisify(execFile);
 
 const projectRoot = process.cwd();
-const outputDir = path.join(projectRoot, "dist-electron");
+const outputDir = resolveReleaseOutputRoot(projectRoot);
+const packagedAppDir = resolvePackagedAppDir(projectRoot);
 const iconPath = path.join(projectRoot, "apps", "desktop", "assets", "app-icon.ico");
 const desktopPackageJson = JSON.parse(
   await readFile(path.join(projectRoot, "apps", "desktop", "package.json"), "utf8"),
@@ -16,7 +21,7 @@ const desktopPackageJson = JSON.parse(
 const electronVersion =
   desktopPackageJson?.devDependencies?.electron?.replace(/^[^\d]*/, "") ?? "37.5.1";
 
-await rm(outputDir, { recursive: true, force: true });
+await rm(packagedAppDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
 const prebuildInstallCli = path.join(

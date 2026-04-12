@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    env:
+      DUDE_TAX_PACKAGE_OUTPUT_DIR: ${{ github.workspace }}\release-output
 
     steps:
       - name: Checkout repository
@@ -41,7 +43,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $installer = "dist-electron/installer/dude-tax-installer-x64.exe"
+          $installer = "${env:DUDE_TAX_PACKAGE_OUTPUT_DIR}\dude-tax-installer-x64.exe"
           $isPreRelease = $tag.Contains("alpha") -or $tag.Contains("beta") -or $tag.Contains("rc")
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
@@ -60,7 +62,7 @@ jobs:
         shell: pwsh
         run: |
           $rollingTag = "installer-latest"
-          $installer = "dist-electron/installer/dude-tax-installer-x64.exe"
+          $installer = "${env:DUDE_TAX_PACKAGE_OUTPUT_DIR}\dude-tax-installer-x64.exe"
           gh release view $rollingTag *> $null
           if ($LASTEXITCODE -ne 0) {
             gh release create $rollingTag $installer --title "Latest Installer" --notes "Stable URL for the latest Windows installer."
