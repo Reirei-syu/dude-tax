@@ -1,6 +1,6 @@
 {
   "name": "dude-tax",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha",
   "private": true,
   "main": "apps/desktop/electron/main.cjs",
   "workspaces": [
@@ -11,10 +11,12 @@
     "build:api": "npm run build --workspace @dude-tax/api",
     "dev": "concurrently -k \"npm run dev --workspace @dude-tax/api\" \"npm run dev --workspace @dude-tax/desktop\"",
     "build:desktop": "npm run build --workspace @dude-tax/desktop",
+    "package:installer": "node scripts/build-installer.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint-staged": "lint-staged",
     "package:win": "npm run build:api && npm run build:desktop && node scripts/package-win.mjs",
+    "release:win": "npm run package:win && npm run package:installer",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

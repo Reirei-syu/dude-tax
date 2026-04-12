@@ -25,10 +25,15 @@ const prebuildInstallCli = path.join(
   "prebuild-install",
   "bin.js",
 );
-const npmCliPath = process.env.npm_execpath;
 
-try {
-  await execFileAsync(process.execPath, [
+const prepareBetterSqliteForElectron = (
+  buildPath,
+  _packagedElectronVersion,
+  _platform,
+  _arch,
+  callback,
+) => {
+  execFileAsync(process.execPath, [
     prebuildInstallCli,
     "--runtime",
     "electron",
@@ -40,51 +45,52 @@ try {
     "win32",
     "--force",
   ], {
-    cwd: path.join(projectRoot, "node_modules", "better-sqlite3"),
-  });
+    cwd: path.join(buildPath, "node_modules", "better-sqlite3"),
+  })
+    .then(() => callback())
+    .catch((error) => callback(error));
+};
 
-  await packager({
-    dir: projectRoot,
-    name: "dude-tax",
-    executableName: "dude-tax",
-    icon: iconPath,
-    out: outputDir,
-    overwrite: true,
-    platform: "win32",
-    arch: "x64",
-    asar: false,
-    derefSymlinks: true,
-    prune: false,
-    electronVersion,
-    ignore: [
-      /^\/dist-electron($|\/)/,
-      /^\/\.git($|\/)/,
-      /^\/coverage($|\/)/,
-      /^\/tmp($|\/)/,
-      /^\/data\/test($|\/)/,
-      /^\/docs\/plans($|\/)/,
-      /^\/apps\/api\/src($|\/)/,
-      /^\/packages\/core($|\/)/,
-      /^\/packages\/config($|\/)/,
-    ],
-    win32metadata: {
-      CompanyName: "dude-tax",
-      FileDescription: "dude-tax desktop",
-      ProductName: "dude-tax",
-    },
-  });
+await packager({
+  dir: projectRoot,
+  name: "dude-tax",
+  executableName: "dude-tax",
+  icon: iconPath,
+  out: outputDir,
+  overwrite: true,
+  platform: "win32",
+  arch: "x64",
+  asar: false,
+  derefSymlinks: true,
+  prune: false,
+  electronVersion,
+  afterCopy: [prepareBetterSqliteForElectron],
+  ignore: [
+    /^\/dist-electron($|\/)/,
+    /^\/\.git($|\/)/,
+    /^\/\.github($|\/)/,
+    /^\/\.codex($|\/)/,
+    /^\/coverage($|\/)/,
+    /^\/tmp($|\/)/,
+    /^\/data($|\/)/,
+    /^\/docs($|\/)/,
+    /^\/scripts($|\/)/,
+    /^\/AGENTS\.md$/,
+    /^\/PENDING_GOALS\.md$/,
+    /^\/PROGRESS\.md$/,
+    /^\/PROJECT_SPEC\.md$/,
+    /^\/prd\.md$/,
+    /^\/package-lock\.json$/,
+    /^\/apps\/api\/src($|\/)/,
+    /^\/apps\/desktop\/src($|\/)/,
+    /^\/packages\/core($|\/)/,
+    /^\/packages\/config($|\/)/,
+  ],
+  win32metadata: {
+    CompanyName: "dude-tax",
+    FileDescription: "dude-tax desktop",
+    ProductName: "dude-tax",
+  },
+});
 
-  process.stdout.write(`Windows test package output: ${outputDir}\n`);
-} finally {
-  if (npmCliPath) {
-    await execFileAsync(process.execPath, [
-      npmCliPath,
-      "rebuild",
-      "better-sqlite3",
-      "--workspace",
-      "@dude-tax/api",
-    ], {
-      cwd: projectRoot,
-    });
-  }
-}
+process.stdout.write(`Windows test package output: ${outputDir}\n`);

@@ -1,4 +1,7 @@
+const path = require("node:path");
 const { contextBridge, ipcRenderer } = require("electron");
+
+const rootPackageJson = require(path.join(__dirname, "..", "..", "..", "package.json"));
 
 const readRuntimeArgument = (key) => {
   const prefix = `--${key}=`;
@@ -7,7 +10,7 @@ const readRuntimeArgument = (key) => {
 };
 
 contextBridge.exposeInMainWorld("salaryTaxDesktop", {
-  version: "0.1.0",
+  version: rootPackageJson.version,
   runtimeConfig: {
     apiBaseUrl: readRuntimeArgument("salary-tax-api-base-url"),
     managedApi: readRuntimeArgument("salary-tax-managed-api") === "1",

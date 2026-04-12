@@ -6,6 +6,34 @@
 
 ## 任务列表
 
+### [x] Windows 安装包首发与 GitHub Release 发布链路
+
+- 类型：Feature
+- 模块：`scripts` / `.github` / `apps/desktop` / `apps/api` / `packages/*`
+- 描述：为项目建立 Windows 安装包首发链路，生成首个 `.exe` 安装包，并配置 GitHub Release 与稳定下载链接。
+- 依赖：无
+- 风险：高
+- 优先级：2
+- 完成时间：2026-04-13
+- 修改文件：
+  - `package.json`
+  - `apps/api/package.json`
+  - `apps/desktop/package.json`
+  - `packages/core/package.json`
+  - `packages/config/package.json`
+  - `apps/desktop/electron/preload.cjs`
+  - `scripts/package-win.mjs`
+  - `scripts/build-installer.mjs`
+  - `scripts/installer/dude-tax.iss`
+  - `.github/workflows/windows-release.yml`
+  - `PROGRESS.md`
+  - `docs/tasks.md`
+  - `docs/context/latest_context.md`
+- 影响范围：
+  - 统一项目版本为 `0.1.0-alpha`
+  - 本地可通过 `npm run release:win` 生成 Windows 安装包
+  - GitHub 可通过固定 release tag `installer-latest` 提供稳定下载链接
+
 ### [x] 员工信息模块编辑弹窗与四态状态优化
 
 - 类型：Feature

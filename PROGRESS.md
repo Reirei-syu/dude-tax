@@ -5,12 +5,20 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：员工信息模块编辑弹窗与四态状态优化已完成
-- 方案路径：`docs/plans/2026-04-12_employee-management-edit-status-plan.md`
+- 当前任务：Windows 安装包首发与 GitHub Release 发布已完成
+- 方案路径：无（按发布链路直接执行）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 根工作区与各 package 版本统一为 `0.1.0-alpha`
+  - Electron preload 暴露的桌面端版本改为动态读取根 `package.json`
+  - 新增 `scripts/build-installer.mjs` 与 `scripts/installer/dude-tax.iss`
+  - 新增 GitHub Actions 工作流 `.github/workflows/windows-release.yml`
+  - `npm run release:win` 已通过，生成本地 Windows 安装包
+  - 安装包产物：`dist-electron/installer/dude-tax-installer-x64.exe`
+  - 安装包 SHA256：`17E9F4A433141AD8820DB17CDF27F162BFAF6C53016EA600DAD00AA8CC962928`
+  - 已约定稳定下载资产名：`dude-tax-installer-x64.exe`
   - 员工信息模块已改为“新增员工卡片 + 编辑员工独立对话框”双态结构，不再复用同一张表单卡片
   - `packages/core` 新增 `EmployeeRosterStatusKind` 与 `deriveEmployeeRosterStatus(employee, taxYear)`
   - 员工列表已按当前选中税年显示“YYYY-MM-DD入职 / 在职 / YYYY-MM-DD离职 / 已离职”四态
@@ -64,6 +72,11 @@
 
 ## 本轮修改
 
+- 发布链路：
+  - 统一根项目、`apps/api`、`apps/desktop`、`packages/core`、`packages/config` 版本为 `0.1.0-alpha`
+  - 新增 Inno Setup 安装包脚本，沿用 `package:win` 产物生成真正的安装器 `.exe`
+  - `scripts/package-win.mjs` 改为在 Electron 打包临时副本内替换 `better-sqlite3` Electron ABI，避免 Windows 文件锁
+  - GitHub Actions 新增 Windows Release 工作流，发布版本 tag 资产并同步滚动更新 `installer-latest` 稳定下载入口
 - 员工信息模块：
   - `packages/core` 新增员工列表四态状态类型与按税年派生函数
   - `apps/desktop` 新增 `EmployeeEditDialog`，将已有员工编辑迁移到独立对话框
@@ -133,6 +146,10 @@
 
 ## 验证结果
 
+- `npm run test --workspaces --if-present`
+- `npm run typecheck --workspaces --if-present`
+- `npm run release:win`
+- `Get-FileHash dist-electron\\installer\\dude-tax-installer-x64.exe -Algorithm SHA256`
 - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
 - `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
 - `npm run typecheck --workspace @dude-tax/core`
@@ -173,6 +190,8 @@
 
 ## 风险备注
 
+- GitHub Actions 的 Windows Release 工作流依赖 `windows-latest` 上可用的 Chocolatey 安装 Inno Setup；若 runner 镜像策略变化，需要同步调整安装命令。
+- 当前稳定下载链接采用滚动 release tag `installer-latest`，后续更新安装包时必须继续使用同名资产 `dude-tax-installer-x64.exe`。
 - 员工编辑弹窗目前以源码断言和纯函数测试为主，尚未补真实 Electron 壳交互 smoke。
 - “隐藏已离职员工”当前仅在页面内存态生效，刷新页面后恢复默认显示，这是本轮有意保持的最小实现。
 - 就业月份收入冲突提示当前只覆盖“工资收入 / 年终奖 / 其他收入”三类字段；预扣税额与扣除项仍不触发强提示，这是当前明确口径。
@@ -187,6 +206,8 @@
 
 ## Lessons Learned
 
+- 在 Windows 上直接改动仓库根目录的 `better-sqlite3` Electron 预编译二进制非常容易撞到文件锁；正确做法是在打包临时副本里替换 ABI。
+- 如果希望 GitHub 下载链接长期不变，不应依赖 `releases/latest` 对 prerelease 的语义，而应维护一个固定 tag 的滚动 release。
 - 这类“新增态”和“编辑态”共存的页面，最好在首次复杂化时就拆成独立状态源，否则列表选中、高亮、错误提示会互相污染。
 - 与“自然月状态”不同，员工主档状态更适合封装成“相对当前税年”的纯函数，页面只消费结果，避免年份切换后多处规则漂移。
 - 这种“用户可继续，但必须强知情”的规则不适合用原生 `window.confirm`；一旦需要“继续 / 跳过 / 取消”三选，最好直接上自定义弹层。
