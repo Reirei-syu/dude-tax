@@ -1,5 +1,6 @@
 import type { YearRecordUpsertItem } from "@dude-tax/core";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { FloatingWorkspaceDialog } from "./FloatingWorkspaceDialog";
 import {
   YEAR_RECORD_DEDUCTION_FIELDS,
   YEAR_RECORD_INCOME_TEXT_FIELDS,
@@ -53,7 +54,6 @@ export const YearRecordWorkspaceDialog = ({
   primaryActionDisabled = false,
   onPrimaryAction,
 }: Props) => {
-  const [isMaximized, setIsMaximized] = useState(true);
   const lockedMonthSet = useMemo(() => new Set(lockedMonths), [lockedMonths]);
   const visibleIncomeFields = useMemo(
     () => getVisibleYearRecordIncomeFields(hiddenFieldKeys),
@@ -65,27 +65,21 @@ export const YearRecordWorkspaceDialog = ({
   }
 
   return (
-    <div className="workspace-overlay">
-      <div className={isMaximized ? "workspace-dialog is-maximized" : "workspace-dialog"}>
-        <div className="workspace-header">
-          <div>
-            <h2>{title}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
-          </div>
-          <div className="button-row compact">
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => setIsMaximized((currentValue) => !currentValue)}
-            >
-              {isMaximized ? "还原窗口" : "最大化"}
-            </button>
-            <button className="ghost-button" type="button" onClick={onClose}>
-              关闭
-            </button>
-          </div>
-        </div>
-
+    <FloatingWorkspaceDialog
+      open={open}
+      scope="dialog:year-record-workspace"
+      title={title}
+      subtitle={subtitle}
+      defaultLayout={{
+        x: 32,
+        y: 32,
+        width: 1480,
+        height: 920,
+        isMaximized: true,
+      }}
+      onClose={onClose}
+    >
+      <>
         <div className="workspace-toolbar">
           <span className="tag">当前月份：{selectedMonth} 月</span>
           {!readOnly ? (
@@ -215,7 +209,7 @@ export const YearRecordWorkspaceDialog = ({
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+      </>
+    </FloatingWorkspaceDialog>
   );
 };

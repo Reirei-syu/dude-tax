@@ -23,6 +23,7 @@ import type {
   ImportPreviewResponse,
   ImportType,
   MonthConfirmationState,
+  NavigationOrderResponse,
   QuickCalculatePayload,
   TaxPolicyResponse,
   TaxPolicySaveResponse,
@@ -31,10 +32,15 @@ import type {
   TaxPolicyVersionImpactPreview,
   CreateUnitBackupPayload,
   CreateUnitBackupResponse,
+  FloatingDialogLayout,
   UnitBackupDraftResponse,
   Unit,
   UpdateAnnualResultSelectedSchemePayload,
   UpsertEmployeeMonthRecordPayload,
+  WorkspaceCardLayout,
+  WorkspaceDialogScope,
+  WorkspaceLayoutState,
+  WorkspacePageScope,
   YearEntryCalculationResponse,
   YearEntryOverviewResponse,
 } from "@dude-tax/core";
@@ -82,6 +88,65 @@ export const apiClient = {
     return request<AppContext>("/api/context", {
       method: "PUT",
       body: JSON.stringify(payload),
+    });
+  },
+
+  getSidebarPreference() {
+    return request<{ collapsed: boolean }>("/api/ui-preferences/sidebar");
+  },
+
+  updateSidebarPreference(collapsed: boolean) {
+    return request<{ collapsed: boolean }>("/api/ui-preferences/sidebar", {
+      method: "PUT",
+      body: JSON.stringify({ collapsed }),
+    });
+  },
+
+  getNavigationOrderPreference() {
+    return request<NavigationOrderResponse>("/api/ui-preferences/navigation-order");
+  },
+
+  updateNavigationOrderPreference(order: string[]) {
+    return request<NavigationOrderResponse>("/api/ui-preferences/navigation-order", {
+      method: "PUT",
+      body: JSON.stringify({ order }),
+    });
+  },
+
+  getWorkspaceLayout(scope: WorkspacePageScope) {
+    return request<WorkspaceLayoutState>(`/api/ui-preferences/layouts/${scope}`);
+  },
+
+  updateWorkspaceLayout(scope: WorkspacePageScope, cards: WorkspaceCardLayout[]) {
+    return request<WorkspaceLayoutState>(`/api/ui-preferences/layouts/${scope}`, {
+      method: "PUT",
+      body: JSON.stringify({ cards }),
+    });
+  },
+
+  resetWorkspaceLayout(scope: WorkspacePageScope) {
+    return request<{ success: boolean }>(`/api/ui-preferences/layouts/${scope}`, {
+      method: "DELETE",
+    });
+  },
+
+  getFloatingDialogLayout(scope: WorkspaceDialogScope) {
+    return request<FloatingDialogLayout | null>(`/api/ui-preferences/dialogs/${scope}`);
+  },
+
+  updateFloatingDialogLayout(
+    scope: WorkspaceDialogScope,
+    layout: Omit<FloatingDialogLayout, "scope">,
+  ) {
+    return request<FloatingDialogLayout>(`/api/ui-preferences/dialogs/${scope}`, {
+      method: "PUT",
+      body: JSON.stringify(layout),
+    });
+  },
+
+  resetFloatingDialogLayout(scope: WorkspaceDialogScope) {
+    return request<{ success: boolean }>(`/api/ui-preferences/dialogs/${scope}`, {
+      method: "DELETE",
     });
   },
 

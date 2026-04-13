@@ -13,6 +13,7 @@ import { AnnualTaxResultDialog } from "../components/AnnualTaxResultDialog";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
 import { EmploymentIncomeConflictDialog } from "../components/EmploymentIncomeConflictDialog";
 import { ImportWorkflowSection } from "../components/ImportWorkflowSection";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { YearEntryEmployeeSelectionDialog } from "../components/YearEntryEmployeeSelectionDialog";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
@@ -163,7 +164,6 @@ export const MonthRecordEntryPage = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectionDialogOpen, setSelectionDialogOpen] = useState(false);
-  const [isEmployeeListCollapsed, setIsEmployeeListCollapsed] = useState(false);
   const [isResultListCollapsed, setIsResultListCollapsed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
@@ -503,7 +503,7 @@ export const MonthRecordEntryPage = () => {
           mode: withholdingMode,
         },
       });
-      setNoticeMessage("年度录入计算已完成，可前往结果确认模块继续确认。");
+      setNoticeMessage("年度录入计算已完成，可前往缴纳确认模块继续确认。");
       setIsResultListCollapsed(false);
       await loadPageData();
     } catch (error) {
@@ -568,269 +568,282 @@ export const MonthRecordEntryPage = () => {
 
   if (!currentUnitId || !currentTaxYear) {
     return (
-      <section className="page-grid">
-        <CollapsibleSectionCard
-          className="placeholder-card"
-          description="请先在顶部选择单位和年份，再进入月度数据录入模块。"
-          headingTag="h1"
-          title="月度数据录入"
-        />
-      </section>
+      <WorkspaceLayoutRoot scope="page:entry">
+        <WorkspaceCanvas className="month-entry-page">
+          <WorkspaceItem cardId="entry-overview" defaultLayout={{ x: 0, y: 0, w: 12, h: 10 }} minH={8}>
+            <CollapsibleSectionCard
+              cardId="entry-overview"
+              className="placeholder-card"
+              description="请先在顶部选择单位和年份，再进入月度数据录入模块。"
+              headingTag="h1"
+              title="月度数据手工录入"
+            />
+          </WorkspaceItem>
+        </WorkspaceCanvas>
+      </WorkspaceLayoutRoot>
     );
   }
 
   return (
-    <section className="page-grid month-entry-page">
-      <CollapsibleSectionCard
-        className="placeholder-card"
-        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
-        headingTag="h1"
-        headerExtras={<span className="tag">{loading ? "加载中" : "全年录入与计算"}</span>}
-        title="月度数据录入"
-      >
-        <div className="form-grid">
-          <label className="form-field">
-            <span>预扣模式</span>
-            <select
-              value={withholdingMode}
-              onChange={(event) =>
-                setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
-              }
-            >
-              {YEAR_ENTRY_WITHHOLDING_MODES.map(([mode, label]) => (
-                <option key={mode} value={mode}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span>全部有效员工</span>
-            <strong>{overview?.totalEffectiveEmployeeCount ?? 0}</strong>
-          </div>
-          <div className="summary-card">
-            <span>当前已选员工</span>
-            <strong>{selectedEmployeeIds.length}</strong>
-          </div>
-          <div className="summary-card">
-            <span>当前结果覆盖</span>
-            <strong>
-              {currentResultCoverage.calculatedEmployeeCount}/
-              {currentResultCoverage.totalEffectiveEmployeeCount}
-            </strong>
-          </div>
-        </div>
-
-        <div className="button-row">
-          <button
-            className="ghost-button"
-            disabled={saving || !(overview?.employees.length ?? 0)}
-            type="button"
-            onClick={() => setSelectionDialogOpen(true)}
+    <WorkspaceLayoutRoot scope="page:entry">
+      <WorkspaceCanvas className="month-entry-page">
+        <WorkspaceItem
+          cardId="entry-overview"
+          defaultLayout={{ x: 0, y: 0, w: 12, h: 24 }}
+          minH={18}
+        >
+          <CollapsibleSectionCard
+            cardId="entry-overview"
+            className="placeholder-card"
+            description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+            headingTag="h1"
+            headerExtras={<span className="tag">{loading ? "加载中" : "全年录入与计算"}</span>}
+            title="月度数据手工录入"
           >
-            选择员工
-          </button>
-          <button
-            className="primary-button"
-            disabled={saving || !selectedEmployeeIds.length}
-            type="button"
-            onClick={() => void handleCalculate()}
-          >
-            执行计算
-          </button>
-        </div>
+            <div className="form-grid">
+              <label className="form-field">
+                <span>预扣模式</span>
+                <select
+                  value={withholdingMode}
+                  onChange={(event) =>
+                    setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
+                  }
+                >
+                  {YEAR_ENTRY_WITHHOLDING_MODES.map(([mode, label]) => (
+                    <option key={mode} value={mode}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        {selectedEmployeeIds.length < (overview?.totalEffectiveEmployeeCount ?? 0) ? (
-          <div className="error-banner">
-            当前名单未覆盖全部有效员工，结果确认模块将禁止确认当前月份。
-          </div>
-        ) : null}
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-        {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
-      </CollapsibleSectionCard>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <span>全部有效员工</span>
+                <strong>{overview?.totalEffectiveEmployeeCount ?? 0}</strong>
+              </div>
+              <div className="summary-card">
+                <span>当前已选员工</span>
+                <strong>{selectedEmployeeIds.length}</strong>
+              </div>
+              <div className="summary-card">
+                <span>当前结果覆盖</span>
+                <strong>
+                  {currentResultCoverage.calculatedEmployeeCount}/
+                  {currentResultCoverage.totalEffectiveEmployeeCount}
+                </strong>
+              </div>
+            </div>
 
-      <ImportWorkflowSection
-        title="月度数据批量导入"
-        description="在月度数据录入模块内完成模板下载、导入预览、冲突处理和执行导入。"
-        importType="month_record"
-        canOperate={Boolean(currentUnitId && currentTaxYear)}
-        currentUnitId={currentUnitId}
-        scopeTaxYear={currentTaxYear}
-        downloadButtonLabel="下载月度模板"
-        groupTitle="月度批量导入工作区"
-        groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
-        defaultCollapsed={true}
-        defaultConflictStrategy="overwrite"
-        onDownloadTemplate={() =>
-          downloadMonthRecordImportTemplateWorkbook(
-            currentUnitId as number,
-            currentTaxYear as number,
-          )
-        }
-        onImportCommitted={() => loadPageData()}
-      />
+            <div className="button-row">
+              <button
+                className="ghost-button"
+                disabled={saving || !(overview?.employees.length ?? 0)}
+                type="button"
+                onClick={() => setSelectionDialogOpen(true)}
+              >
+                选择员工
+              </button>
+              <button
+                className="primary-button"
+                disabled={saving || !selectedEmployeeIds.length}
+                type="button"
+                onClick={() => void handleCalculate()}
+              >
+                执行计算
+              </button>
+            </div>
 
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h2>员工编辑列表</h2>
-            <p>按全年视角编辑在库员工数据，点击“编辑”进入年度工作台。</p>
-          </div>
-          <div className="button-row compact">
-            <span className="tag">{selectedEmployees.length} 人</span>
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => setIsEmployeeListCollapsed((currentValue) => !currentValue)}
-            >
-              {isEmployeeListCollapsed ? "展开" : "折叠"}
-            </button>
-          </div>
-        </div>
+            {selectedEmployeeIds.length < (overview?.totalEffectiveEmployeeCount ?? 0) ? (
+              <div className="error-banner">
+                当前名单未覆盖全部有效员工，缴纳确认模块将禁止确认当前月份。
+              </div>
+            ) : null}
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+            {noticeMessage ? <div className="success-banner">{noticeMessage}</div> : null}
 
-        {!isEmployeeListCollapsed ? (
-          <table className="data-table month-entry-overview-table">
-            <thead>
-              <tr>
-                <th>工号</th>
-                <th>姓名</th>
-                <th>状态</th>
-                <th>已录入月份</th>
-                <th>未编辑月份</th>
-              </tr>
-            </thead>
-            <tbody>
-              {selectedEmployees.length ? (
-                selectedEmployees.map((employee) => (
-                  <tr
-                    key={employee.employeeId}
-                    className="selectable-row"
-                    onClick={() => void openWorkspace(employee.employeeId)}
-                  >
-                    <td>{employee.employeeCode}</td>
-                    <td>
-                      <div className="table-inline-actions">
-                        <button
-                          className="ghost-button table-action-button"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void openWorkspace(employee.employeeId);
-                          }}
+            <div className="section-header compact-section-header">
+              <div>
+                <h2>年度员工列表</h2>
+                <p>按全年视角编辑在库员工数据，点击“编辑”进入年度工作台。</p>
+              </div>
+              <span className="tag">{selectedEmployees.length} 人</span>
+            </div>
+
+            <table className="data-table month-entry-overview-table">
+              <thead>
+                <tr>
+                  <th>工号</th>
+                  <th>姓名</th>
+                  <th>状态</th>
+                  <th>已录入月份</th>
+                  <th>未编辑月份</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedEmployees.length ? (
+                  selectedEmployees.map((employee) => (
+                    <tr
+                      key={employee.employeeId}
+                      className="selectable-row"
+                      onClick={() => void openWorkspace(employee.employeeId)}
+                    >
+                      <td>{employee.employeeCode}</td>
+                      <td>
+                        <div className="table-inline-actions">
+                          <button
+                            className="ghost-button table-action-button"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void openWorkspace(employee.employeeId);
+                            }}
+                          >
+                            编辑
+                          </button>
+                          <span>{employee.employeeName}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={employee.employeeGroup === "active" ? "tag" : "tag tag-warning"}
                         >
-                          编辑
-                        </button>
-                        <span>{employee.employeeName}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={employee.employeeGroup === "active" ? "tag" : "tag tag-warning"}
-                      >
-                        {employee.employeeGroup === "active" ? "在职" : "本年离职"}
-                      </span>
-                    </td>
-                    <td>{employee.recordedMonthCount}</td>
-                    <td>
-                      {employee.uneditedMonths.length ? employee.uneditedMonths.join("、") : "-"}
-                    </td>
+                          {employee.employeeGroup === "active" ? "在职" : "本年离职"}
+                        </span>
+                      </td>
+                      <td>{employee.recordedMonthCount}</td>
+                      <td>
+                        {employee.uneditedMonths.length ? employee.uneditedMonths.join("、") : "-"}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5}>当前名单没有可编辑员工，请先通过“选择员工”调整名单。</td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5}>当前名单没有可编辑员工，请先通过“选择员工”调整名单。</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        ) : null}
-      </article>
+                )}
+              </tbody>
+            </table>
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
 
-      <article className="glass-card page-section placeholder-card">
-        <div className="section-header">
-          <div>
-            <h2>计算结果汇总</h2>
-            <p>展示当前已计算快照，可直接进入员工计算结果明细。</p>
-          </div>
-          <div className="button-row compact">
-            <span className="tag">{resultSummaryRows.length} 条结果</span>
-            <button
-              className="ghost-button"
-              disabled={saving || !resultSummaryRows.length}
-              type="button"
-              onClick={() => void downloadWorkbook()}
-            >
-              导出当前结果
-            </button>
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => setIsResultListCollapsed((currentValue) => !currentValue)}
-            >
-              {isResultListCollapsed ? "展开" : "折叠"}
-            </button>
-          </div>
-        </div>
+        <WorkspaceItem
+          cardId="entry-import"
+          defaultLayout={{ x: 0, y: 24, w: 12, h: 14 }}
+          minH={12}
+        >
+          <ImportWorkflowSection
+            title="月度数据批量导入"
+            description="在月度数据录入模块内完成模板下载、导入预览、冲突处理和执行导入。"
+            importType="month_record"
+            canOperate={Boolean(currentUnitId && currentTaxYear)}
+            currentUnitId={currentUnitId}
+            scopeTaxYear={currentTaxYear}
+            downloadButtonLabel="下载月度模板"
+            groupTitle="月度批量导入工作区"
+            groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
+            defaultCollapsed={true}
+            defaultConflictStrategy="overwrite"
+            onDownloadTemplate={() =>
+              downloadMonthRecordImportTemplateWorkbook(
+                currentUnitId as number,
+                currentTaxYear as number,
+              )
+            }
+            onImportCommitted={() => loadPageData()}
+          />
+        </WorkspaceItem>
 
-        {!isResultListCollapsed ? (
-          <table className="data-table month-entry-overview-table">
-            <thead>
-              <tr>
-                <th>工号</th>
-                <th aria-label="明细操作"></th>
-                <th>姓名</th>
-                <th>本年税额</th>
-                <th>末月税率</th>
-                <th>采用方案</th>
-                <th>年终奖税额</th>
-                <th>年终奖税率</th>
-                <th>另一方案应扣税额</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultSummaryRows.length ? (
-                resultSummaryRows.map((row) => (
-                  <tr
-                    key={row.employeeId}
-                    className="selectable-row"
-                    onClick={() => setDetailEmployeeId(row.employeeId)}
-                  >
-                    <td>{row.employeeCode}</td>
-                    <td className="table-action-cell">
-                      <button
-                        className="ghost-button table-action-button"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setDetailEmployeeId(row.employeeId);
-                        }}
-                      >
-                        明细
-                      </button>
-                    </td>
-                    <td>{row.employeeName}</td>
-                    <td>{formatCurrency(row.cumulativeExpectedWithheldTax)}</td>
-                    <td>{row.lastAppliedRate === null ? "-" : `${row.lastAppliedRate}%`}</td>
-                    <td>{taxCalculationSchemeLabelMap[row.selectedScheme]}</td>
-                    <td>
-                      {row.annualBonusTax === null ? "-" : formatCurrency(row.annualBonusTax)}
-                    </td>
-                    <td>{row.annualBonusRate === null ? "-" : `${row.annualBonusRate}%`}</td>
-                    <td>{formatCurrency(row.alternativeTaxAmount)}</td>
+        <WorkspaceItem
+          cardId="entry-result-summary"
+          defaultLayout={{ x: 0, y: 38, w: 12, h: 18 }}
+          minH={14}
+        >
+          <article className="glass-card page-section placeholder-card">
+            <div className="section-header" data-workspace-drag-handle="true">
+              <div>
+                <h2>计算结果汇总</h2>
+                <p>展示当前已计算快照，可直接进入员工计算结果明细。</p>
+              </div>
+              <div className="button-row compact">
+                <span className="tag">{resultSummaryRows.length} 条结果</span>
+                <button
+                  className="ghost-button"
+                  disabled={saving || !resultSummaryRows.length}
+                  type="button"
+                  onClick={() => void downloadWorkbook()}
+                >
+                  导出当前结果
+                </button>
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => setIsResultListCollapsed((currentValue) => !currentValue)}
+                >
+                  {isResultListCollapsed ? "展开" : "折叠"}
+                </button>
+              </div>
+            </div>
+
+            {!isResultListCollapsed ? (
+              <table className="data-table month-entry-overview-table">
+                <thead>
+                  <tr>
+                    <th>工号</th>
+                    <th aria-label="明细操作"></th>
+                    <th>姓名</th>
+                    <th>本年税额</th>
+                    <th>末月税率</th>
+                    <th>采用方案</th>
+                    <th>年终奖税额</th>
+                    <th>年终奖税率</th>
+                    <th>另一方案应扣税额</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={8}>当前暂无已计算结果，请先执行计算。</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        ) : null}
-      </article>
+                </thead>
+                <tbody>
+                  {resultSummaryRows.length ? (
+                    resultSummaryRows.map((row) => (
+                      <tr
+                        key={row.employeeId}
+                        className="selectable-row"
+                        onClick={() => setDetailEmployeeId(row.employeeId)}
+                      >
+                        <td>{row.employeeCode}</td>
+                        <td className="table-action-cell">
+                          <button
+                            className="ghost-button table-action-button"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDetailEmployeeId(row.employeeId);
+                            }}
+                          >
+                            明细
+                          </button>
+                        </td>
+                        <td>{row.employeeName}</td>
+                        <td>{formatCurrency(row.cumulativeExpectedWithheldTax)}</td>
+                        <td>{row.lastAppliedRate === null ? "-" : `${row.lastAppliedRate}%`}</td>
+                        <td>{taxCalculationSchemeLabelMap[row.selectedScheme]}</td>
+                        <td>
+                          {row.annualBonusTax === null ? "-" : formatCurrency(row.annualBonusTax)}
+                        </td>
+                        <td>{row.annualBonusRate === null ? "-" : `${row.annualBonusRate}%`}</td>
+                        <td>{formatCurrency(row.alternativeTaxAmount)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8}>当前暂无已计算结果，请先执行计算。</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            ) : null}
+          </article>
+        </WorkspaceItem>
+      </WorkspaceCanvas>
 
       <YearEntryEmployeeSelectionDialog
         open={selectionDialogOpen}
@@ -911,6 +924,6 @@ export const MonthRecordEntryPage = () => {
         bonusTaxBrackets={bonusTaxBrackets}
         onClose={() => setDetailEmployeeId(null)}
       />
-    </section>
+    </WorkspaceLayoutRoot>
   );
 };

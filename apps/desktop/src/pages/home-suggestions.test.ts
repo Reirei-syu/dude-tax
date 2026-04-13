@@ -60,6 +60,7 @@ test("无导入问题时按录入、重算、结果顺序分发建议", () => {
 
   assert.equal(suggestions[0]?.title, "优先补齐月度数据");
   assert.equal(suggestions[1]?.title, "执行年度重算");
+  assert.equal(suggestions[1]?.actionLabel, "前往缴纳确认");
 });
 
 test("已有完成月份时仍会给出快速计算复核建议", () => {
@@ -74,4 +75,20 @@ test("已有完成月份时仍会给出快速计算复核建议", () => {
   });
 
   assert.equal(suggestions.some((item) => item.path === "/quick-calc"), true);
+});
+
+test("无待处理问题时默认引导进入缴纳确认", () => {
+  const suggestions = buildHomeSuggestions({
+    currentUnitId: 1,
+    currentTaxYear: 2026,
+    employeeCount: 1,
+    incompleteMonthCount: 0,
+    pendingRecalculateCount: 0,
+    invalidatedCount: 0,
+    statuses: [],
+  });
+
+  assert.equal(suggestions[0]?.title, "查看已确认结果");
+  assert.equal(suggestions[0]?.actionLabel, "前往缴纳确认");
+  assert.equal(suggestions[0]?.description.includes("缴纳确认模块"), true);
 });

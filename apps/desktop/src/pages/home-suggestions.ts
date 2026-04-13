@@ -64,19 +64,19 @@ export const buildHomeSuggestions = ({
       title: "执行年度重算",
       description:
         invalidatedCount > 0
-          ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名因政策或数据变化需要重新确认结果。`
-          : `当前有 ${pendingRecalculateCount} 名员工已具备条件，建议尽快进入结果确认模块复核已确认结果。`,
+          ? `当前有 ${pendingRecalculateCount} 名员工需要重算，其中 ${invalidatedCount} 名因政策或数据变化需要重新进行缴纳确认。`
+          : `当前有 ${pendingRecalculateCount} 名员工已具备条件，建议尽快进入缴纳确认模块复核已确认结果。`,
       path: "/result-confirmation",
-      actionLabel: "前往结果确认",
+      actionLabel: "前往缴纳确认",
     });
   }
 
   if (!suggestions.length) {
     suggestions.push({
       title: "查看已确认结果",
-      description: "当前录入与确认状态整体平稳，可以直接进入结果确认模块查看和导出已确认结果。",
+      description: "当前录入与确认状态整体平稳，可以直接进入缴纳确认模块查看和导出已确认结果。",
       path: "/result-confirmation",
-      actionLabel: "前往结果确认",
+      actionLabel: "前往缴纳确认",
     });
   }
 

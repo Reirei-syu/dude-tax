@@ -14,6 +14,75 @@ export type AppContext = {
   units: Unit[];
 };
 
+export const NAVIGATION_MODULE_PATHS = [
+  "/",
+  "/units",
+  "/employees",
+  "/quick-calc",
+  "/entry",
+  "/result-confirmation",
+  "/history",
+  "/policy",
+  "/maintenance",
+] as const;
+
+export type NavigationModulePath = (typeof NAVIGATION_MODULE_PATHS)[number];
+export type NavigationOrderResponse = {
+  order: NavigationModulePath[];
+};
+
+export const WORKSPACE_PAGE_SCOPES = [
+  "page:home",
+  "page:units",
+  "page:employees",
+  "page:quick-calc",
+  "page:entry",
+  "page:result-confirmation",
+  "page:history",
+  "page:policy",
+  "page:maintenance",
+] as const;
+
+export const WORKSPACE_DIALOG_SCOPES = [
+  "dialog:year-record-workspace",
+  "dialog:annual-tax-result",
+  "dialog:employee-edit",
+  "dialog:year-entry-selection",
+] as const;
+
+export type WorkspacePageScope = (typeof WORKSPACE_PAGE_SCOPES)[number];
+export type WorkspaceDialogScope = (typeof WORKSPACE_DIALOG_SCOPES)[number];
+export type WorkspaceScope = WorkspacePageScope | WorkspaceDialogScope;
+
+export type WorkspaceCardLayout = {
+  cardId: string;
+  canvasId?: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+export type WorkspaceLayoutState = {
+  scope: WorkspacePageScope;
+  cards: WorkspaceCardLayout[];
+};
+
+export type FloatingDialogLayout = {
+  scope: WorkspaceDialogScope;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isMaximized: boolean;
+};
+
+export type UiPreferences = {
+  sidebarCollapsed: boolean;
+  pageLayouts: Partial<Record<WorkspacePageScope, WorkspaceLayoutState>>;
+  dialogLayouts: Partial<Record<WorkspaceDialogScope, FloatingDialogLayout>>;
+};
+
 export type CreateUnitPayload = {
   unitName: string;
   remark?: string;

@@ -6,83 +6,56 @@
 
 ## 当前任务
 
-- 修复安装版 `Failed to fetch` 并重新打包本地安装包已完成
+- 月度录入 / 缴纳确认 / 系统维护文案与布局调整已完成
 
 ## 已完成
 
-- 已定位安装版 `Failed to fetch` 根因：
-  - 安装环境下前端可能拿不到 preload 注入的 `apiBaseUrl`
-  - `fetch` 退回 `file://` 地址后直接失败
-- 已完成修复：
-  - 主进程把 `salaryTaxApiBaseUrl` 注入到窗口 URL 查询参数
-  - API 客户端新增从查询参数读取本地 API 地址的兜底逻辑
-  - 已补充 `client.test.ts` 与 `electron-runtime-config.test.ts`
-- 已重新生成本地安装包：
-  - `D:\coding\completed\dude-tax\dude-tax-installer-x64.exe`
-- 当前版本保持不变：
-  - `0.1.0-alpha`
-- 根项目与各 workspace 版本已统一为 `0.1.0-alpha`
-- 已新增 Windows 安装包脚本：
-  - `scripts/build-installer.mjs`
-  - `scripts/installer/dude-tax.iss`
-- 已新增 GitHub Release 工作流：
-  - `.github/workflows/windows-release.yml`
-- 本地安装包已生成：
-  - `dist-electron/installer/dude-tax-installer-x64.exe`
-- 安装包固定资产名：
-  - `dude-tax-installer-x64.exe`
-- 稳定下载策略：
-  - 版本发布使用 `v*` tag
-  - 固定滚动 release tag 使用 `installer-latest`
-- `packages/core` 新增 `EmployeeRosterStatusKind`
-  - `hired_this_year`
-  - `active`
-  - `left_this_year`
-  - `left`
-- `packages/core` 新增 `deriveEmployeeRosterStatus(employee, taxYear)`
-- `apps/desktop` 新增 `EmployeeEditDialog`
-- `EmployeeManagementPage` 已拆分为：
-  - 固定“新增员工”卡片
-  - 独立“编辑员工”对话框
-- 员工列表已接入基于 `currentTaxYear` 的四态状态文案
-- 页面新增“隐藏已离职员工”开关，仅过滤以前年度离职员工
-- 已补齐：
-  - `docs/context_memory/memory.md`
-  - `.gitignore` 中的 Agent 内部文档忽略规则
+- `/result-confirmation` 导航标签与首页建议文案已统一改为“缴纳确认”
+- 月度录入主卡片与员工列表编辑内容已合并为“月度数据手工录入”
+- 缴纳确认页主工作卡片已改为“已纳税月份确认”，4 个状态栏已移除
+- 系统维护页顶部 `maintenance-header` 卡片已删除，其余卡片默认布局已整体上移
+- 工作区布局已支持清理废弃 `cardId`，避免旧布局残留空白
+- 目标静态测试、桌面端 typecheck 与 smoke 脚本语法检查已通过
+- 本地 API 支持保存 / 读取导航抽屉、页面布局、弹窗布局偏好
+- 本地 API 支持保存 / 读取导航顺序偏好
+- 工作区布局控制器已修复渲染循环，fresh dev session 不再出现 `Maximum update depth exceeded`
+- 导航点击失效问题已修复，主模块可正常切换
+- 导航排序已改为排序模式下通过右侧上下箭头移动
+- 排序模式下导航文字区已禁用，避免误触进入模块
+- 排序开关已改为 icon-only 按钮
+- 导航项宽度已恢复为原统一宽度，排序按钮尺寸也已回调为原侧栏按钮尺寸
+- 排序态箭头控件已改为悬浮在导航项右侧，可超出导航栏边缘显示
+- 排序态箭头按钮已进一步缩小，避免上下重叠
+- 主要页面工作区卡片接入自由布局
+- 主要弹窗接入浮动窗口布局
+- 卡片与主要弹窗正文区支持整体等比缩放
+- 左下角缩放手柄、底部临时空白区扩展与自动排列已接入
+- 员工批量导入区滚动与“隐藏已离职员工”单行样式已修复
+- 手动缩放结束后不再自动吸附位置
+- 全量 API / desktop 测试、全量 typecheck、API/desktop build 均通过
 
 ## 关键决策
 
-- 稳定下载链接不走 `releases/latest/download/...`，改为固定 tag：
-  - `releases/download/installer-latest/dude-tax-installer-x64.exe`
-- 后续每次版本发布都用同名安装包资产覆盖 `installer-latest` release
-- “本年/以前年度”统一相对 `AppContext.currentTaxYear`
-- 本年入职且本年离职时，状态优先显示为 `YYYY-MM-DD离职`
-- “隐藏已离职员工”默认关闭，不做本地持久化
-- 本轮不改数据库结构、不改 API 路由
+- 页面布局按页面 scope 记忆，不按单位 / 年份拆分
+- 导航顺序全局记忆
+- 顶部上下文状态卡固定
+- 小型确认弹窗不纳入自由布局
+- 底部扩展空白区只在当前页面会话内有效
+
+## 当前问题
+
+- 暂无功能阻断问题
+- 仅保留 Vite 大 bundle warning 作为后续优化项
+- 浏览器直连 `4175 -> 3001` 会出现 CORS 噪音，该问题不影响桌面壳交付路径
 
 ## 当前测试状态
 
-- 已通过：
-  - `npm run test --workspace @dude-tax/desktop -- src/api/client.test.ts src/electron-runtime-config.test.ts`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - `npm run release:win`
-  - `npm run test --workspaces --if-present`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run release:win`
-  - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
-  - `npm run typecheck --workspace @dude-tax/core`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - `npm run typecheck --workspace @dude-tax/api`
-  - `git status --ignored --short`
-
-## 剩余任务
-
-- 如需同步 GitHub 下载包，需要手动上传当前修复后的安装包
-- 如需让正式安装目录 `D:\DudeTax` 生效，需要重新安装这次新包
+- `npm run test --workspace @dude-tax/desktop -- src/components/navigation-order.test.ts src/components/workspace-layout-structure.test.ts src/pages/home-page.test.ts src/pages/annual-results/components/annual-results-overview-section.test.ts`
+- `npm run typecheck --workspace @dude-tax/desktop`
+- 浏览器冒烟已验证左侧导航切页、排序模式禁跳转、箭头移动顺序、首页入口跳转
 
 ## 下一步计划
 
-1. 用新安装包覆盖安装到 `D:\DudeTax`
-2. 验证首页和“新建单位”不再出现 `Failed to fetch`
-3. 如有需要，再同步更新 GitHub Release 资产
+1. 在真实 Electron 壳中补一轮“月度数据手工录入 / 缴纳确认 / 系统维护”三页手点烟测，确认合并后的工作区布局符合预期
+2. 继续处理 `.gitignore` 已追踪 Agent 文档清理任务
+3. 如需继续优化，处理桌面端包体拆分

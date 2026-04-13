@@ -1,6 +1,7 @@
 import { type ReactNode, useId, useState } from "react";
 
 type Props = {
+  cardId?: string;
   title: string;
   description?: string;
   defaultCollapsed?: boolean;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export const CollapsibleSectionCard = ({
+  cardId,
   title,
   description,
   defaultCollapsed = false,
@@ -24,8 +26,11 @@ export const CollapsibleSectionCard = ({
   const HeadingTag = headingTag;
 
   return (
-    <article className={["glass-card", "page-section", className].filter(Boolean).join(" ")}>
-      <div className="section-header">
+    <article
+      className={["glass-card", "page-section", className].filter(Boolean).join(" ")}
+      data-card-id={cardId}
+    >
+      <div className="section-header" data-workspace-drag-handle="true">
         <div>
           <HeadingTag>{title}</HeadingTag>
           {description ? <p>{description}</p> : null}

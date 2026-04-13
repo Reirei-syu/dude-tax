@@ -6,7 +6,7 @@ export const MODULE_NAV_ITEMS = [
   { path: "/employees", label: "员工信息", isPlaceholder: false },
   { path: "/quick-calc", label: "快速计算", isPlaceholder: false },
   { path: "/entry", label: "月度数据录入", isPlaceholder: false },
-  { path: "/result-confirmation", label: "结果确认", isPlaceholder: false },
+  { path: "/result-confirmation", label: "缴纳确认", isPlaceholder: false },
   { path: "/history", label: "历史查询", isPlaceholder: false },
   { path: "/policy", label: "政策参考", isPlaceholder: false },
   { path: "/maintenance", label: "系统维护", isPlaceholder: false },

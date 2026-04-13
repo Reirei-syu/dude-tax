@@ -9,6 +9,7 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
 import { registerMonthRecordRoutes } from "./routes/month-records.js";
 import { registerTaxPolicyRoutes } from "./routes/tax-policy.js";
+import { registerUiPreferenceRoutes } from "./routes/ui-preferences.js";
 import { registerUnitRoutes } from "./routes/units.js";
 import { registerYearEntryRoutes } from "./routes/year-entry.js";
 
@@ -46,6 +47,7 @@ await registerContextRoutes(app);
 await registerEmployeeRoutes(app);
 await registerMonthRecordRoutes(app);
 await registerTaxPolicyRoutes(app);
+await registerUiPreferenceRoutes(app);
 await registerUnitRoutes(app);
 await registerYearEntryRoutes(app);
 

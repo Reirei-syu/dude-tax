@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import { AnnualTaxCalculationResultPanel } from "../components/AnnualTaxCalculationResultPanel";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { annualTaxWithholdingModeLabelMap } from "./annual-tax-withholding-summary";
@@ -137,109 +138,133 @@ export const QuickCalculatePage = () => {
 
   if (!currentUnitId || !currentTaxYear) {
     return (
-      <section className="page-grid">
-        <CollapsibleSectionCard
-          className="placeholder-card"
-          description="请先在顶部选择单位和年份，再进入快速计算模块。"
-          headingTag="h1"
-          title="快速计算"
-        />
-      </section>
+      <WorkspaceLayoutRoot scope="page:quick-calc">
+        <WorkspaceCanvas>
+          <WorkspaceItem cardId="quick-calc-entry" defaultLayout={{ x: 0, y: 0, w: 12, h: 10 }} minH={8}>
+            <CollapsibleSectionCard
+              cardId="quick-calc-entry"
+              className="placeholder-card"
+              description="请先在顶部选择单位和年份，再进入快速计算模块。"
+              headingTag="h1"
+              title="快速计算"
+            />
+          </WorkspaceItem>
+        </WorkspaceCanvas>
+      </WorkspaceLayoutRoot>
     );
   }
 
   return (
-    <section className="page-grid">
-      <CollapsibleSectionCard
-        className="placeholder-card"
-        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
-        headingTag="h1"
-        headerExtras={<span className="tag">全年速算</span>}
-        title="快速计算"
-      >
-        <div className="form-grid">
-          <label className="form-field">
-            <span>预扣模式</span>
-            <select
-              value={withholdingMode}
-              onChange={(event) =>
-                setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
-              }
-            >
-              {QUICK_CALCULATE_WITHHOLDING_MODES.map(([mode, label]) => (
-                <option key={mode} value={mode}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <table className="data-table month-entry-overview-table">
-          <thead>
-            <tr>
-              <th>案例</th>
-              <th>说明</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="selectable-row" onClick={() => setWorkspaceOpen(true)}>
-              <td>
-                <div className="table-inline-actions">
-                  <button
-                    className="primary-button table-action-button quick-calc-edit-button"
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setWorkspaceOpen(true);
-                    }}
-                  >
-                    编辑
-                  </button>
-                  <span>临时测算案例</span>
-                </div>
-              </td>
-              <td>按全年 12 个月视角录入并试算，不写入正式月度数据。</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div className="button-row">
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => {
-              setRows(TAX_MONTHS.map((taxMonth) => createEmptyRow(taxMonth)));
-              setResult(null);
-              setErrorMessage(null);
-            }}
-          >
-            清空案例
-          </button>
-          <button
-            className="primary-button"
-            disabled={submitting}
-            type="button"
-            onClick={() => void runQuickCalculate()}
-          >
-            执行快速计算
-          </button>
-        </div>
-
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </CollapsibleSectionCard>
-
-      {result ? (
-        <CollapsibleSectionCard
-          className="placeholder-card"
-          description="以下结果按当前临时案例即时试算，不写入正式月度数据。"
-          title="试算结果"
+    <WorkspaceLayoutRoot scope="page:quick-calc">
+      <WorkspaceCanvas>
+        <WorkspaceItem
+          cardId="quick-calc-entry"
+          defaultLayout={{ x: 0, y: 0, w: 6, h: 14 }}
+          minH={12}
         >
-          <div data-result-signals={QUICK_CALCULATE_RESULT_SIGNALS}>
-            <AnnualTaxCalculationResultPanel result={result} bonusTaxBrackets={bonusTaxBrackets} />
-          </div>
-        </CollapsibleSectionCard>
-      ) : null}
+          <CollapsibleSectionCard
+            cardId="quick-calc-entry"
+            className="placeholder-card"
+            description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear} 年`}
+            headingTag="h1"
+            headerExtras={<span className="tag">全年速算</span>}
+            title="快速计算"
+          >
+            <div className="form-grid">
+              <label className="form-field">
+                <span>预扣模式</span>
+                <select
+                  value={withholdingMode}
+                  onChange={(event) =>
+                    setWithholdingMode(event.target.value as AnnualTaxWithholdingMode)
+                  }
+                >
+                  {QUICK_CALCULATE_WITHHOLDING_MODES.map(([mode, label]) => (
+                    <option key={mode} value={mode}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <table className="data-table month-entry-overview-table">
+              <thead>
+                <tr>
+                  <th>案例</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="selectable-row" onClick={() => setWorkspaceOpen(true)}>
+                  <td>
+                    <div className="table-inline-actions">
+                      <button
+                        className="primary-button table-action-button quick-calc-edit-button"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setWorkspaceOpen(true);
+                        }}
+                      >
+                        编辑
+                      </button>
+                      <span>临时测算案例</span>
+                    </div>
+                  </td>
+                  <td>按全年 12 个月视角录入并试算，不写入正式月度数据。</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="button-row">
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setRows(TAX_MONTHS.map((taxMonth) => createEmptyRow(taxMonth)));
+                  setResult(null);
+                  setErrorMessage(null);
+                }}
+              >
+                清空案例
+              </button>
+              <button
+                className="primary-button"
+                disabled={submitting}
+                type="button"
+                onClick={() => void runQuickCalculate()}
+              >
+                执行快速计算
+              </button>
+            </div>
+
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
+
+        {result ? (
+          <WorkspaceItem
+            cardId="quick-calc-result"
+            defaultLayout={{ x: 6, y: 0, w: 6, h: 18 }}
+            minH={14}
+          >
+            <CollapsibleSectionCard
+              cardId="quick-calc-result"
+              className="placeholder-card"
+              description="以下结果按当前临时案例即时试算，不写入正式月度数据。"
+              title="试算结果"
+            >
+              <div data-result-signals={QUICK_CALCULATE_RESULT_SIGNALS}>
+                <AnnualTaxCalculationResultPanel
+                  result={result}
+                  bonusTaxBrackets={bonusTaxBrackets}
+                />
+              </div>
+            </CollapsibleSectionCard>
+          </WorkspaceItem>
+        ) : null}
+      </WorkspaceCanvas>
 
       <YearRecordWorkspaceDialog
         open={workspaceOpen}
@@ -274,6 +299,6 @@ export const QuickCalculatePage = () => {
           )
         }
       />
-    </section>
+    </WorkspaceLayoutRoot>
   );
 };

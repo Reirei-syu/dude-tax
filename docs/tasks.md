@@ -6,6 +6,152 @@
 
 ## 任务列表
 
+### [x] 月度录入、缴纳确认与系统维护文案及布局调整
+
+- 类型：Fix
+- 模块：`packages/config` / `apps/desktop` / `scripts` / `docs`
+- 描述：合并月度录入主卡与员工列表编辑内容，将“结果确认”统一改名为“缴纳确认”，删除系统维护页顶部总览卡，并补齐旧工作区布局中的废弃卡片清理。
+- 依赖：导航入口稳定性与排序交互重构
+- 风险：中
+- 优先级：3
+- 完成时间：2026-04-13
+- 修改文件：
+  - `packages/config/src/index.ts`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/ResultConfirmationPage.tsx`
+  - `apps/desktop/src/pages/MaintenancePage.tsx`
+  - `apps/desktop/src/pages/home-suggestions.ts`
+  - `apps/desktop/src/pages/month-record-entry-page.test.ts`
+  - `apps/desktop/src/pages/result-confirmation-page.test.ts`
+  - `apps/desktop/src/pages/maintenance-page.test.ts`
+  - `apps/desktop/src/pages/navigation-order.test.ts`
+  - `apps/desktop/src/pages/home-suggestions.test.ts`
+  - `apps/desktop/src/components/workspace-layout-structure.test.ts`
+  - `scripts/e2e/release-preflight.mjs`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+- 影响范围：
+  - 月度录入主工作区改为“月度数据手工录入”，员工列表编辑并入主卡
+  - `/result-confirmation` 导航与页面用户可见名称统一改为“缴纳确认”
+  - 系统维护页删除顶部总览卡后不再留下默认布局空白
+  - 旧工作区持久化布局中的废弃卡片会被自动清理
+
+### [x] 导航入口稳定性与排序交互重构
+
+- 类型：Fix
+- 模块：`apps/desktop` / `docs`
+- 描述：修复工作区布局控制器渲染循环，恢复导航与页面内主功能入口稳定跳转，并将导航排序改为排序模式下通过右侧上下箭头调整顺序，排序开关改为图标按钮。
+- 依赖：导航排序与工作区交互修正
+- 风险：中
+- 优先级：3
+- 完成时间：2026-04-13
+- 修改文件：
+  - `apps/desktop/src/components/AppLayout.tsx`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/components/navigation-order.ts`
+  - `apps/desktop/src/components/navigation-order.test.ts`
+  - `apps/desktop/src/components/workspace-layout-structure.test.ts`
+  - `apps/desktop/src/hooks/useWorkspaceLayout.ts`
+  - `apps/desktop/src/pages/home-page.test.ts`
+  - `apps/desktop/src/pages/annual-results/components/annual-results-overview-section.test.ts`
+  - `apps/desktop/src/styles.css`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/context_memory/memory.md`
+- 影响范围：
+  - 工作区页面不再出现 `Maximum update depth exceeded` 渲染循环
+  - 左侧导航恢复稳定切页，排序模式下文字区禁用
+  - 导航排序改为右侧上下箭头移动，首项/末项自动禁用越界按钮
+  - 首页“前往政策参考”和年度结果页“前往计算中心”入口已补验证
+
+### [x] 导航排序与工作区交互修正
+
+- 类型：Fix
+- 模块：`packages/core` / `apps/api` / `apps/desktop` / `docs`
+- 描述：修正导航抽屉按钮定位、导航排序持久化、导航点击失效、卡片拖拽命中区过窄、内容不随缩放变化和右下角手柄样式不符合预期的问题。
+- 依赖：工作区卡片布局与导航抽屉升级
+- 风险：高
+- 优先级：3
+- 完成时间：2026-04-13
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/repositories/ui-preferences-repository.ts`
+  - `apps/api/src/routes/ui-preferences.ts`
+  - `apps/api/src/ui-preferences.test.ts`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/components/AppLayout.tsx`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/components/FloatingWorkspaceDialog.tsx`
+  - `apps/desktop/src/layout/workspace-layout.ts`
+  - `apps/desktop/src/layout/workspace-layout.test.ts`
+  - `apps/desktop/src/components/workspace-layout-structure.test.ts`
+  - `apps/desktop/src/styles.css`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `docs/context_memory/memory.md`
+  - `docs/context/latest_context.md`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+- 影响范围：
+  - 左侧导航支持拖拽排序并记忆顺序
+  - 抽屉按钮改为品牌卡片右侧中心对齐
+  - 卡片可从非交互区域拖拽，内容区支持整体缩放
+  - 右下角缩放手柄改为描边角标而非蓝色圆点
+
+### [x] 工作区卡片布局与导航抽屉升级
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/api` / `apps/desktop` / `docs`
+- 描述：新增左侧导航抽屉、页面级工作区卡片拖拽缩放布局、主要弹窗浮动窗口布局，并将布局偏好持久化到本地 `app_preferences`。
+- 依赖：无
+- 风险：高
+- 优先级：3
+- 完成时间：2026-04-13
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/repositories/ui-preferences-repository.ts`
+  - `apps/api/src/routes/ui-preferences.ts`
+  - `apps/api/src/ui-preferences.test.ts`
+  - `apps/api/src/server.ts`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/layout/workspace-layout.ts`
+  - `apps/desktop/src/hooks/useWorkspaceLayout.ts`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/components/FloatingWorkspaceDialog.tsx`
+  - `apps/desktop/src/components/AppLayout.tsx`
+  - `apps/desktop/src/components/CollapsibleSectionCard.tsx`
+  - `apps/desktop/src/components/AnnualTaxResultDialog.tsx`
+  - `apps/desktop/src/components/EmployeeEditDialog.tsx`
+  - `apps/desktop/src/components/YearEntryEmployeeSelectionDialog.tsx`
+  - `apps/desktop/src/components/YearRecordWorkspaceDialog.tsx`
+  - `apps/desktop/src/components/workspace-layout-structure.test.ts`
+  - `apps/desktop/src/pages/HomePage.tsx`
+  - `apps/desktop/src/pages/UnitManagementPage.tsx`
+  - `apps/desktop/src/pages/EmployeeManagementPage.tsx`
+  - `apps/desktop/src/pages/QuickCalculatePage.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/pages/ResultConfirmationPage.tsx`
+  - `apps/desktop/src/pages/HistoryQueryPage.tsx`
+  - `apps/desktop/src/pages/CurrentPolicyPage.tsx`
+  - `apps/desktop/src/pages/MaintenancePage.tsx`
+  - `apps/desktop/src/styles.css`
+  - `docs/context_memory/memory.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+  - `PROGRESS.md`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+- 影响范围：
+  - 左侧导航支持一键抽屉式收起/恢复，并记忆全局状态
+  - 首页、单位管理、员工信息、快速计算、月度数据录入、结果确认、历史查询、政策参考、系统维护的主工作区卡片接入可拖拽/可缩放布局
+  - 年度工作台、结果明细、员工编辑、选择员工等主要弹窗接入浮动窗口布局
+  - 页面布局与弹窗布局按 scope 写入 SQLite `app_preferences`
+
 ### [x] 修复安装版 `Failed to fetch` 并重新打包
 
 - 类型：Fix

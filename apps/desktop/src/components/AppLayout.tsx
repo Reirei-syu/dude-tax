@@ -1,32 +1,157 @@
 import { MODULE_NAV_ITEMS } from "@dude-tax/config";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { apiClient } from "../api/client";
 import { useAppContext } from "../context/AppContextProvider";
+import { normalizeNavigationOrder } from "../layout/workspace-layout";
+import { canMoveNavItem, moveNavItemByStep } from "./navigation-order";
 
 export const AppLayout = () => {
   const { context, loading, updateContext } = useAppContext();
+  const [uiSidebarCollapsed, setUiSidebarCollapsed] = useState(false);
+  const [navigationOrder, setNavigationOrder] = useState<string[]>(
+    MODULE_NAV_ITEMS.map((item) => item.path),
+  );
+  const [isNavSortMode, setIsNavSortMode] = useState(false);
   const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
   const availableTaxYears = currentUnit?.availableTaxYears ?? [];
+  const navigationItems = useMemo(() => {
+    const itemMap = new Map(MODULE_NAV_ITEMS.map((item) => [item.path, item] as const));
+    return normalizeNavigationOrder(navigationOrder)
+      .map((path) => itemMap.get(path))
+      .filter((item) => item !== undefined);
+  }, [navigationOrder]);
+
+  useEffect(() => {
+    const loadSidebarPreference = async () => {
+      try {
+        const [sidebarPreference, navigationOrderPreference] = await Promise.all([
+          apiClient.getSidebarPreference(),
+          apiClient.getNavigationOrderPreference(),
+        ]);
+        setUiSidebarCollapsed(sidebarPreference.collapsed);
+        setNavigationOrder(navigationOrderPreference.order);
+      } catch {
+        setUiSidebarCollapsed(false);
+        setNavigationOrder(MODULE_NAV_ITEMS.map((item) => item.path));
+      }
+    };
+
+    void loadSidebarPreference();
+  }, []);
+
+  const commitNavigationOrder = (nextOrder: string[]) => {
+    const normalizedOrder = normalizeNavigationOrder(nextOrder);
+    setNavigationOrder(normalizedOrder);
+    void apiClient.updateNavigationOrderPreference(normalizedOrder);
+  };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-card">
-          <div className="brand-title">工资薪金个税计算器</div>
-          <div className="brand-subtitle">v0.1.0-alpha</div>
+    <div
+      className={[
+        "app-shell",
+        uiSidebarCollapsed ? "is-sidebar-collapsed" : "",
+        isNavSortMode ? "is-nav-sort-mode" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <aside className={uiSidebarCollapsed ? "sidebar is-collapsed" : "sidebar"}>
+        <div className="sidebar-brand-row">
+          <button
+            aria-label={uiSidebarCollapsed ? "展开导航" : "收起导航"}
+            className="sidebar-toggle"
+            type="button"
+            disabled={isNavSortMode}
+            onClick={() => {
+              const nextCollapsed = !uiSidebarCollapsed;
+              setUiSidebarCollapsed(nextCollapsed);
+              void apiClient.updateSidebarPreference(nextCollapsed);
+            }}
+          >
+            {uiSidebarCollapsed ? "›" : "‹"}
+          </button>
+          <div className="brand-card">
+            <div className="brand-title">工资薪金个税计算器</div>
+            <div className="brand-subtitle">0.1.0</div>
+          </div>
         </div>
 
         <nav className="nav-list">
-          {MODULE_NAV_ITEMS.map((item) => (
-            <NavLink
+          {navigationItems.map((item) => (
+            <div
+              className={isNavSortMode ? "nav-item-shell is-sort-mode" : "nav-item-shell"}
               key={item.path}
-              className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
-              to={item.path}
             >
-              <span>{item.label}</span>
-              {item.isPlaceholder ? <small>规划中</small> : null}
-            </NavLink>
+              <NavLink
+                className={({ isActive }) =>
+                  [
+                    "nav-item",
+                    isActive ? "active" : "",
+                    isNavSortMode ? "is-sort-mode is-sort-mode-disabled" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                }
+                aria-disabled={isNavSortMode || undefined}
+                onClick={(clickEvent) => {
+                  if (isNavSortMode) {
+                    clickEvent.preventDefault();
+                  }
+                }}
+                tabIndex={isNavSortMode ? -1 : undefined}
+                to={item.path}
+              >
+                <span className="nav-item-content">
+                  <span>{item.label}</span>
+                  {item.isPlaceholder ? <small>规划中</small> : null}
+                </span>
+              </NavLink>
+              {isNavSortMode ? (
+                <div className="nav-item-sort-controls">
+                  <button
+                    aria-label={`上移${item.label}`}
+                    className="nav-sort-arrow-button"
+                    disabled={!canMoveNavItem(navigationOrder, item.path, -1)}
+                    type="button"
+                    onClick={() =>
+                      commitNavigationOrder(moveNavItemByStep(navigationOrder, item.path, -1))
+                    }
+                  >
+                    ▲
+                  </button>
+                  <button
+                    aria-label={`下移${item.label}`}
+                    className="nav-sort-arrow-button"
+                    disabled={!canMoveNavItem(navigationOrder, item.path, 1)}
+                    type="button"
+                    onClick={() =>
+                      commitNavigationOrder(moveNavItemByStep(navigationOrder, item.path, 1))
+                    }
+                  >
+                    ▼
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ))}
         </nav>
+
+        <div className="sidebar-actions">
+          <button
+            className={isNavSortMode ? "ghost-button sort-mode-button is-active" : "ghost-button sort-mode-button"}
+            type="button"
+            aria-label={isNavSortMode ? "完成导航排序" : "启用导航排序"}
+            aria-pressed={isNavSortMode}
+            title={isNavSortMode ? "完成导航排序" : "启用导航排序"}
+            onClick={() => {
+              setIsNavSortMode((currentValue) => !currentValue);
+              document.body.classList.remove("workspace-interacting");
+            }}
+          >
+            {isNavSortMode ? "完成导航排序" : "启用导航排序↑↓"}
+          </button>
+        </div>
       </aside>
 
       <main className="main-panel">

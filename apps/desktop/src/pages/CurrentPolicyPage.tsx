@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { useAppContext } from "../context/AppContextProvider";
 import {
   parseMaintenanceRichText,
@@ -199,133 +200,164 @@ export const CurrentPolicyPage = () => {
   };
 
   return (
-    <section className="page-grid">
-      <CollapsibleSectionCard
-        className="placeholder-card"
-        description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear ?? "-"} 年`}
-        headingTag="h1"
-        headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
-        title="政策参考"
-      >
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-      </CollapsibleSectionCard>
+    <WorkspaceLayoutRoot scope="page:policy">
+      <WorkspaceCanvas>
+        <WorkspaceItem
+          cardId="policy-overview"
+          defaultLayout={{ x: 0, y: 0, w: 12, h: 8 }}
+          minH={8}
+          resizable={false}
+        >
+          <CollapsibleSectionCard
+            cardId="policy-overview"
+            className="placeholder-card"
+            description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear ?? "-"} 年`}
+            headingTag="h1"
+            headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
+            title="政策参考"
+          >
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
 
-      <CollapsibleSectionCard
-        defaultCollapsed
-        description="显示当前生效税率版本下的综合所得税率档位。"
-        title="综合税率表"
-      >
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>级数</th>
-              <th>应纳税所得额</th>
-              <th>税率</th>
-              <th>速算扣除数</th>
-            </tr>
-          </thead>
-          <tbody>
-            {policy?.currentSettings.comprehensiveTaxBrackets.map((bracket) => (
-              <tr key={bracket.level}>
-                <td>{bracket.level}</td>
-                <td>{bracket.rangeText}</td>
-                <td>{bracket.rate}%</td>
-                <td>{bracket.quickDeduction}</td>
-              </tr>
-            )) ?? (
-              <tr>
-                <td colSpan={4}>暂无税率数据</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </CollapsibleSectionCard>
+        <WorkspaceItem
+          cardId="policy-comprehensive"
+          defaultLayout={{ x: 0, y: 8, w: 6, h: 14 }}
+          minH={12}
+        >
+          <CollapsibleSectionCard
+            cardId="policy-comprehensive"
+            defaultCollapsed
+            description="显示当前生效税率版本下的综合所得税率档位。"
+            title="综合税率表"
+          >
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>级数</th>
+                  <th>应纳税所得额</th>
+                  <th>税率</th>
+                  <th>速算扣除数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {policy?.currentSettings.comprehensiveTaxBrackets.map((bracket) => (
+                  <tr key={bracket.level}>
+                    <td>{bracket.level}</td>
+                    <td>{bracket.rangeText}</td>
+                    <td>{bracket.rate}%</td>
+                    <td>{bracket.quickDeduction}</td>
+                  </tr>
+                )) ?? (
+                  <tr>
+                    <td colSpan={4}>暂无税率数据</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
 
-      <CollapsibleSectionCard
-        defaultCollapsed
-        description="显示当前生效税率版本下的年终奖单独计税档位。"
-        title="年终奖单独计税税率表"
-      >
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>级数</th>
-              <th>平均每月额</th>
-              <th>税率</th>
-              <th>速算扣除数</th>
-            </tr>
-          </thead>
-          <tbody>
-            {policy?.currentSettings.bonusTaxBrackets.map((bracket) => (
-              <tr key={bracket.level}>
-                <td>{bracket.level}</td>
-                <td>{bracket.rangeText}</td>
-                <td>{bracket.rate}%</td>
-                <td>{bracket.quickDeduction}</td>
-              </tr>
-            )) ?? (
-              <tr>
-                <td colSpan={4}>暂无税率数据</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </CollapsibleSectionCard>
+        <WorkspaceItem
+          cardId="policy-bonus"
+          defaultLayout={{ x: 6, y: 8, w: 6, h: 14 }}
+          minH={12}
+        >
+          <CollapsibleSectionCard
+            cardId="policy-bonus"
+            defaultCollapsed
+            description="显示当前生效税率版本下的年终奖单独计税档位。"
+            title="年终奖单独计税税率表"
+          >
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>级数</th>
+                  <th>平均每月额</th>
+                  <th>税率</th>
+                  <th>速算扣除数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {policy?.currentSettings.bonusTaxBrackets.map((bracket) => (
+                  <tr key={bracket.level}>
+                    <td>{bracket.level}</td>
+                    <td>{bracket.rangeText}</td>
+                    <td>{bracket.rate}%</td>
+                    <td>{bracket.quickDeduction}</td>
+                  </tr>
+                )) ?? (
+                  <tr>
+                    <td colSpan={4}>暂无税率数据</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
 
-      <CollapsibleSectionCard
-        className="placeholder-card"
-        description="条目由系统维护模块统一维护，可按顺序展示多条政策说明。"
-        title="扣除项说明"
-      >
-        {(policy?.policyItems.length ?? 0) ? (
-          <div className="policy-item-list">
-            {policy?.policyItems.map((item, index) => (
-              <div className="current-policy-card policy-item-card" key={item.id}>
-                <strong>{item.title || `未命名说明 ${index + 1}`}</strong>
-                {item.illustrationDataUrl ? (
-                  <button
-                    aria-label={`查看${item.title || `政策参考插图 ${index + 1}`}原图`}
-                    className="policy-illustration-button"
-                    type="button"
-                    onClick={() =>
-                      setSelectedIllustration({
-                        src: item.illustrationDataUrl,
-                        alt: item.title || `政策参考插图 ${index + 1}`,
-                      })
-                    }
-                  >
-                    <img
-                      alt={item.title || `政策参考插图 ${index + 1}`}
-                      className="policy-illustration"
-                      src={item.illustrationDataUrl}
-                    />
-                    <span className="field-hint">点击查看原图</span>
-                  </button>
-                ) : null}
-                {(policyItemBlocks[item.id] ?? []).length ? (
-                  <div className="rich-text-preview">
-                    {(policyItemBlocks[item.id] ?? []).map((block, blockIndex) =>
-                      renderPolicyBlock(block, blockIndex),
+        <WorkspaceItem
+          cardId="policy-items"
+          defaultLayout={{ x: 0, y: 22, w: 12, h: 18 }}
+          minH={16}
+        >
+          <CollapsibleSectionCard
+            cardId="policy-items"
+            className="placeholder-card"
+            description="条目由系统维护模块统一维护，可按顺序展示多条政策说明。"
+            title="扣除项说明"
+          >
+            {(policy?.policyItems.length ?? 0) ? (
+              <div className="policy-item-list">
+                {policy?.policyItems.map((item, index) => (
+                  <div className="current-policy-card policy-item-card" key={item.id}>
+                    <strong>{item.title || `未命名说明 ${index + 1}`}</strong>
+                    {item.illustrationDataUrl ? (
+                      <button
+                        aria-label={`查看${item.title || `政策参考插图 ${index + 1}`}原图`}
+                        className="policy-illustration-button"
+                        type="button"
+                        onClick={() =>
+                          setSelectedIllustration({
+                            src: item.illustrationDataUrl,
+                            alt: item.title || `政策参考插图 ${index + 1}`,
+                          })
+                        }
+                      >
+                        <img
+                          alt={item.title || `政策参考插图 ${index + 1}`}
+                          className="policy-illustration"
+                          src={item.illustrationDataUrl}
+                        />
+                        <span className="field-hint">点击查看原图</span>
+                      </button>
+                    ) : null}
+                    {(policyItemBlocks[item.id] ?? []).length ? (
+                      <div className="rich-text-preview">
+                        {(policyItemBlocks[item.id] ?? []).map((block, blockIndex) =>
+                          renderPolicyBlock(block, blockIndex),
+                        )}
+                      </div>
+                    ) : (
+                      <div className="empty-state">
+                        <strong>当前条目正文为空。</strong>
+                        <p>请前往系统维护模块补充该说明的正文内容。</p>
+                      </div>
                     )}
                   </div>
-                ) : (
-                  <div className="empty-state">
-                    <strong>当前条目正文为空。</strong>
-                    <p>请前往系统维护模块补充该说明的正文内容。</p>
-                  </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="current-policy-card">
-            <div className="empty-state">
-              <strong>当前还没有维护扣除项说明。</strong>
-              <p>请前往系统维护模块新增并填写说明条目。</p>
-            </div>
-          </div>
-        )}
-      </CollapsibleSectionCard>
+            ) : (
+              <div className="current-policy-card">
+                <div className="empty-state">
+                  <strong>当前还没有维护扣除项说明。</strong>
+                  <p>请前往系统维护模块新增并填写说明条目。</p>
+                </div>
+              </div>
+            )}
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
+      </WorkspaceCanvas>
 
       {selectedIllustration ? (
         <div className="workspace-overlay" role="presentation" onClick={closeIllustrationPreview}>
@@ -402,6 +434,6 @@ export const CurrentPolicyPage = () => {
           </div>
         </div>
       ) : null}
-    </section>
+    </WorkspaceLayoutRoot>
   );
 };

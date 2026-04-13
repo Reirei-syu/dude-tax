@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FloatingWorkspaceDialog } from "./FloatingWorkspaceDialog";
 
 type Props = {
   open: boolean;
@@ -28,28 +29,21 @@ export const EmployeeEditDialog = ({
   }
 
   return (
-    <div className="workspace-overlay">
-      <div
-        aria-modal="true"
-        className="workspace-dialog employee-selection-dialog"
-        role="dialog"
-      >
-        <div className="workspace-header">
-          <div>
-            <h2>{title}</h2>
-            <p>{description}</p>
-          </div>
-          <div className="button-row compact">
-            <button className="ghost-button" type="button" onClick={onClose}>
-              关闭
-            </button>
-          </div>
-        </div>
-
-        {children}
-
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-
+    <FloatingWorkspaceDialog
+      open={open}
+      scope="dialog:employee-edit"
+      title={title}
+      subtitle={description}
+      defaultLayout={{
+        x: 120,
+        y: 72,
+        width: 960,
+        height: 760,
+        isMaximized: false,
+      }}
+      onClose={onClose}
+      className="employee-selection-dialog"
+      footer={
         <div className="button-row">
           <button
             className="primary-button"
@@ -63,7 +57,12 @@ export const EmployeeEditDialog = ({
             取消
           </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <>
+        {children}
+        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+      </>
+    </FloatingWorkspaceDialog>
   );
 };

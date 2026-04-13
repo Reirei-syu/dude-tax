@@ -12,6 +12,7 @@ import {
 } from "@dude-tax/core";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { useAppContext } from "../context/AppContextProvider";
 import {
   applyLinePrefixEdit,
@@ -631,50 +632,31 @@ export const MaintenancePage = () => {
   };
 
   return (
-    <section className="page-grid">
-      <header className="page-section placeholder-card maintenance-page-header">
-        <div className="maintenance-page-header-row">
-          <div>
-            <h1>系统维护</h1>
-            <p>
-              当前房间：{currentUnit?.unitName ?? "未选择单位"} / {currentTaxYear ?? "-"} 年
-            </p>
-          </div>
-          <div className="button-row compact">
-            <span className="tag">{loading ? "加载中" : saving ? "保存中" : "可编辑"}</span>
-          </div>
-        </div>
-        <div className="summary-grid results-summary-grid">
-          <div className="summary-card">
-            <span>当前税率版本</span>
-            <strong>{taxPolicy?.currentVersionName ?? "默认税率版本"}</strong>
-          </div>
-          <div className="summary-card">
-            <span>版本数量</span>
-            <strong>{taxPolicy?.versions.length ?? 0}</strong>
-          </div>
-          <div className="summary-card">
-            <span>编辑状态</span>
-            <strong>{hasUnsavedChanges ? "有未保存修改" : "已同步"}</strong>
-          </div>
-        </div>
+    <WorkspaceLayoutRoot scope="page:maintenance">
+      <WorkspaceCanvas>
+        <WorkspaceItem
+          cardId="maintenance-tax"
+          defaultLayout={{ x: 0, y: 0, w: 12, h: 24 }}
+          minH={18}
+        >
+          <article className="glass-card page-section placeholder-card">
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {successMessage ? <div className="success-banner">{successMessage}</div> : null}
-      </header>
-
-      <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>税率维护</h2>
             <p>集中维护政策说明、基本减除费用与两张税率表，默认折叠展示。</p>
           </div>
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => toggleSection("taxMaintenance")}
-          >
-            {collapsedSections.taxMaintenance ? "展开" : "折叠"}
-          </button>
+          <div className="button-row compact">
+            <span className="tag">{loading ? "加载中" : saving ? "保存中" : "可编辑"}</span>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => toggleSection("taxMaintenance")}
+            >
+              {collapsedSections.taxMaintenance ? "展开" : "折叠"}
+            </button>
+          </div>
         </div>
         <div className="collapsible-card-body" hidden={collapsedSections.taxMaintenance}>
           <div className="maintenance-tax-config-stack">
@@ -1257,9 +1239,15 @@ export const MaintenancePage = () => {
             </div>
           </div>
         </div>
-      </article>
+          </article>
+        </WorkspaceItem>
 
-      <article className="glass-card page-section placeholder-card">
+        <WorkspaceItem
+          cardId="maintenance-versions"
+          defaultLayout={{ x: 0, y: 24, w: 12, h: 18 }}
+          minH={14}
+        >
+          <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>税率版本列表</h2>
@@ -1399,9 +1387,15 @@ export const MaintenancePage = () => {
             ))}
           </div>
         </div>
-      </article>
+          </article>
+        </WorkspaceItem>
 
-      <article className="glass-card page-section placeholder-card">
+        <WorkspaceItem
+          cardId="maintenance-impact"
+          defaultLayout={{ x: 0, y: 42, w: 12, h: 16 }}
+          minH={12}
+        >
+          <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>版本影响预览</h2>
@@ -1470,9 +1464,15 @@ export const MaintenancePage = () => {
             </div>
           )}
         </div>
-      </article>
+          </article>
+        </WorkspaceItem>
 
-      <article className="glass-card page-section placeholder-card">
+        <WorkspaceItem
+          cardId="maintenance-backup"
+          defaultLayout={{ x: 0, y: 58, w: 12, h: 16 }}
+          minH={12}
+        >
+          <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>单位备份</h2>
@@ -1562,9 +1562,15 @@ export const MaintenancePage = () => {
             </>
           )}
         </div>
-      </article>
+          </article>
+        </WorkspaceItem>
 
-      <article className="glass-card page-section placeholder-card">
+        <WorkspaceItem
+          cardId="maintenance-audit"
+          defaultLayout={{ x: 0, y: 74, w: 12, h: 16 }}
+          minH={12}
+        >
+          <article className="glass-card page-section placeholder-card">
         <div className="section-header">
           <div>
             <h2>审计日志</h2>
@@ -1647,7 +1653,9 @@ export const MaintenancePage = () => {
             </button>
           </div>
         </div>
-      </article>
-    </section>
+          </article>
+        </WorkspaceItem>
+      </WorkspaceCanvas>
+    </WorkspaceLayoutRoot>
   );
 };

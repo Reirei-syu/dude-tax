@@ -1,5 +1,6 @@
 import type { AnnualTaxCalculation, BonusTaxBracket } from "@dude-tax/core";
 import { AnnualTaxCalculationResultPanel } from "./AnnualTaxCalculationResultPanel";
+import { FloatingWorkspaceDialog } from "./FloatingWorkspaceDialog";
 
 type Props = {
   open: boolean;
@@ -23,20 +24,22 @@ export const AnnualTaxResultDialog = ({
   }
 
   return (
-    <div className="workspace-overlay">
-      <div className="workspace-dialog annual-tax-result-dialog">
-        <div className="workspace-header">
-          <div>
-            <h2>{title}</h2>
-            {subtitle ? <p>{subtitle}</p> : null}
-          </div>
-          <div className="button-row compact">
-            <button className="ghost-button" type="button" onClick={onClose}>
-              关闭
-            </button>
-          </div>
-        </div>
-
+    <FloatingWorkspaceDialog
+      open={open}
+      scope="dialog:annual-tax-result"
+      title={title}
+      subtitle={subtitle}
+      defaultLayout={{
+        x: 64,
+        y: 40,
+        width: 1180,
+        height: 860,
+        isMaximized: false,
+      }}
+      onClose={onClose}
+      className="annual-tax-result-dialog"
+    >
+      <>
         <div className="workspace-table-wrapper annual-tax-result-wrapper">
           <div className="annual-tax-result-content">
             <AnnualTaxCalculationResultPanel
@@ -45,7 +48,7 @@ export const AnnualTaxResultDialog = ({
             />
           </div>
         </div>
-      </div>
-    </div>
+      </>
+    </FloatingWorkspaceDialog>
   );
 };

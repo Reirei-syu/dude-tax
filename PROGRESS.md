@@ -1,16 +1,66 @@
 # 项目进度与状态
 
-- 更新时间：2026-04-12
+- 更新时间：2026-04-13
 - 项目标识：dude-tax
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：修复安装版 `Failed to fetch` 并重新打包本地安装包已完成
-- 方案路径：无（按故障排查直接执行）
+- 当前任务：月度录入 / 缴纳确认 / 系统维护文案与布局调整已完成
+- 方案路径：已按 2026-04-13 会话内实现计划执行（未单独落盘）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 已将 `/result-confirmation` 导航标签从“结果确认”统一改为“缴纳确认”，并同步首页建议文案、导出文案与桌面 smoke 脚本入口
+  - 已将“月度数据录入”主卡片与员工列表编辑内容合并，主卡片标题改为“月度数据手工录入”
+  - 已将“结果确认”工作卡片改为“已纳税月份确认”，移除 4 个状态栏，仅保留月份按钮颜色表达确认状态
+  - 已删除系统维护页顶部 `maintenance-header` 卡片，并将其余工作区卡片默认布局整体上移
+  - 已为工作区布局增加废弃 `cardId` 自动清理，避免旧持久化布局残留空白
+  - `npm run test --workspace @dude-tax/desktop -- src/pages/month-record-entry-page.test.ts src/pages/result-confirmation-page.test.ts src/pages/maintenance-page.test.ts src/pages/navigation-order.test.ts src/pages/home-suggestions.test.ts src/components/workspace-layout-structure.test.ts`
+  - `npm run typecheck --workspace @dude-tax/desktop`
+  - `node --check scripts/e2e/release-preflight.mjs`
+  - 已进一步缩小排序态右侧上下箭头按钮，避免上下重叠
+  - 已恢复导航项统一宽度，自定义排序按钮尺寸回调为原侧栏方案，仅将文字替换为上下箭头图标
+  - 排序态箭头控件改为悬浮在导航项右侧，可超出导航栏边缘显示，并通过模糊主面板/品牌卡降低视觉割裂感
+  - `npm run test --workspace @dude-tax/desktop -- src/components/workspace-layout-structure.test.ts`
+  - `npm run typecheck --workspace @dude-tax/desktop`
+  - 已修复 `WorkspaceLayoutRoot` / `WorkspaceCanvas` 之间的渲染循环，fresh dev session 中不再出现 `Maximum update depth exceeded`
+  - 左侧导航排序已从整项拖拽改为排序模式下通过右侧上下箭头移动
+  - 排序模式下导航文字区保持可见但禁用，不再误触进入模块
+  - 自定义排序按钮已改为 icon-only 入口，并补齐 `aria-label` / `title`
+  - 已新增 `navigation-order.ts` 纯逻辑 helper 及边界测试
+  - 已补首页“前往政策参考”和年度结果页“前往计算中心”入口断言
+  - `npm run test --workspace @dude-tax/desktop -- src/components/navigation-order.test.ts src/components/workspace-layout-structure.test.ts src/pages/home-page.test.ts src/pages/annual-results/components/annual-results-overview-section.test.ts`
+  - `npm run typecheck --workspace @dude-tax/desktop`
+  - 浏览器冒烟：`#/ -> #/units`、排序模式文字区禁跳转、箭头移动顺序生效、首页入口 `#/policy`
+  - 已新增左下角描边缩放手柄，与右下角手柄共存
+  - 已新增工作区底部临时扩展空白区，支持继续向下拉伸卡片
+  - 已新增“自动排列”按钮，支持向上回填和轻微横向重叠保留并排
+  - 已修复员工批量导入区卡片滚动问题与“隐藏已离职员工”控件单行样式
+  - 已修复卡片缩放结束后仍触发自动吸附 / 自动重排的问题
+  - 已新增 `ui_nav_order` 偏好，支持左侧导航拖拽排序与全局顺序记忆
+  - 已修复导航项外层在 `pointerdown` 提前 `preventDefault` 导致主模块无法切换的问题
+  - 抽屉按钮已调整为品牌卡片右侧居中定位，不再压住标题卡片
+  - 卡片拖拽起点已放宽到非交互区域，不再局限于标题区
+  - 卡片与主要弹窗正文区已接入整体等比缩放
+  - 已修复 `WorkspaceCanvas` 在局部重渲染时把临时拖拽 / 缩放状态覆盖回持久化值的问题
+  - 右下角缩放手柄已改为描边角标样式
+  - `npm run test --workspace @dude-tax/api -- src/**/*.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- src/**/*.test.ts`
+  - `npm run typecheck --workspaces --if-present`
+  - `npm run build:api`
+  - `npm run build:desktop`
+  - 已新增共享 UI 布局协议：页面布局、弹窗布局、导航抽屉状态统一进入 `@dude-tax/core`
+  - 已新增本地 API `ui-preferences` 路由，支持侧边栏状态、页面布局、弹窗布局的读写与重置
+  - 左侧导航已支持抽屉式收起 / 恢复，并记忆全局状态
+  - 首页、单位管理、员工信息、快速计算、月度数据录入、结果确认、历史查询、政策参考、系统维护主工作区已接入可拖拽 / 可缩放布局
+  - 年度工作台、结果明细、员工编辑、选择员工弹窗已接入浮动窗口布局
+  - 已新增布局纯函数测试、结构测试与 API 偏好测试
+  - `npm run test --workspace @dude-tax/api -- src/**/*.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- src/**/*.test.ts`
+  - `npm run typecheck --workspaces --if-present`
+  - `npm run build:api`
+  - `npm run build:desktop`
   - 已定位安装版 `Failed to fetch` 根因：前端在安装环境下可能拿不到 preload 注入的 `apiBaseUrl`，回退为 `file://` 请求导致网络层直接失败
   - `apps/desktop/electron/main.cjs` 已改为在窗口 URL 查询参数中显式注入 `salaryTaxApiBaseUrl`
   - `apps/desktop/src/api/client.ts` 已新增从 `window.location.search` 读取本地 API 地址的兜底逻辑
@@ -62,6 +112,10 @@
   - 新增 `scripts/e2e/release-preflight.mjs`，并完成真实发布包主流程回放
   - 修正后的 `desktop-full-chain-soak.mjs` 已完成严格 60 分钟单次复跑
 - 本轮修复：
+  - 修复工作区布局控制器在注册 canvas actions 时重复触发根组件重渲染的问题
+  - 将导航排序交互从拖拽改为按钮式上下移动，降低误触与不可预期点击
+  - 将排序开关改成图标按钮，减少排序态和普通态的视觉噪音
+  - 补齐导航与页面内主功能入口的回归断言，覆盖首页和年度结果页
   - 修复员工在入职前月份、离职后月份仍能静默保存收入的问题
   - 修复复制场景下“跳过异常月份”未回退当前异常源月份的问题
   - 修复复制到后续月份时“跳过异常月份”仍把收入带入离职后月份的问题
@@ -204,6 +258,12 @@
 
 ## 风险备注
 
+- 当前导航排序、内容缩放与拖拽放宽主要通过单元 / 结构测试验证，尚未补真实 Electron 人工手感验证。
+- 当前尾部空白区扩展与自动排列的组合行为主要通过纯函数和结构测试验证，尚未补真实 Electron 人工手感验证。
+- 新增工作区布局已覆盖主页面与主要弹窗，但尚未补真实 Electron 壳人工拖拽烟测证据
+- 系统维护页“税率维护”父卡内部仍保留原有静态子卡排布，当前先保证顶层主卡片可自由布局
+- `vite build` 仍有 bundle 过大 warning，当前不阻断本轮交付
+
 - 这次修复解决的是“renderer 取不到 API 基地址”的链路；如果未来 preload 整体失效，查询参数兜底仍能保障 API 请求，但桌面桥接能力本身仍需单独关注。
 - GitHub Actions 的 Windows Release 工作流依赖 `windows-latest` 上可用的 Chocolatey 安装 Inno Setup；若 runner 镜像策略变化，需要同步调整安装命令。
 - 当前稳定下载链接采用滚动 release tag `installer-latest`，后续更新安装包时必须继续使用同名资产 `dude-tax-installer-x64.exe`。
@@ -220,6 +280,14 @@
 - 正式 soak 使用旧版脚本完成，`--duration-minutes 60` 的阶段权重实际覆盖约 55 分钟；run 后已修正 baseline 窗口计时，若需要严格满 60 分钟单次证据，应补一轮复跑。
 
 ## Lessons Learned
+
+- 导航拖拽排序不能直接复用卡片拖拽逻辑；必须引入拖拽阈值，才能避免“点击切页”和“拖动排序”互相误伤。
+- “外框变小 + 内容滚动”不等于用户感知的可缩放，正文区需要显式做比例缩放，用户才会认为卡片真的被缩小了。
+- 侧边栏抽屉按钮的视觉锚点应该跟品牌卡片绑定，而不是跟整个侧栏绑定，否则很容易在视觉上漂移。
+- 自动排列不能只做碰撞下推；必须再做向上回填和轻微横向重叠保留，用户才会觉得布局“聪明”而不是“机械”。
+- 这类“全页面可拖拽 / 可缩放”需求，先把布局协议沉到 `core`，再让 API 和桌面端共用，能明显降低后续 scope 漂移风险。
+- 页面级自由布局如果不做 scope 约束，很容易因为多个页面互相覆盖同一偏好键而污染布局；固定 `ui_layout::<scope>` 是必要前提。
+- 大型工作台弹窗的“最大化 / 还原”最好把 `isMaximized` 与普通 rect 一起持久化，这样重启后仍能恢复上次窗口状态。
 
 - Electron 安装版里，依赖 `additionalArguments -> preload -> process.argv` 的 runtime 注入并不够稳，关键运行参数还应该有 URL / IPC 级兜底。
 - 在 Windows 上直接改动仓库根目录的 `better-sqlite3` Electron 预编译二进制非常容易撞到文件锁；正确做法是在打包临时副本里替换 ABI。

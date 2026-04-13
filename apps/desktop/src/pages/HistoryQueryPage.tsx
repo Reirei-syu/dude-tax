@@ -4,6 +4,7 @@ import { taxCalculationSchemeLabelMap } from "@dude-tax/core";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { YearRecordWorkspaceDialog } from "../components/YearRecordWorkspaceDialog";
 import { useAppContext } from "../context/AppContextProvider";
 import { saveFileWithDesktopFallback } from "../utils/file-save";
@@ -150,115 +151,124 @@ export const HistoryQueryPage = () => {
   };
 
   return (
-    <section className="page-grid">
-      <CollapsibleSectionCard
-        className="placeholder-card"
-        description="仅查询已确认数据，按员工查看当年度纳税明细。"
-        headingTag="h1"
-        headerExtras={<span className="tag">{loading ? "查询中" : "已确认历史数据"}</span>}
-        title="历史查询"
-      >
-        <div className="form-grid">
-          <label className="form-field">
-            <span>单位</span>
-            <select
-              value={unitId ?? ""}
-              onChange={(event) => {
-                const nextUnitId = event.target.value ? Number(event.target.value) : null;
-                const nextUnit = units.find((unit) => unit.id === nextUnitId) ?? null;
-                setUnitId(nextUnitId);
-                setTaxYear(nextUnit?.availableTaxYears[0] ?? null);
-              }}
-            >
-              <option value="">请选择单位</option>
-              {units.map((unit: Unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.unitName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>年份</span>
-            <select
-              value={taxYear ?? ""}
-              onChange={(event) =>
-                setTaxYear(event.target.value ? Number(event.target.value) : null)
-              }
-            >
-              <option value="">请选择年份</option>
-              {availableTaxYears.map((year) => (
-                <option key={year} value={year}>
-                  {year} 年
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="button-row">
-          <button className="primary-button" type="button" onClick={() => void runQuery()}>
-            查询
-          </button>
-          <button
-            className="ghost-button"
-            disabled={loading || !results.length}
-            type="button"
-            onClick={() => void downloadWorkbook()}
+    <WorkspaceLayoutRoot scope="page:history">
+      <WorkspaceCanvas>
+        <WorkspaceItem
+          cardId="history-main"
+          defaultLayout={{ x: 0, y: 0, w: 12, h: 18 }}
+          minH={14}
+        >
+          <CollapsibleSectionCard
+            cardId="history-main"
+            className="placeholder-card"
+            description="仅查询已确认数据，按员工查看当年度纳税明细。"
+            headingTag="h1"
+            headerExtras={<span className="tag">{loading ? "查询中" : "已确认历史数据"}</span>}
+            title="历史查询"
           >
-            导出 Excel
-          </button>
-        </div>
-
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-
-        <table className="data-table month-entry-overview-table">
-          <thead>
-            <tr>
-              <th>工号</th>
-              <th>姓名</th>
-              <th>预扣税额</th>
-              <th>方案</th>
-              <th>已确认月份</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.length ? (
-              results.map((result) => (
-                <tr
-                  key={result.employeeId}
-                  className="selectable-row"
-                  onClick={() => void openDetail(result.employeeId)}
+            <div className="form-grid">
+              <label className="form-field">
+                <span>单位</span>
+                <select
+                  value={unitId ?? ""}
+                  onChange={(event) => {
+                    const nextUnitId = event.target.value ? Number(event.target.value) : null;
+                    const nextUnit = units.find((unit) => unit.id === nextUnitId) ?? null;
+                    setUnitId(nextUnitId);
+                    setTaxYear(nextUnit?.availableTaxYears[0] ?? null);
+                  }}
                 >
-                  <td>{result.employeeCode}</td>
-                  <td>
-                    <div className="table-inline-actions">
-                      <button
-                        className="ghost-button table-action-button"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void openDetail(result.employeeId);
-                        }}
-                      >
-                        查询明细
-                      </button>
-                      <span>{result.employeeName}</span>
-                    </div>
-                  </td>
-                  <td>{result.annualTaxWithheld.toFixed(2)}</td>
-                  <td>{taxCalculationSchemeLabelMap[result.selectedScheme]}</td>
-                  <td>{result.confirmedMonths.join("、")}</td>
+                  <option value="">请选择单位</option>
+                  {units.map((unit: Unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.unitName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>年份</span>
+                <select
+                  value={taxYear ?? ""}
+                  onChange={(event) =>
+                    setTaxYear(event.target.value ? Number(event.target.value) : null)
+                  }
+                >
+                  <option value="">请选择年份</option>
+                  {availableTaxYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year} 年
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="button-row">
+              <button className="primary-button" type="button" onClick={() => void runQuery()}>
+                查询
+              </button>
+              <button
+                className="ghost-button"
+                disabled={loading || !results.length}
+                type="button"
+                onClick={() => void downloadWorkbook()}
+              >
+                导出 Excel
+              </button>
+            </div>
+
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+
+            <table className="data-table month-entry-overview-table">
+              <thead>
+                <tr>
+                  <th>工号</th>
+                  <th>姓名</th>
+                  <th>预扣税额</th>
+                  <th>方案</th>
+                  <th>已确认月份</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={5}>当前条件下暂无已确认历史数据。</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </CollapsibleSectionCard>
+              </thead>
+              <tbody>
+                {results.length ? (
+                  results.map((result) => (
+                    <tr
+                      key={result.employeeId}
+                      className="selectable-row"
+                      onClick={() => void openDetail(result.employeeId)}
+                    >
+                      <td>{result.employeeCode}</td>
+                      <td>
+                        <div className="table-inline-actions">
+                          <button
+                            className="ghost-button table-action-button"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void openDetail(result.employeeId);
+                            }}
+                          >
+                            查询明细
+                          </button>
+                          <span>{result.employeeName}</span>
+                        </div>
+                      </td>
+                      <td>{result.annualTaxWithheld.toFixed(2)}</td>
+                      <td>{taxCalculationSchemeLabelMap[result.selectedScheme]}</td>
+                      <td>{result.confirmedMonths.join("、")}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5}>当前条件下暂无已确认历史数据。</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
+      </WorkspaceCanvas>
 
       <YearRecordWorkspaceDialog
         open={Boolean(detail)}
@@ -276,6 +286,6 @@ export const HistoryQueryPage = () => {
         }}
         onSelectMonth={setDetailSelectedMonth}
       />
-    </section>
+    </WorkspaceLayoutRoot>
   );
 };

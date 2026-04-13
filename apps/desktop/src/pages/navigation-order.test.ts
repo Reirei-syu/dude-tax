@@ -22,4 +22,8 @@ test("导航顺序与政策参考命名符合新模块规划", () => {
     MODULE_NAV_ITEMS.find((item) => item.path === "/policy")?.label,
     "政策参考",
   );
+  assert.equal(
+    MODULE_NAV_ITEMS.find((item) => item.path === "/result-confirmation")?.label,
+    "缴纳确认",
+  );
 });

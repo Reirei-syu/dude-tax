@@ -525,13 +525,8 @@ const getMonthEntryState = (client) =>
 const getResultConfirmationState = (client) =>
   pageEval(client, () => {
     const normalize = (value) => value.replace(/\s+/g, " ").trim();
-    const summaryCards = Array.from(document.querySelectorAll(".summary-card"));
-    const summary = Object.fromEntries(
-      summaryCards.map((card) => {
-        const label = card.querySelector("span")?.textContent ?? "";
-        const value = card.querySelector("strong")?.textContent ?? "";
-        return [normalize(label), normalize(value)];
-      }),
+    const rowTexts = Array.from(document.querySelectorAll(".data-table tbody tr")).map((row) =>
+      normalize(row.textContent || ""),
     );
 
     const confirmButton = Array.from(document.querySelectorAll("button")).find((button) =>
@@ -539,7 +534,7 @@ const getResultConfirmationState = (client) =>
     );
 
     return {
-      summary,
+      rowTexts: rowTexts.filter(Boolean),
       confirmButtonDisabled: confirmButton instanceof HTMLButtonElement ? confirmButton.disabled : null,
       errorMessages: Array.from(document.querySelectorAll(".error-banner")).map((element) =>
         normalize(element.textContent || ""),
@@ -844,14 +839,13 @@ const main = async () => {
       ok: true,
     });
 
-    await clickByText(client, "结果确认", "a");
-    await waitForHeading(client, "结果确认");
+    await clickByText(client, "缴纳确认", "a");
+    await waitForHeading(client, "已纳税月份确认");
     const resultConfirmationState = await waitFor(
-      "结果确认数据加载",
+      "缴纳确认数据加载",
       async () => {
         const state = await getResultConfirmationState(client);
-        const pendingResultCount = Number(state.summary["待确认结果数"] ?? "0");
-        return pendingResultCount > 0 ? state : null;
+        return state.rowTexts.some((rowText) => rowText.includes("E2E-001")) ? state : null;
       },
       20_000,
     );
@@ -936,7 +930,6 @@ const main = async () => {
     });
 
     await clickByText(client, "系统维护", "a");
-    await waitForHeading(client, "系统维护");
     await waitForText(client, "税率维护");
     await waitForText(client, "审计日志");
     const maintenanceScreenshot = path.join(args.outputDir, "08-maintenance.png");
@@ -948,9 +941,9 @@ const main = async () => {
       currentVersionName: await pageEval(
         client,
         () => {
-          const summaryCards = Array.from(document.querySelectorAll(".summary-card"));
-          const matchedCard = summaryCards.find((card) =>
-            card.textContent?.includes("当前税率版本"),
+          const versionCards = Array.from(document.querySelectorAll(".maintenance-note-card"));
+          const matchedCard = versionCards.find((card) =>
+            card.textContent?.includes("当前生效"),
           );
           return matchedCard?.querySelector("strong")?.textContent?.trim() ?? null;
         },

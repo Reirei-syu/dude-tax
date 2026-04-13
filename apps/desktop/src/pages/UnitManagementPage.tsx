@@ -2,6 +2,7 @@ import type { DeleteUnitChallenge } from "@dude-tax/core";
 import { useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { CollapsibleSectionCard } from "../components/CollapsibleSectionCard";
+import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
 import { useAppContext } from "../context/AppContextProvider";
 
 export const UnitManagementPage = () => {
@@ -160,198 +161,227 @@ export const UnitManagementPage = () => {
   };
 
   return (
-    <section className="page-grid">
-      <CollapsibleSectionCard
-        description="新增单位时只建立起始年份，后续年份由你按需手动管理。"
-        headingTag="h1"
-        title="单位管理"
-      >
-        <div className="form-grid">
-          <label className="form-field">
-            <span>单位名称</span>
-            <input
-              placeholder="请输入单位名称"
-              value={unitName}
-              onChange={(event) => setUnitName(event.target.value)}
-            />
-          </label>
-
-          <label className="form-field">
-            <span>备注</span>
-            <input
-              placeholder="可选备注"
-              value={remark}
-              onChange={(event) => setRemark(event.target.value)}
-            />
-          </label>
-
-          <label className="form-field">
-            <span>起始年份</span>
-            <input
-              min={1900}
-              step={1}
-              type="number"
-              value={startYear}
-              onChange={(event) => setStartYear(Number(event.target.value))}
-            />
-          </label>
-        </div>
-
-        <div className="button-row">
-          <button
-            className="primary-button"
-            disabled={submitting}
-            onClick={() => void createUnit()}
+    <WorkspaceLayoutRoot scope="page:units">
+      <WorkspaceCanvas>
+        <WorkspaceItem
+          cardId="units-create"
+          defaultLayout={{ x: 0, y: 0, w: 5, h: 14 }}
+          minH={12}
+        >
+          <CollapsibleSectionCard
+            cardId="units-create"
+            description="新增单位时只建立起始年份，后续年份由你按需手动管理。"
+            headingTag="h1"
+            title="单位管理"
           >
-            新增单位
-          </button>
-        </div>
-
-        {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-        {successMessage ? <div className="success-banner">{successMessage}</div> : null}
-      </CollapsibleSectionCard>
-
-      <CollapsibleSectionCard description="点击“进入工作”即可切换当前单位。" title="单位列表">
-        <div className="unit-list">
-          {context?.units.length ? (
-            context.units.map((unit) => (
-              <div className="unit-item" key={unit.id}>
-                <div>
-                  <strong>{unit.unitName}</strong>
-                  <p>{unit.remark || "暂无备注"}</p>
-                  <p>年份：{unit.availableTaxYears.join("、")}</p>
-                </div>
-
-                <div className="button-row compact">
-                  <button
-                    className="ghost-button"
-                    onClick={() =>
-                      void updateContext({
-                        currentUnitId: unit.id,
-                        currentTaxYear: unit.availableTaxYears.includes(
-                          context?.currentTaxYear ?? -1,
-                        )
-                          ? (context?.currentTaxYear ?? unit.availableTaxYears[0] ?? startYear)
-                          : (unit.availableTaxYears[0] ?? startYear),
-                      })
-                    }
-                  >
-                    {selectedUnit?.id === unit.id ? "当前单位" : "进入工作"}
-                  </button>
-                  <button
-                    className="danger-button"
-                    onClick={() => void openDeleteChallenge(unit.id)}
-                  >
-                    删除
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="empty-state">当前还没有单位，请先创建单位。</div>
-          )}
-        </div>
-      </CollapsibleSectionCard>
-
-      <CollapsibleSectionCard
-        description="只显示当前单位已有年份；可新增历史年份，也可新增未来年份。"
-        headerExtras={<span className="tag">{selectedUnit?.unitName ?? "未选择单位"}</span>}
-        title="年份管理"
-      >
-        {selectedUnit ? (
-          <>
             <div className="form-grid">
               <label className="form-field">
-                <span>新增年份</span>
+                <span>单位名称</span>
+                <input
+                  placeholder="请输入单位名称"
+                  value={unitName}
+                  onChange={(event) => setUnitName(event.target.value)}
+                />
+              </label>
+
+              <label className="form-field">
+                <span>备注</span>
+                <input
+                  placeholder="可选备注"
+                  value={remark}
+                  onChange={(event) => setRemark(event.target.value)}
+                />
+              </label>
+
+              <label className="form-field">
+                <span>起始年份</span>
                 <input
                   min={1900}
-                  placeholder="例如 2035"
                   step={1}
                   type="number"
-                  value={newYear}
-                  onChange={(event) => setNewYear(event.target.value)}
+                  value={startYear}
+                  onChange={(event) => setStartYear(Number(event.target.value))}
                 />
               </label>
             </div>
 
             <div className="button-row">
-              <button className="ghost-button" disabled={submitting} onClick={() => void addYear()}>
-                新增年份
+              <button
+                className="primary-button"
+                disabled={submitting}
+                onClick={() => void createUnit()}
+              >
+                新增单位
               </button>
             </div>
 
-            <div className="year-chip-list">
-              {selectedUnit.availableTaxYears.map((year) => (
-                <div className="year-chip-card" key={year}>
-                  <button
-                    className={
-                      context?.currentTaxYear === year
-                        ? "ghost-button selected-item"
-                        : "ghost-button"
-                    }
-                    onClick={() => void updateContext({ currentTaxYear: year })}
-                    type="button"
-                  >
-                    {year} 年
-                  </button>
-                  <button
-                    className="danger-button"
-                    disabled={submitting}
-                    onClick={() => void removeYear(year)}
-                    type="button"
-                  >
-                    删除
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+            {successMessage ? <div className="success-banner">{successMessage}</div> : null}
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
+
+        <WorkspaceItem
+          cardId="units-list"
+          defaultLayout={{ x: 5, y: 0, w: 7, h: 14 }}
+          minH={12}
+        >
+          <CollapsibleSectionCard cardId="units-list" description="点击“进入工作”即可切换当前单位。" title="单位列表">
+            <div className="unit-list">
+              {context?.units.length ? (
+                context.units.map((unit) => (
+                  <div className="unit-item" key={unit.id}>
+                    <div>
+                      <strong>{unit.unitName}</strong>
+                      <p>{unit.remark || "暂无备注"}</p>
+                      <p>年份：{unit.availableTaxYears.join("、")}</p>
+                    </div>
+
+                    <div className="button-row compact">
+                      <button
+                        className="ghost-button"
+                        onClick={() =>
+                          void updateContext({
+                            currentUnitId: unit.id,
+                            currentTaxYear: unit.availableTaxYears.includes(
+                              context?.currentTaxYear ?? -1,
+                            )
+                              ? (context?.currentTaxYear ?? unit.availableTaxYears[0] ?? startYear)
+                              : (unit.availableTaxYears[0] ?? startYear),
+                          })
+                        }
+                      >
+                        {selectedUnit?.id === unit.id ? "当前单位" : "进入工作"}
+                      </button>
+                      <button
+                        className="danger-button"
+                        onClick={() => void openDeleteChallenge(unit.id)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state">当前还没有单位，请先创建单位。</div>
+              )}
+            </div>
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
+
+        <WorkspaceItem
+          cardId="units-years"
+          defaultLayout={{ x: 0, y: 14, w: 8, h: 15 }}
+          minH={12}
+        >
+          <CollapsibleSectionCard
+            cardId="units-years"
+            description="只显示当前单位已有年份；可新增历史年份，也可新增未来年份。"
+            headerExtras={<span className="tag">{selectedUnit?.unitName ?? "未选择单位"}</span>}
+            title="年份管理"
+          >
+            {selectedUnit ? (
+              <>
+                <div className="form-grid">
+                  <label className="form-field">
+                    <span>新增年份</span>
+                    <input
+                      min={1900}
+                      placeholder="例如 2035"
+                      step={1}
+                      type="number"
+                      value={newYear}
+                      onChange={(event) => setNewYear(event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className="button-row">
+                  <button className="ghost-button" disabled={submitting} onClick={() => void addYear()}>
+                    新增年份
                   </button>
                 </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="empty-state">请先在左侧切换到目标单位，再管理年份。</div>
-        )}
-      </CollapsibleSectionCard>
 
-      {deleteChallenge && deleteUnitId !== null ? (
-        <CollapsibleSectionCard
-          description="删除后不可恢复。若需保留历史数据，请先备份。"
-          title="删除单位认证"
-        >
-          <div className="delete-challenge-box">
-            <div className="challenge-code">{deleteChallenge.confirmationCode}</div>
-            <p>请输入上方 6 位认证字符，然后勾选不可恢复确认。</p>
-          </div>
+                <div className="year-chip-list">
+                  {selectedUnit.availableTaxYears.map((year) => (
+                    <div className="year-chip-card" key={year}>
+                      <button
+                        className={
+                          context?.currentTaxYear === year
+                            ? "ghost-button selected-item"
+                            : "ghost-button"
+                        }
+                        onClick={() => void updateContext({ currentTaxYear: year })}
+                        type="button"
+                      >
+                        {year} 年
+                      </button>
+                      <button
+                        className="danger-button"
+                        disabled={submitting}
+                        onClick={() => void removeYear(year)}
+                        type="button"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">请先在左侧切换到目标单位，再管理年份。</div>
+            )}
+          </CollapsibleSectionCard>
+        </WorkspaceItem>
 
-          <div className="form-grid">
-            <label className="form-field">
-              <span>认证字符</span>
-              <input value={deleteInput} onChange={(event) => setDeleteInput(event.target.value)} />
-            </label>
-          </div>
-
-          <label className="checkbox-row">
-            <input
-              checked={finalDeleteConfirm}
-              onChange={(event) => setFinalDeleteConfirm(event.target.checked)}
-              type="checkbox"
-            />
-            <span>我已知晓该操作不可恢复，并确认继续删除。</span>
-          </label>
-
-          <div className="button-row">
-            <button
-              className="danger-button"
-              disabled={
-                submitting ||
-                deleteInput !== deleteChallenge.confirmationCode ||
-                !finalDeleteConfirm
-              }
-              onClick={() => void executeDelete()}
+        {deleteChallenge && deleteUnitId !== null ? (
+          <WorkspaceItem
+            cardId="units-delete-challenge"
+            defaultLayout={{ x: 8, y: 14, w: 4, h: 12 }}
+            minH={10}
+          >
+            <CollapsibleSectionCard
+              cardId="units-delete-challenge"
+              description="删除后不可恢复。若需保留历史数据，请先备份。"
+              title="删除单位认证"
             >
-              确认删除
-            </button>
-          </div>
-        </CollapsibleSectionCard>
-      ) : null}
-    </section>
+              <div className="delete-challenge-box">
+                <div className="challenge-code">{deleteChallenge.confirmationCode}</div>
+                <p>请输入上方 6 位认证字符，然后勾选不可恢复确认。</p>
+              </div>
+
+              <div className="form-grid">
+                <label className="form-field">
+                  <span>认证字符</span>
+                  <input value={deleteInput} onChange={(event) => setDeleteInput(event.target.value)} />
+                </label>
+              </div>
+
+              <label className="checkbox-row">
+                <input
+                  checked={finalDeleteConfirm}
+                  onChange={(event) => setFinalDeleteConfirm(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>我已知晓该操作不可恢复，并确认继续删除。</span>
+              </label>
+
+              <div className="button-row">
+                <button
+                  className="danger-button"
+                  disabled={
+                    submitting ||
+                    deleteInput !== deleteChallenge.confirmationCode ||
+                    !finalDeleteConfirm
+                  }
+                  onClick={() => void executeDelete()}
+                >
+                  确认删除
+                </button>
+              </div>
+            </CollapsibleSectionCard>
+          </WorkspaceItem>
+        ) : null}
+      </WorkspaceCanvas>
+    </WorkspaceLayoutRoot>
   );
 };

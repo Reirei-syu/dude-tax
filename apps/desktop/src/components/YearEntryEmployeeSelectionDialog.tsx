@@ -1,4 +1,5 @@
 import type { EmployeeYearEntryOverview } from "@dude-tax/core";
+import { FloatingWorkspaceDialog } from "./FloatingWorkspaceDialog";
 
 type Props = {
   open: boolean;
@@ -35,23 +36,27 @@ export const YearEntryEmployeeSelectionDialog = ({
   const selectedEmployeeIdSet = new Set(selectedEmployeeIds);
 
   return (
-    <div className="workspace-overlay">
-      <div className="workspace-dialog employee-selection-dialog">
-        <div className="workspace-header">
-          <div>
-            <h2>选择员工</h2>
-            <p>默认纳入本年全部有效员工，可按需取消勾选后重新计算。</p>
-          </div>
-          <div className="button-row compact">
-            <button className="ghost-button" type="button" onClick={onSelectAll}>
-              全选全部有效员工
-            </button>
-            <button className="ghost-button" type="button" onClick={onClose}>
-              关闭
-            </button>
-          </div>
-        </div>
-
+    <FloatingWorkspaceDialog
+      open={open}
+      scope="dialog:year-entry-selection"
+      title="选择员工"
+      subtitle="默认纳入本年全部有效员工，可按需取消勾选后重新计算。"
+      defaultLayout={{
+        x: 140,
+        y: 72,
+        width: 960,
+        height: 760,
+        isMaximized: false,
+      }}
+      onClose={onClose}
+      className="employee-selection-dialog"
+      headerActions={
+        <button className="ghost-button" type="button" onClick={onSelectAll}>
+          全选全部有效员工
+        </button>
+      }
+    >
+      <>
         <div className="employee-selection-groups">
           {groupConfig.map((group) => {
             const groupEmployees = employees.filter(
@@ -95,7 +100,7 @@ export const YearEntryEmployeeSelectionDialog = ({
             );
           })}
         </div>
-      </div>
-    </div>
+      </>
+    </FloatingWorkspaceDialog>
   );
 };
