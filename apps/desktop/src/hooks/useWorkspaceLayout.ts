@@ -6,6 +6,7 @@ const normalizeCards = (cards: WorkspaceCardLayout[]) =>
   cards.map((card) => ({
     ...card,
     canvasId: card.canvasId ?? "root",
+    z: Math.max(Math.round(card.z ?? 0), 0),
   }));
 
 export const useWorkspaceLayout = (scope: WorkspacePageScope) => {

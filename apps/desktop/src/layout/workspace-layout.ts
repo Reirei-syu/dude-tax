@@ -5,7 +5,7 @@ import type {
   WorkspaceLayoutState,
   WorkspacePageScope,
 } from "@dude-tax/core";
-import { NAVIGATION_MODULE_PATHS } from "@dude-tax/core";
+import { NAVIGATION_MODULE_PATHS, WORKSPACE_LAYOUT_UNIT_STEP } from "@dude-tax/core";
 
 export const WORKSPACE_GRID_COLUMNS = 12;
 export const WORKSPACE_GRID_GAP = 16;
@@ -19,11 +19,13 @@ export const WORKSPACE_MIN_CONTENT_SCALE = 0.75;
 export const WORKSPACE_MAX_CONTENT_SCALE = 1.15;
 export const WORKSPACE_COLLISION_WIDTH_TOLERANCE_RATIO = 0.1;
 export const WORKSPACE_TAIL_EXTENSION_STEP_ROWS = 4;
+const WORKSPACE_LAYOUT_UNIT_FACTOR = 1 / WORKSPACE_LAYOUT_UNIT_STEP;
+const WORKSPACE_AUTO_ARRANGE_RESIZE_RATIO = 0.1;
 
 export type WorkspaceCardDefinition = {
   cardId: string;
   canvasId?: string;
-  defaultLayout: Omit<WorkspaceCardLayout, "cardId" | "canvasId">;
+  defaultLayout: Omit<WorkspaceCardLayout, "cardId" | "canvasId" | "z">;
   minW?: number;
   minH?: number;
   movable?: boolean;
@@ -42,6 +44,14 @@ const buildCardKey = (cardId: string, canvasId?: string) => `${normalizeCanvasId
 const clamp = (value: number, minValue: number, maxValue: number) =>
   Math.min(Math.max(value, minValue), maxValue);
 
+const roundWorkspaceUnit = (value: number) =>
+  Math.round(value * WORKSPACE_LAYOUT_UNIT_FACTOR) / WORKSPACE_LAYOUT_UNIT_FACTOR;
+
+const floorWorkspaceUnit = (value: number) =>
+  Math.floor(value * WORKSPACE_LAYOUT_UNIT_FACTOR) / WORKSPACE_LAYOUT_UNIT_FACTOR;
+
+const normalizeWorkspaceZ = (value: number | undefined) => Math.max(Math.round(value ?? 0), 0);
+
 export const clampWorkspaceCardLayout = (
   layout: WorkspaceCardLayout,
   options?: {
@@ -49,18 +59,19 @@ export const clampWorkspaceCardLayout = (
     minH?: number;
   },
 ): WorkspaceCardLayout => {
-  const minW = Math.max(options?.minW ?? 1, 1);
-  const minH = Math.max(options?.minH ?? 1, 1);
-  const w = clamp(layout.w, minW, WORKSPACE_GRID_COLUMNS);
-  const x = clamp(layout.x, 0, Math.max(WORKSPACE_GRID_COLUMNS - w, 0));
+  const minW = Math.max(roundWorkspaceUnit(options?.minW ?? WORKSPACE_LAYOUT_UNIT_STEP), WORKSPACE_LAYOUT_UNIT_STEP);
+  const minH = Math.max(roundWorkspaceUnit(options?.minH ?? WORKSPACE_LAYOUT_UNIT_STEP), WORKSPACE_LAYOUT_UNIT_STEP);
+  const w = roundWorkspaceUnit(clamp(layout.w, minW, WORKSPACE_GRID_COLUMNS));
+  const x = roundWorkspaceUnit(clamp(layout.x, 0, Math.max(WORKSPACE_GRID_COLUMNS - w, 0)));
 
   return {
     ...layout,
     canvasId: normalizeCanvasId(layout.canvasId),
-    x,
-    y: Math.max(layout.y, 0),
+    x: Math.min(x, roundWorkspaceUnit(Math.max(WORKSPACE_GRID_COLUMNS - w, 0))),
+    y: roundWorkspaceUnit(Math.max(layout.y, 0)),
     w,
-    h: Math.max(layout.h, minH),
+    h: roundWorkspaceUnit(Math.max(layout.h, minH)),
+    z: normalizeWorkspaceZ(layout.z),
   };
 };
 
@@ -77,11 +88,49 @@ export const mergeLayoutState = (
     scope,
     cards: defaultLayouts.map((defaultLayout) =>
       clampWorkspaceCardLayout(
-        storedCards.get(buildCardKey(defaultLayout.cardId, defaultLayout.canvasId)) ?? defaultLayout,
+        {
+          ...defaultLayout,
+          ...storedCards.get(buildCardKey(defaultLayout.cardId, defaultLayout.canvasId)),
+          z:
+            storedCards.get(buildCardKey(defaultLayout.cardId, defaultLayout.canvasId))?.z ??
+            defaultLayout.z,
+        },
       ),
     ),
   };
 };
+
+export const bringCardToFront = (
+  cards: WorkspaceCardLayout[],
+  targetCardId: string,
+  canvasId = DEFAULT_WORKSPACE_CANVAS_ID,
+) => {
+  const normalizedCanvasId = normalizeCanvasId(canvasId);
+  const maxZ = cards.reduce((currentMax, card) => {
+    if (normalizeCanvasId(card.canvasId) !== normalizedCanvasId) {
+      return currentMax;
+    }
+    return Math.max(currentMax, normalizeWorkspaceZ(card.z));
+  }, 0);
+
+  return cards.map((card) =>
+    card.cardId === targetCardId && normalizeCanvasId(card.canvasId) === normalizedCanvasId
+      ? {
+          ...card,
+          z: maxZ + 1,
+        }
+      : card,
+  );
+};
+
+export const pinCardToHorizontalEdge = (
+  card: WorkspaceCardLayout,
+  edge: "left" | "right",
+) =>
+  clampWorkspaceCardLayout({
+    ...card,
+    x: edge === "left" ? 0 : WORKSPACE_GRID_COLUMNS - card.w,
+  });
 
 const rectanglesOverlap = (left: WorkspaceCardLayout, right: WorkspaceCardLayout) =>
   normalizeCanvasId(left.canvasId) === normalizeCanvasId(right.canvasId) &&
@@ -365,38 +414,106 @@ export const autoArrangeWorkspaceCards = (
       if (left.y !== right.y) {
         return left.y - right.y;
       }
-      return left.x - right.x;
+      if (left.x !== right.x) {
+        return left.x - right.x;
+      }
+      return left.z - right.z;
     });
 
-  let cursorX = 0;
-  let cursorY = 0;
-  let rowHeight = 0;
-
-  return sortedCards.map((card) => {
-    let nextWidth = card.w;
-    if (cursorX > 0 && cursorX + nextWidth > WORKSPACE_GRID_COLUMNS) {
-      const overflow = cursorX + nextWidth - WORKSPACE_GRID_COLUMNS;
-      const overlapRatio = overflow / Math.max(nextWidth, 1);
-      if (overlapRatio <= WORKSPACE_COLLISION_WIDTH_TOLERANCE_RATIO) {
-        nextWidth -= overflow;
-      } else {
-        cursorY += rowHeight;
-        cursorX = 0;
-        rowHeight = 0;
-      }
+  const rows: WorkspaceCardLayout[][] = [];
+  sortedCards.forEach((card) => {
+    const currentRow = rows.at(-1);
+    if (!currentRow) {
+      rows.push([card]);
+      return;
     }
 
-    const arrangedCard = clampWorkspaceCardLayout({
-      ...card,
-      x: cursorX,
-      y: cursorY,
-      w: cursorX === 0 ? card.w : nextWidth,
+    const currentWidth = currentRow.reduce((sum, item) => sum + item.w, 0);
+    const nextWidth = currentWidth + card.w;
+    const shrinkCapacity = [...currentRow, card].reduce(
+      (sum, item) =>
+        sum + floorWorkspaceUnit(Math.min(item.w * WORKSPACE_AUTO_ARRANGE_RESIZE_RATIO, item.w - WORKSPACE_LAYOUT_UNIT_STEP)),
+      0,
+    );
+
+    if (nextWidth <= WORKSPACE_GRID_COLUMNS || nextWidth - WORKSPACE_GRID_COLUMNS <= shrinkCapacity) {
+      currentRow.push(card);
+      return;
+    }
+
+    rows.push([card]);
+  });
+
+  let cursorY = 0;
+  const arrangedRows = rows.flatMap((row) => {
+    const baseWidth = roundWorkspaceUnit(row.reduce((sum, item) => sum + item.w, 0));
+    const rowHeight = roundWorkspaceUnit(Math.max(...row.map((item) => item.h)));
+    const canExpand = baseWidth < WORKSPACE_GRID_COLUMNS;
+    const capacities = row.map((item) =>
+      floorWorkspaceUnit(
+        canExpand
+          ? item.w * WORKSPACE_AUTO_ARRANGE_RESIZE_RATIO
+          : Math.min(item.w * WORKSPACE_AUTO_ARRANGE_RESIZE_RATIO, item.w - WORKSPACE_LAYOUT_UNIT_STEP),
+      ),
+    );
+    const totalCapacity = roundWorkspaceUnit(capacities.reduce((sum, item) => sum + item, 0));
+    const targetWidth = canExpand
+      ? Math.min(WORKSPACE_GRID_COLUMNS, roundWorkspaceUnit(baseWidth + totalCapacity))
+      : Math.max(WORKSPACE_GRID_COLUMNS, roundWorkspaceUnit(baseWidth - totalCapacity));
+    let remainingDelta = roundWorkspaceUnit(Math.abs(targetWidth - baseWidth));
+    const nextWidths = row.map((item) => item.w);
+
+    row.forEach((item, index) => {
+      if (remainingDelta <= 0) {
+        return;
+      }
+
+      const remainingCapacity = capacities
+        .slice(index)
+        .reduce((sum, capacity) => sum + capacity, 0);
+      const suggestedDelta =
+        index === row.length - 1 || remainingCapacity <= 0
+          ? remainingDelta
+          : roundWorkspaceUnit((capacities[index] / remainingCapacity) * remainingDelta);
+      const appliedDelta = Math.min(capacities[index], remainingDelta, suggestedDelta || remainingDelta);
+      nextWidths[index] = roundWorkspaceUnit(
+        nextWidths[index] + (canExpand ? appliedDelta : -appliedDelta),
+      );
+      remainingDelta = roundWorkspaceUnit(remainingDelta - appliedDelta);
     });
 
-    cursorX = arrangedCard.x + arrangedCard.w;
-    rowHeight = Math.max(rowHeight, arrangedCard.h);
-    return arrangedCard;
+    let cursorX = 0;
+    const arrangedRow = row.map((item, index) => {
+      const isLast = index === row.length - 1;
+      const nextCard = clampWorkspaceCardLayout({
+        ...item,
+        x: cursorX,
+        y: cursorY,
+        w: isLast
+          ? roundWorkspaceUnit(
+              Math.max(
+                WORKSPACE_LAYOUT_UNIT_STEP,
+                targetWidth - cursorX,
+              ),
+            )
+          : nextWidths[index],
+        h: rowHeight,
+      });
+      cursorX = roundWorkspaceUnit(nextCard.x + nextCard.w);
+      return nextCard;
+    });
+
+    cursorY = roundWorkspaceUnit(cursorY + rowHeight);
+    return arrangedRow;
   });
+
+  const arrangedCardMap = new Map(
+    arrangedRows.map((card) => [buildCardKey(card.cardId, card.canvasId), card] as const),
+  );
+
+  return sortedCards.map(
+    (card) => arrangedCardMap.get(buildCardKey(card.cardId, card.canvasId)) ?? card,
+  );
 };
 
 export const clampWorkspaceContentScale = (input: {
@@ -446,10 +563,12 @@ export const getWorkspaceCardStyle = (
 
 export const createWorkspaceCardLayout = (
   definition: WorkspaceCardDefinition,
+  index = 0,
 ): WorkspaceCardLayout => ({
   cardId: definition.cardId,
   canvasId: normalizeCanvasId(definition.canvasId),
   ...definition.defaultLayout,
+  z: index,
 });
 
 export const getWorkspaceCardKey = (card: Pick<WorkspaceCardLayout, "cardId" | "canvasId">) =>

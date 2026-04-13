@@ -82,10 +82,11 @@ test("页面布局偏好按 scope 保存、读取与重置", async () => {
         {
           cardId: "home-overview",
           canvasId: "root",
-          x: 0,
-          y: 0,
-          w: 6,
-          h: 10,
+          x: 0.04,
+          y: 0.05,
+          w: 6.06,
+          h: 10.04,
+          z: 2,
         },
       ],
     },
@@ -99,9 +100,10 @@ test("页面布局偏好按 scope 保存、读取与重置", async () => {
         cardId: "home-overview",
         canvasId: "root",
         x: 0,
-        y: 0,
-        w: 6,
+        y: 0.1,
+        w: 6.1,
         h: 10,
+        z: 2,
       },
     ],
   });
@@ -119,9 +121,10 @@ test("页面布局偏好按 scope 保存、读取与重置", async () => {
         cardId: "home-overview",
         canvasId: "root",
         x: 0,
-        y: 0,
-        w: 6,
+        y: 0.1,
+        w: 6.1,
         h: 10,
+        z: 2,
       },
     ],
   });
@@ -234,6 +237,77 @@ test("坏 JSON 会自动回退到默认布局", async () => {
   assert.deepEqual(response.json(), {
     scope: "page:history",
     cards: [],
+  });
+
+  await app.close();
+});
+
+test("旧整数布局与缺失 z 的历史数据会自动兼容为新布局模型", async () => {
+  const [{ registerUiPreferenceRoutes }, { database }] = await modulesPromise;
+
+  database
+    .prepare(
+      `
+        INSERT INTO app_preferences (key, value)
+        VALUES (?, ?)
+      `,
+    )
+    .run(
+      "ui_layout::page:entry",
+      JSON.stringify({
+        scope: "page:entry",
+        cards: [
+          {
+            cardId: "entry-overview",
+            canvasId: "root",
+            x: 0,
+            y: 0,
+            w: 6,
+            h: 10,
+          },
+          {
+            cardId: "entry-import",
+            canvasId: "root",
+            x: 6,
+            y: 0,
+            w: 6,
+            h: 10,
+          },
+        ],
+      }),
+    );
+
+  const app = Fastify({ logger: false });
+  await registerUiPreferenceRoutes(app);
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/ui-preferences/layouts/page:entry",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    scope: "page:entry",
+    cards: [
+      {
+        cardId: "entry-overview",
+        canvasId: "root",
+        x: 0,
+        y: 0,
+        w: 6,
+        h: 10,
+        z: 0,
+      },
+      {
+        cardId: "entry-import",
+        canvasId: "root",
+        x: 6,
+        y: 0,
+        w: 6,
+        h: 10,
+        z: 1,
+      },
+    ],
   });
 
   await app.close();

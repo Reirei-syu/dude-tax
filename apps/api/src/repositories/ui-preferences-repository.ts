@@ -1,5 +1,6 @@
 import {
   NAVIGATION_MODULE_PATHS,
+  WORKSPACE_LAYOUT_UNIT_STEP,
   WORKSPACE_DIALOG_SCOPES,
   WORKSPACE_PAGE_SCOPES,
   type FloatingDialogLayout,
@@ -16,15 +17,23 @@ const SIDEBAR_COLLAPSED_KEY = "ui_sidebar_collapsed";
 const NAVIGATION_ORDER_KEY = "ui_nav_order";
 const PAGE_LAYOUT_KEY_PREFIX = "ui_layout::";
 const DIALOG_LAYOUT_KEY_PREFIX = "ui_dialog::";
+const WORKSPACE_LAYOUT_UNIT_FACTOR = 1 / WORKSPACE_LAYOUT_UNIT_STEP;
+
+const roundWorkspaceUnit = (value: number) =>
+  Math.round(value * WORKSPACE_LAYOUT_UNIT_FACTOR) / WORKSPACE_LAYOUT_UNIT_FACTOR;
+
+const clampWorkspaceUnit = (value: number, minValue: number, maxValue: number) =>
+  Math.min(Math.max(roundWorkspaceUnit(value), minValue), maxValue);
 
 const workspaceCardLayoutSchema = z
   .object({
     cardId: z.string().trim().min(1),
     canvasId: z.string().trim().min(1).optional(),
-    x: z.number().int().min(0),
-    y: z.number().int().min(0),
-    w: z.number().int().min(1).max(12),
-    h: z.number().int().min(1),
+    x: z.number().finite().min(0),
+    y: z.number().finite().min(0),
+    w: z.number().finite().min(WORKSPACE_LAYOUT_UNIT_STEP).max(12),
+    h: z.number().finite().min(WORKSPACE_LAYOUT_UNIT_STEP),
+    z: z.number().int().min(0).optional(),
   })
   .refine((value) => value.x + value.w <= 12, {
     message: "卡片宽度超出工作区列数",
@@ -46,6 +55,8 @@ const floatingDialogLayoutSchema = z.object({
 });
 
 const navigationOrderSchema = z.array(z.string().trim().min(1));
+type WorkspaceCardLayoutInput = Pick<WorkspaceCardLayout, "cardId" | "x" | "y" | "w" | "h"> &
+  Partial<Pick<WorkspaceCardLayout, "canvasId" | "z">>;
 
 const getPreference = (key: string): string | null => {
   const row = database
@@ -85,11 +96,24 @@ const parsePreference = <T>(rawValue: string | null, schema: z.ZodSchema<T>): T 
   }
 };
 
-const normalizeCards = (cards: WorkspaceCardLayout[]) =>
-  cards.map((card) => ({
-    ...card,
-    canvasId: card.canvasId ?? "root",
-  }));
+const normalizeCards = (cards: WorkspaceCardLayoutInput[]) =>
+  cards.map((card, index) => {
+    const normalizedWidth = clampWorkspaceUnit(
+      card.w,
+      WORKSPACE_LAYOUT_UNIT_STEP,
+      12,
+    );
+
+    return {
+      ...card,
+      canvasId: card.canvasId ?? "root",
+      x: clampWorkspaceUnit(card.x, 0, roundWorkspaceUnit(12 - normalizedWidth)),
+      y: Math.max(0, roundWorkspaceUnit(card.y)),
+      w: normalizedWidth,
+      h: Math.max(WORKSPACE_LAYOUT_UNIT_STEP, roundWorkspaceUnit(card.h)),
+      z: Math.max(Math.round(card.z ?? index), 0),
+    };
+  });
 
 const buildPageLayoutKey = (scope: WorkspacePageScope) => `${PAGE_LAYOUT_KEY_PREFIX}${scope}`;
 const buildDialogLayoutKey = (scope: WorkspaceDialogScope) => `${DIALOG_LAYOUT_KEY_PREFIX}${scope}`;
@@ -166,7 +190,7 @@ export const uiPreferencesRepository = {
     };
   },
 
-  setPageLayout(scope: WorkspacePageScope, cards: WorkspaceCardLayout[]): WorkspaceLayoutState {
+  setPageLayout(scope: WorkspacePageScope, cards: WorkspaceCardLayoutInput[]): WorkspaceLayoutState {
     const nextState: WorkspaceLayoutState = {
       scope,
       cards: normalizeCards(cards),

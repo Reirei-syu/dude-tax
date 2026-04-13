@@ -1,5 +1,5 @@
 import type { Dispatch, ReactElement, ReactNode, SetStateAction } from "react";
-import type { WorkspaceCardLayout, WorkspacePageScope } from "@dude-tax/core";
+import { WORKSPACE_LAYOUT_UNIT_STEP, type WorkspaceCardLayout, type WorkspacePageScope } from "@dude-tax/core";
 import {
   Children,
   createContext,
@@ -18,16 +18,17 @@ import {
   WORKSPACE_GRID_GAP,
   WORKSPACE_INTERACTION_THRESHOLD_PX,
   WORKSPACE_MIN_INTERACTIVE_WIDTH,
+  WORKSPACE_ROW_HEIGHT,
   autoArrangeWorkspaceCards,
+  bringCardToFront,
   clampWorkspaceCardLayout,
   clampWorkspaceContentScale,
   createWorkspaceCardLayout,
   mergeLayoutState,
-  alignCardToNearestNeighbor,
   getWorkspaceCanvasHeight,
   getWorkspaceCardKey,
   getWorkspaceCardStyle,
-  resolveLayoutCollisions,
+  pinCardToHorizontalEdge,
   type WorkspaceCardDefinition,
 } from "../layout/workspace-layout";
 
@@ -56,6 +57,8 @@ type WorkspaceCanvasActions = {
 };
 
 const MIN_RESIZABLE_CARD_HEIGHT_UNITS = 4;
+const roundWorkspaceUnit = (value: number) =>
+  Math.round(value / WORKSPACE_LAYOUT_UNIT_STEP) * WORKSPACE_LAYOUT_UNIT_STEP;
 
 type ActiveInteraction =
   | {
@@ -74,6 +77,12 @@ type ActiveInteraction =
       startClientY: number;
       startLayout: WorkspaceCardLayout;
     };
+
+type WorkspaceContextMenuState = {
+  cardId: string;
+  left: number;
+  top: number;
+};
 
 const isInteractiveTarget = (target: HTMLElement) =>
   Boolean(
@@ -155,10 +164,12 @@ export const WorkspaceCanvas = ({
   const { setCanvasActions } = useWorkspaceCanvasActionsContext();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const cardsRef = useRef<WorkspaceCardLayout[]>([]);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [activeInteraction, setActiveInteraction] = useState<ActiveInteraction | null>(null);
   const pointerOwnerRef = useRef<HTMLElement | null>(null);
   const [tailExtensionRows, setTailExtensionRows] = useState(0);
+  const [contextMenuState, setContextMenuState] = useState<WorkspaceContextMenuState | null>(null);
 
   const childElements = useMemo(
     () =>
@@ -221,6 +232,14 @@ export const WorkspaceCanvas = ({
     setCards(canvasCards);
   }, [canvasCards]);
 
+  const persistCanvasCards = useCallback(
+    (nextCards: WorkspaceCardLayout[]) => {
+      setCards(nextCards);
+      void saveCanvasLayouts(canvasId, nextCards);
+    },
+    [canvasId, saveCanvasLayouts],
+  );
+
   useEffect(() => {
     const staleStoredCards = storedCanvasCards.filter((card) => !definitionMap.has(card.cardId));
     if (!staleStoredCards.length) {
@@ -230,17 +249,18 @@ export const WorkspaceCanvas = ({
     const validStoredCanvasCards = storedCanvasCards.filter((card) =>
       definitionMap.has(card.cardId),
     );
-    void saveCanvasLayouts(canvasId, validStoredCanvasCards);
-  }, [canvasId, definitionMap, saveCanvasLayouts, storedCanvasCards]);
+    persistCanvasCards(validStoredCanvasCards);
+  }, [definitionMap, persistCanvasCards, storedCanvasCards]);
 
   const autoArrange = useCallback(() => {
     const arrangedCards = autoArrangeWorkspaceCards(cardsRef.current);
-    setCards(arrangedCards);
-    void saveCanvasLayouts(canvasId, arrangedCards);
-  }, [canvasId, saveCanvasLayouts]);
+    setContextMenuState(null);
+    persistCanvasCards(arrangedCards);
+  }, [persistCanvasCards]);
 
   const resetTransientState = useCallback(() => {
     setTailExtensionRows(0);
+    setContextMenuState(null);
   }, []);
 
   useEffect(() => {
@@ -291,6 +311,32 @@ export const WorkspaceCanvas = ({
     canvasWidth > 0 ? (canvasWidth - WORKSPACE_GRID_GAP * 11) / 12 : 0;
 
   useEffect(() => {
+    if (!contextMenuState) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && contextMenuRef.current?.contains(target)) {
+        return;
+      }
+      setContextMenuState(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenuState(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenuState]);
+
+  useEffect(() => {
     if (!activeInteraction || !isInteractive || columnUnitWidth <= 0) {
       return;
     }
@@ -317,10 +363,10 @@ export const WorkspaceCanvas = ({
                 ...activeInteraction.startLayout,
                 x:
                   activeInteraction.startLayout.x +
-                  Math.round(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
+                  roundWorkspaceUnit(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
                 y:
                   activeInteraction.startLayout.y +
-                  Math.round(deltaY / (32 + WORKSPACE_GRID_GAP)),
+                  roundWorkspaceUnit(deltaY / (WORKSPACE_ROW_HEIGHT + WORKSPACE_GRID_GAP)),
               },
               {
                 minW: definition.minW,
@@ -333,22 +379,22 @@ export const WorkspaceCanvas = ({
                     ...activeInteraction.startLayout,
                     x:
                       activeInteraction.startLayout.x +
-                      Math.round(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
+                      roundWorkspaceUnit(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
                     w:
                       activeInteraction.startLayout.w -
-                      Math.round(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
+                      roundWorkspaceUnit(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
                     h:
                       activeInteraction.startLayout.h +
-                      Math.round(deltaY / (32 + WORKSPACE_GRID_GAP)),
+                      roundWorkspaceUnit(deltaY / (WORKSPACE_ROW_HEIGHT + WORKSPACE_GRID_GAP)),
                   }
                 : {
                     ...activeInteraction.startLayout,
                     w:
                       activeInteraction.startLayout.w +
-                      Math.round(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
+                      roundWorkspaceUnit(deltaX / (columnUnitWidth + WORKSPACE_GRID_GAP)),
                     h:
                       activeInteraction.startLayout.h +
-                      Math.round(deltaY / (32 + WORKSPACE_GRID_GAP)),
+                      roundWorkspaceUnit(deltaY / (WORKSPACE_ROW_HEIGHT + WORKSPACE_GRID_GAP)),
                   },
               {
                 minW: definition.minW,
@@ -378,19 +424,7 @@ export const WorkspaceCanvas = ({
         return;
       }
 
-      if (activeInteraction.kind === "drag") {
-        const nextCards = currentCards.map((card) =>
-          card.cardId === activeInteraction.cardId
-            ? alignCardToNearestNeighbor(currentCards, movingCard)
-            : card,
-        );
-        const resolvedCards = resolveLayoutCollisions(nextCards, activeInteraction.cardId);
-        setCards(resolvedCards);
-        void saveCanvasLayouts(canvasId, resolvedCards);
-      } else {
-        setCards(currentCards);
-        void saveCanvasLayouts(canvasId, currentCards);
-      }
+      persistCanvasCards(currentCards);
       pointerOwnerRef.current?.releasePointerCapture?.(activeInteraction.pointerId);
       pointerOwnerRef.current = null;
       document.body.classList.remove("workspace-interacting");
@@ -404,7 +438,21 @@ export const WorkspaceCanvas = ({
       window.removeEventListener("pointerup", handlePointerUp);
       document.body.classList.remove("workspace-interacting");
     };
-  }, [activeInteraction, canvasId, columnUnitWidth, definitionMap, isInteractive, saveCanvasLayouts]);
+  }, [activeInteraction, columnUnitWidth, definitionMap, isInteractive, persistCanvasCards]);
+
+  const renderCards = useMemo(
+    () =>
+      [...cards].sort((left, right) => {
+        if (left.z !== right.z) {
+          return left.z - right.z;
+        }
+        if (left.y !== right.y) {
+          return left.y - right.y;
+        }
+        return left.x - right.x;
+      }),
+    [cards],
+  );
 
   const canvasStyle = isInteractive
     ? {
@@ -449,12 +497,20 @@ export const WorkspaceCanvas = ({
         setTailExtensionRows((currentRows) => currentRows + WORKSPACE_TAIL_EXTENSION_STEP_ROWS);
       }}
     >
-      {childElements.map((child) => {
+      {renderCards.map((renderCard) => {
+        const child = childElements.find((candidate) => candidate.props.cardId === renderCard.cardId);
+        if (!child) {
+          return null;
+        }
+
         const definition = definitionMap.get(child.props.cardId);
-        const defaultLayout = createWorkspaceCardLayout({
-          ...child.props,
-          canvasId,
-        });
+        const defaultLayout = createWorkspaceCardLayout(
+          {
+            ...child.props,
+            canvasId,
+          },
+          childElements.findIndex((candidate) => candidate.props.cardId === child.props.cardId),
+        );
         const layout =
           cards.find((card) => getWorkspaceCardKey(card) === `${canvasId}::${child.props.cardId}`) ??
           defaultLayout;
@@ -479,6 +535,24 @@ export const WorkspaceCanvas = ({
             style={{
               ...style,
               ["--workspace-content-zoom" as string]: String(contentScale),
+              zIndex: layout.z + 1,
+            }}
+            onContextMenu={(event) => {
+              if (!isInteractive || !definition?.movable) {
+                return;
+              }
+
+              const target = event.target as HTMLElement;
+              if (isInteractiveTarget(target)) {
+                return;
+              }
+
+              event.preventDefault();
+              setContextMenuState({
+                cardId: layout.cardId,
+                left: event.clientX,
+                top: event.clientY,
+              });
             }}
             onPointerDown={(event) => {
               if (!isInteractive || !definition?.movable) {
@@ -490,6 +564,7 @@ export const WorkspaceCanvas = ({
                 return;
               }
 
+              setContextMenuState(null);
               event.preventDefault();
               const pointerOwner = event.currentTarget as HTMLDivElement;
               pointerOwnerRef.current = pointerOwner;
@@ -582,6 +657,58 @@ export const WorkspaceCanvas = ({
           </div>
         );
       })}
+      {contextMenuState ? (
+        <div
+          className="workspace-card-context-menu"
+          ref={contextMenuRef}
+          style={{
+            left: contextMenuState.left,
+            top: contextMenuState.top,
+          }}
+        >
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => {
+              const nextCards = bringCardToFront(cardsRef.current, contextMenuState.cardId, canvasId);
+              setContextMenuState(null);
+              persistCanvasCards(nextCards);
+            }}
+          >
+            顶置
+          </button>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => {
+              const nextCards = cardsRef.current.map((card) =>
+                card.cardId === contextMenuState.cardId && (card.canvasId ?? DEFAULT_WORKSPACE_CANVAS_ID) === canvasId
+                  ? pinCardToHorizontalEdge(card, "left")
+                  : card,
+              );
+              setContextMenuState(null);
+              persistCanvasCards(nextCards);
+            }}
+          >
+            靠左
+          </button>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => {
+              const nextCards = cardsRef.current.map((card) =>
+                card.cardId === contextMenuState.cardId && (card.canvasId ?? DEFAULT_WORKSPACE_CANVAS_ID) === canvasId
+                  ? pinCardToHorizontalEdge(card, "right")
+                  : card,
+              );
+              setContextMenuState(null);
+              persistCanvasCards(nextCards);
+            }}
+          >
+            靠右
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };

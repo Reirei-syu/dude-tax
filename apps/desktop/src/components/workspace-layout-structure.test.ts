@@ -71,7 +71,23 @@ test("工作区布局控制器使用稳定回调，避免重复注册 canvas act
   assert.equal(workspaceLayoutSource.includes("setCanvasActions((currentActions) =>"), true);
   assert.equal(workspaceLayoutSource.includes("const storedCanvasCards = useMemo("), true);
   assert.equal(workspaceLayoutSource.includes("const staleStoredCards = storedCanvasCards.filter("), true);
-  assert.equal(workspaceLayoutSource.includes("void saveCanvasLayouts(canvasId, validStoredCanvasCards);"), true);
+  assert.equal(workspaceLayoutSource.includes("persistCanvasCards(validStoredCanvasCards);"), true);
+});
+
+test("工作区卡片允许重叠编辑，拖拽结束不再自动吸附或解碰撞", () => {
+  assert.equal(workspaceLayoutSource.includes("alignCardToNearestNeighbor(currentCards, movingCard)"), false);
+  assert.equal(workspaceLayoutSource.includes("resolveLayoutCollisions(nextCards, activeInteraction.cardId)"), false);
+  assert.equal(workspaceLayoutSource.includes("persistCanvasCards(currentCards);"), true);
+  assert.equal(workspaceLayoutSource.includes("zIndex:"), true);
+});
+
+test("工作区卡片支持右键菜单与顶置/靠左/靠右整理入口", () => {
+  assert.equal(workspaceLayoutSource.includes("onContextMenu={(event) => {"), true);
+  assert.equal(workspaceLayoutSource.includes("顶置"), true);
+  assert.equal(workspaceLayoutSource.includes("靠左"), true);
+  assert.equal(workspaceLayoutSource.includes("靠右"), true);
+  assert.equal(workspaceLayoutSource.includes("bringCardToFront"), true);
+  assert.equal(workspaceLayoutSource.includes("pinCardToHorizontalEdge"), true);
 });
 
 test("导航排序样式保持原按钮宽度，并将箭头控件悬浮到导航右侧", () => {

@@ -53,6 +53,7 @@ export const WORKSPACE_DIALOG_SCOPES = [
 export type WorkspacePageScope = (typeof WORKSPACE_PAGE_SCOPES)[number];
 export type WorkspaceDialogScope = (typeof WORKSPACE_DIALOG_SCOPES)[number];
 export type WorkspaceScope = WorkspacePageScope | WorkspaceDialogScope;
+export const WORKSPACE_LAYOUT_UNIT_STEP = 0.1;
 
 export type WorkspaceCardLayout = {
   cardId: string;
@@ -61,6 +62,7 @@ export type WorkspaceCardLayout = {
   y: number;
   w: number;
   h: number;
+  z: number;
 };
 
 export type WorkspaceLayoutState = {

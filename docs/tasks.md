@@ -6,6 +6,38 @@
 
 ## 任务列表
 
+### [x] 工作区卡片精细缩放、重叠编辑与右键手动整理
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/api` / `apps/desktop` / `docs`
+- 描述：将工作区布局升级为支持 `0.1 格` 精细缩放与 `z` 层级持久化，取消拖拽收尾自动吸附/避让，新增卡片右键菜单与可微调宽高的显式自动排列。
+- 依赖：工作区卡片布局与导航抽屉升级
+- 风险：高
+- 优先级：3
+- 完成时间：2026-04-13
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/repositories/ui-preferences-repository.ts`
+  - `apps/api/src/ui-preferences.test.ts`
+  - `apps/desktop/src/layout/workspace-layout.ts`
+  - `apps/desktop/src/layout/workspace-layout.test.ts`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/components/workspace-layout-structure.test.ts`
+  - `apps/desktop/src/hooks/useWorkspaceLayout.ts`
+  - `apps/desktop/src/styles.css`
+  - `AGENTS.md`
+  - `PROJECT_SPEC.md`
+  - `prd.md`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+  - `docs/context_memory/memory.md`
+- 影响范围：
+  - 工作区卡片支持 `0.1 格` 精细缩放与层级持久化
+  - 拖拽或缩放结束后不再自动调整位置，允许卡片重叠
+  - 卡片非交互区右键可执行“顶置 / 靠左 / 靠右”
+  - “自动排列”会显式整理并微调卡片宽高以消除重叠
+
 ### [x] 月度录入、缴纳确认与系统维护文案及布局调整
 
 - 类型：Fix

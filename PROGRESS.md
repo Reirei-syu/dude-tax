@@ -5,12 +5,19 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：月度录入 / 缴纳确认 / 系统维护文案与布局调整已完成
+- 当前任务：工作区卡片精细缩放、重叠编辑与右键手动整理已完成
 - 方案路径：已按 2026-04-13 会话内实现计划执行（未单独落盘）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 工作区布局模型已升级为 `x/y/w/h` 采用 `0.1 格` 精度、并新增 `z` 层级持久化字段
+  - 拖拽与缩放结束后不再自动吸附或自动避让，卡片可在宽工作区内重叠摆放
+  - 卡片右键菜单已落地，支持在非交互区执行“顶置 / 靠左 / 靠右”
+  - “自动排列”已改为显式整理动作，允许微调卡片宽高以消除重叠并统一行列
+  - `npm run test --workspace @dude-tax/desktop -- src/layout/workspace-layout.test.ts src/components/workspace-layout-structure.test.ts`
+  - `npm run test --workspace @dude-tax/api -- src/ui-preferences.test.ts`
+  - `npm run typecheck --workspaces --if-present`
   - 已将 `/result-confirmation` 导航标签从“结果确认”统一改为“缴纳确认”，并同步首页建议文案、导出文案与桌面 smoke 脚本入口
   - 已将“月度数据录入”主卡片与员工列表编辑内容合并，主卡片标题改为“月度数据手工录入”
   - 已将“结果确认”工作卡片改为“已纳税月份确认”，移除 4 个状态栏，仅保留月份按钮颜色表达确认状态
