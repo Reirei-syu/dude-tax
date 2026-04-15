@@ -144,7 +144,41 @@ test("页面布局偏好按 scope 保存、读取与重置", async () => {
   });
 
   assert.equal(resetResponse.statusCode, 200);
-  assert.deepEqual(resetResponse.json(), { success: true });
+  assert.deepEqual(resetResponse.json(), {
+    scope: "page:home",
+    collapsedSections: {
+      "home-tax-table": false,
+    },
+    cards: [
+      {
+        cardId: "home-policy",
+        canvasId: "root",
+        x: 0,
+        y: 0,
+        w: 6,
+        h: 6.3,
+        z: 0,
+      },
+      {
+        cardId: "home-overview",
+        canvasId: "root",
+        x: 6,
+        y: 0,
+        w: 6,
+        h: 6.3,
+        z: 1,
+      },
+      {
+        cardId: "home-tax-table",
+        canvasId: "root",
+        x: 0,
+        y: 6.3,
+        w: 12,
+        h: 10.6,
+        z: 2,
+      },
+    ],
+  });
 
   const resetReloadResponse = await app.inject({
     method: "GET",
@@ -154,8 +188,38 @@ test("页面布局偏好按 scope 保存、读取与重置", async () => {
   assert.equal(resetReloadResponse.statusCode, 200);
   assert.deepEqual(resetReloadResponse.json(), {
     scope: "page:home",
-    collapsedSections: {},
-    cards: [],
+    collapsedSections: {
+      "home-tax-table": false,
+    },
+    cards: [
+      {
+        cardId: "home-policy",
+        canvasId: "root",
+        x: 0,
+        y: 0,
+        w: 6,
+        h: 6.3,
+        z: 0,
+      },
+      {
+        cardId: "home-overview",
+        canvasId: "root",
+        x: 6,
+        y: 0,
+        w: 6,
+        h: 6.3,
+        z: 1,
+      },
+      {
+        cardId: "home-tax-table",
+        canvasId: "root",
+        x: 0,
+        y: 6.3,
+        w: 12,
+        h: 10.6,
+        z: 2,
+      },
+    ],
   });
 
   await app.close();

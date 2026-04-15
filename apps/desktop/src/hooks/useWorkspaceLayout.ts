@@ -95,16 +95,16 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
 
   const resetLayout = useCallback(async () => {
     const currentState = layoutStateRef.current;
-    const resetState = {
-      scope,
-      cards: [],
-      collapsedSections: {},
-    };
-    layoutStateRef.current = resetState;
-    setLayoutState(resetState);
     try {
       setErrorMessage(null);
-      await apiClient.resetWorkspaceLayout(scope);
+      const persistedState = await apiClient.resetWorkspaceLayout(scope);
+      const normalizedState = {
+        scope,
+        cards: normalizeCards(persistedState.cards),
+        collapsedSections: normalizeCollapsedSections(persistedState.collapsedSections),
+      };
+      layoutStateRef.current = normalizedState;
+      setLayoutState(normalizedState);
     } catch (error) {
       layoutStateRef.current = currentState;
       setLayoutState(currentState);

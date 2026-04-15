@@ -12,6 +12,7 @@ import {
 } from "@dude-tax/core";
 import { z } from "zod";
 import { database } from "../db/database.js";
+import { getDefaultUiPreferences } from "../default-ui-preferences.js";
 
 const SIDEBAR_COLLAPSED_KEY = "ui_sidebar_collapsed";
 const NAVIGATION_ORDER_KEY = "ui_nav_order";
@@ -126,6 +127,23 @@ const normalizeCollapsedSections = (collapsedSections?: Record<string, boolean>)
 const buildPageLayoutKey = (scope: WorkspacePageScope) => `${PAGE_LAYOUT_KEY_PREFIX}${scope}`;
 const buildDialogLayoutKey = (scope: WorkspaceDialogScope) => `${DIALOG_LAYOUT_KEY_PREFIX}${scope}`;
 
+const getDefaultPageLayout = (scope: WorkspacePageScope): WorkspaceLayoutState => {
+  const defaultSeed = getDefaultUiPreferences().pageLayouts[scope];
+  if (!defaultSeed) {
+    return {
+      scope,
+      cards: [],
+      collapsedSections: {},
+    };
+  }
+
+  return {
+    scope,
+    cards: normalizeCards(defaultSeed.cards),
+    collapsedSections: normalizeCollapsedSections(defaultSeed.collapsedSections),
+  };
+};
+
 export const uiPreferenceSchemas = {
   navigationOrderSchema,
   workspaceCardLayoutSchema,
@@ -217,7 +235,14 @@ export const uiPreferencesRepository = {
   },
 
   resetPageLayout(scope: WorkspacePageScope) {
-    deletePreference(buildPageLayoutKey(scope));
+    const defaultState = getDefaultPageLayout(scope);
+    if (!defaultState.cards.length && !Object.keys(defaultState.collapsedSections).length) {
+      deletePreference(buildPageLayoutKey(scope));
+      return defaultState;
+    }
+
+    setPreference(buildPageLayoutKey(scope), JSON.stringify(defaultState));
+    return defaultState;
   },
 
   getDialogLayout(scope: WorkspaceDialogScope): FloatingDialogLayout | null {

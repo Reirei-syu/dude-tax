@@ -131,7 +131,7 @@ export const apiClient = {
   },
 
   resetWorkspaceLayout(scope: WorkspacePageScope) {
-    return request<{ success: boolean }>(`/api/ui-preferences/layouts/${scope}`, {
+    return request<WorkspaceLayoutState>(`/api/ui-preferences/layouts/${scope}`, {
       method: "DELETE",
     });
   },

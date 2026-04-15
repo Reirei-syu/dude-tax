@@ -5,12 +5,20 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：政策参考页头移除与折叠状态持久化已完成
+- 当前任务：固化初始 UI 默认值并重新打包已完成
 - 方案路径：已按 2026-04-13 会话内实现计划执行（未单独落盘）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 已将运行态 `test` 单位当前 UI 布局、导航顺序、侧边栏状态与折叠状态抽取为默认初始化种子
+  - 初始化数据库时默认不创建任何单位，安装后保持“无单位”初始状态
+  - 默认税率版本初始化时只保留 1 个版本，版本名固定为“最新”
+  - fresh DB 初始化时审计日志默认为空
+  - `npm run test --workspace @dude-tax/api -- src/default-policy-content.test.ts src/ui-preferences.test.ts`
+  - `npm run test --workspace @dude-tax/desktop -- src/pages/current-policy-page.test.ts src/components/collapsible-section-card.test.ts src/components/import-workflow-section.test.ts src/pages/maintenance-page.test.ts`
+  - `npm run typecheck --workspaces --if-present`
+  - `npm run release:win`
   - 政策参考页已删除顶部“政策参考”卡片，业务卡片默认布局整体上移
   - 共享 `CollapsibleSectionCard` 已支持按页面 scope 记住最后一次展开状态
   - `ImportWorkflowSection` 分组壳已支持通过稳定 key 持久化最后一次展开状态

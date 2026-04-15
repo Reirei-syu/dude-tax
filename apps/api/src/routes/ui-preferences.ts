@@ -104,8 +104,7 @@ export const registerUiPreferenceRoutes = async (app: FastifyInstance) => {
       return replyValidationError(reply, parsedParams.error.flatten());
     }
 
-    uiPreferencesRepository.resetPageLayout(parsedParams.data.scope);
-    return { success: true };
+    return uiPreferencesRepository.resetPageLayout(parsedParams.data.scope);
   });
 
   app.get("/api/ui-preferences/dialogs/:scope", async (request, reply) => {

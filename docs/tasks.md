@@ -6,6 +6,31 @@
 
 ## 任务列表
 
+### [x] 固化初始 UI 默认值并重新打包
+
+- 类型：Feature
+- 模块：`apps/api` / `scripts` / `docs`
+- 描述：将运行态 `test` 单位当前 UI 布局与折叠状态抽成出厂默认值，安装后不保留任何开发单位，只保留单个默认税率版本并重新生成安装包。
+- 依赖：政策参考页头移除与折叠状态持久化
+- 风险：中
+- 优先级：2
+- 完成时间：2026-04-15
+- 修改文件：
+  - `apps/api/src/default-policy-content.json`
+  - `apps/api/src/default-ui-preferences.json`
+  - `apps/api/src/default-ui-preferences.ts`
+  - `apps/api/src/default-policy-content.test.ts`
+  - `apps/api/src/db/database.ts`
+  - `apps/api/build.mjs`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+- 影响范围：
+  - fresh install 默认不带任何单位
+  - “恢复默认布局”回到抽取自运行态 `test` 的默认 UI 布局
+  - 默认税率版本只保留 1 个版本且版本名为“最新”
+  - 安装包已重新生成
+
 ### [x] 政策参考页头移除与折叠状态持久化
 
 - 类型：Feature
