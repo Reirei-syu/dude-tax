@@ -9,10 +9,18 @@ const normalizeCards = (cards: WorkspaceCardLayout[]) =>
     z: Math.max(Math.round(card.z ?? 0), 0),
   }));
 
+const normalizeCollapsedSections = (collapsedSections?: Record<string, boolean>) =>
+  Object.fromEntries(
+    Object.entries(collapsedSections ?? {}).filter(
+      ([key, value]) => key.trim().length > 0 && typeof value === "boolean",
+    ),
+  );
+
 export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
   const [layoutState, setLayoutState] = useState<WorkspaceLayoutState>({
     scope,
     cards: [],
+    collapsedSections: {},
   });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -31,6 +39,7 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
         const normalizedState = {
           scope,
           cards: normalizeCards(nextState.cards),
+          collapsedSections: normalizeCollapsedSections(nextState.collapsedSections),
         };
         layoutStateRef.current = normalizedState;
         setLayoutState(normalizedState);
@@ -38,6 +47,7 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
         const fallbackState = {
           scope,
           cards: [],
+          collapsedSections: {},
         };
         setErrorMessage(error instanceof Error ? error.message : "加载工作区布局失败");
         layoutStateRef.current = fallbackState;
@@ -61,16 +71,18 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
           canvasId,
         })),
       ],
+      collapsedSections: currentState.collapsedSections,
     };
 
     layoutStateRef.current = nextState;
     setLayoutState(nextState);
     try {
       setErrorMessage(null);
-      const persistedState = await apiClient.updateWorkspaceLayout(scope, nextState.cards);
+      const persistedState = await apiClient.updateWorkspaceLayout(scope, nextState);
       const normalizedState = {
         scope,
         cards: normalizeCards(persistedState.cards),
+        collapsedSections: normalizeCollapsedSections(persistedState.collapsedSections),
       };
       layoutStateRef.current = normalizedState;
       setLayoutState(normalizedState);
@@ -86,6 +98,7 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
     const resetState = {
       scope,
       cards: [],
+      collapsedSections: {},
     };
     layoutStateRef.current = resetState;
     setLayoutState(resetState);
@@ -99,7 +112,51 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
     }
   }, [scope]);
 
-  const hasCustomLayout = useMemo(() => layoutState.cards.length > 0, [layoutState.cards.length]);
+  const setCollapsedSection = useCallback(
+    async (sectionKey: string, collapsed: boolean) => {
+      const currentState = layoutStateRef.current;
+      const nextCollapsedSections = {
+        ...currentState.collapsedSections,
+        [sectionKey]: collapsed,
+      };
+      const nextState: WorkspaceLayoutState = {
+        ...currentState,
+        collapsedSections: nextCollapsedSections,
+      };
+
+      layoutStateRef.current = nextState;
+      setLayoutState(nextState);
+      try {
+        setErrorMessage(null);
+        const persistedState = await apiClient.updateWorkspaceLayout(scope, nextState);
+        const normalizedState = {
+          scope,
+          cards: normalizeCards(persistedState.cards),
+          collapsedSections: normalizeCollapsedSections(persistedState.collapsedSections),
+        };
+        layoutStateRef.current = normalizedState;
+        setLayoutState(normalizedState);
+      } catch (error) {
+        layoutStateRef.current = currentState;
+        setLayoutState(currentState);
+        setErrorMessage(error instanceof Error ? error.message : "保存工作区折叠状态失败");
+      }
+    },
+    [scope],
+  );
+
+  const toggleCollapsedSection = useCallback(
+    async (sectionKey: string, defaultValue = false) => {
+      const currentValue = layoutStateRef.current.collapsedSections[sectionKey] ?? defaultValue;
+      await setCollapsedSection(sectionKey, !currentValue);
+    },
+    [setCollapsedSection],
+  );
+
+  const hasCustomLayout = useMemo(
+    () => layoutState.cards.length > 0 || Object.keys(layoutState.collapsedSections).length > 0,
+    [layoutState.cards.length, layoutState.collapsedSections],
+  );
 
   return {
     scope,
@@ -109,5 +166,7 @@ export const useWorkspaceLayout = (scope: WorkspacePageScope) => {
     hasCustomLayout,
     saveCanvasLayouts,
     resetLayout,
+    setCollapsedSection,
+    toggleCollapsedSection,
   };
 };

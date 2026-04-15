@@ -23,6 +23,7 @@ test("合并默认布局时保留已保存卡片位置并补齐缺失卡片", ()
   ];
   const storedState: WorkspaceLayoutState = {
     scope: "page:home",
+    collapsedSections: {},
     cards: [{ cardId: "overview", canvasId: "root", x: 2, y: 3, w: 7, h: 12, z: 3 }],
   };
 
@@ -30,6 +31,7 @@ test("合并默认布局时保留已保存卡片位置并补齐缺失卡片", ()
 
   assert.deepEqual(merged, {
     scope: "page:home",
+    collapsedSections: {},
     cards: [
       { cardId: "overview", canvasId: "root", x: 2, y: 3, w: 7, h: 12, z: 3 },
       { cardId: "policy", canvasId: "root", x: 6, y: 0, w: 6, h: 10, z: 1 },

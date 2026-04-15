@@ -1,4 +1,5 @@
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId } from "react";
+import { useWorkspaceCollapseState } from "./WorkspaceLayout";
 
 type Props = {
   cardId?: string;
@@ -21,7 +22,7 @@ export const CollapsibleSectionCard = ({
   headingTag = "h2",
   children,
 }: Props) => {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const { isCollapsed, toggleCollapsed } = useWorkspaceCollapseState(cardId ?? null, defaultCollapsed);
   const contentId = useId();
   const HeadingTag = headingTag;
 
@@ -42,7 +43,7 @@ export const CollapsibleSectionCard = ({
             aria-expanded={!isCollapsed}
             className="ghost-button"
             type="button"
-            onClick={() => setIsCollapsed((currentValue) => !currentValue)}
+            onClick={toggleCollapsed}
           >
             {isCollapsed ? "展开" : "折叠"}
           </button>

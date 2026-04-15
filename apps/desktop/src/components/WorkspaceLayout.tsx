@@ -100,6 +100,63 @@ const useWorkspaceLayoutContext = () => {
   return value;
 };
 
+export const useWorkspaceCollapseState = (
+  sectionKey: string | null,
+  defaultCollapsed = false,
+) => {
+  const layoutController = useContext(WorkspaceLayoutContext);
+  const [localCollapsed, setLocalCollapsed] = useState(defaultCollapsed);
+  const isPersisted = Boolean(layoutController && sectionKey);
+
+  useEffect(() => {
+    if (!isPersisted) {
+      setLocalCollapsed(defaultCollapsed);
+    }
+  }, [defaultCollapsed, isPersisted]);
+
+  const isCollapsed =
+    isPersisted && sectionKey
+      ? (layoutController?.layoutState.collapsedSections[sectionKey] ?? defaultCollapsed)
+      : localCollapsed;
+
+  const setCollapsed = useCallback(
+    (nextCollapsed: boolean) => {
+      if (isPersisted && sectionKey && layoutController) {
+        void layoutController.setCollapsedSection(sectionKey, nextCollapsed);
+        return;
+      }
+
+      setLocalCollapsed(nextCollapsed);
+    },
+    [isPersisted, layoutController, sectionKey],
+  );
+
+  const toggleCollapsed = useCallback(() => {
+    if (isPersisted && sectionKey && layoutController) {
+      void layoutController.toggleCollapsedSection(sectionKey, defaultCollapsed);
+      return;
+    }
+
+    setLocalCollapsed((currentValue) => !currentValue);
+  }, [defaultCollapsed, isPersisted, layoutController, sectionKey]);
+
+  return {
+    isCollapsed,
+    setCollapsed,
+    toggleCollapsed,
+  };
+};
+
+export const useWorkspaceCollapseRegistry = () => {
+  const layoutController = useContext(WorkspaceLayoutContext);
+
+  return {
+    collapsedSections: layoutController?.layoutState.collapsedSections ?? {},
+    setCollapsedSection: layoutController?.setCollapsedSection,
+    toggleCollapsedSection: layoutController?.toggleCollapsedSection,
+  };
+};
+
 const WorkspaceCanvasActionsContext = createContext<{
   setCanvasActions: Dispatch<SetStateAction<WorkspaceCanvasActions | null>>;
 } | null>(null);

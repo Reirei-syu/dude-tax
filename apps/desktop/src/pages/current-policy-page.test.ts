@@ -29,9 +29,13 @@ test("政策参考页按多条政策说明渲染扣除项说明列表", () => {
 
 test("政策参考页将税率表卡片接入共享折叠组件，并默认折叠两张税率表", () => {
   assert.equal(currentPolicyPageSource.includes("CollapsibleSectionCard"), true);
-  assert.equal(currentPolicyPageSource.includes('title="政策参考"'), true);
+  assert.equal(currentPolicyPageSource.includes('title="政策参考"'), false);
+  assert.equal(currentPolicyPageSource.includes('cardId="policy-overview"'), false);
   assert.equal(currentPolicyPageSource.includes('title="综合税率表"'), true);
   assert.equal(currentPolicyPageSource.includes('title="年终奖单独计税税率表"'), true);
   assert.equal(currentPolicyPageSource.includes('title="扣除项说明"'), true);
+  assert.equal(currentPolicyPageSource.includes('cardId="policy-comprehensive-v2"'), true);
+  assert.equal(currentPolicyPageSource.includes('cardId="policy-bonus-v2"'), true);
+  assert.equal(currentPolicyPageSource.includes('cardId="policy-items-v2"'), true);
   assert.equal(currentPolicyPageSource.includes("defaultCollapsed"), true);
 });

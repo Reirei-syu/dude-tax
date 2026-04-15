@@ -33,7 +33,7 @@ test("系统维护页支持新增并维护多条专项附加扣除政策条目",
   assert.equal(maintenancePageSource.includes("savePolicyItem"), true);
   assert.equal(maintenancePageSource.includes("当前说明条目已保存"), true);
   assert.equal(maintenancePageSource.includes("collapsedPolicyItems"), true);
-  assert.equal(maintenancePageSource.includes("togglePolicyItem"), true);
+  assert.equal(maintenancePageSource.includes("policy-item::"), true);
   assert.equal(
     maintenancePageSource.includes('{collapsedPolicyItems[item.id] ? "展开" : "折叠"}'),
     true,
@@ -57,6 +57,7 @@ test("系统维护页支持新增并维护多条专项附加扣除政策条目",
 
 test("系统维护页所有主要卡片支持默认折叠", () => {
   assert.equal(maintenancePageSource.includes("defaultCollapsedSections"), true);
+  assert.equal(maintenancePageSource.includes("useWorkspaceCollapseState"), true);
   assert.equal(maintenancePageSource.includes("taxMaintenance: true"), true);
   assert.equal(maintenancePageSource.includes("policyItems: true"), true);
   assert.equal(maintenancePageSource.includes("basic: true"), true);

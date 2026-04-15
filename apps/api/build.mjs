@@ -19,6 +19,14 @@ const defaultPolicyContentTargetPath = path.join(
   "src",
   "default-policy-content.json",
 );
+const defaultUiPreferencesSourcePath = path.join(currentDir, "src", "default-ui-preferences.json");
+const defaultUiPreferencesTargetPath = path.join(
+  runtimeDir,
+  "apps",
+  "api",
+  "src",
+  "default-ui-preferences.json",
+);
 
 const rewriteRuntimeImports = async (targetDir, replacements) => {
   const entries = await readdir(targetDir, { withFileTypes: true });
@@ -56,6 +64,7 @@ await execFileAsync(process.execPath, [tscCliPath, "-p", tsconfigBuildPath], {
 });
 
 await copyFile(defaultPolicyContentSourcePath, defaultPolicyContentTargetPath);
+await copyFile(defaultUiPreferencesSourcePath, defaultUiPreferencesTargetPath);
 
 const compiledApiDir = path.join(runtimeDir, "apps", "api", "src");
 const compiledApiDirStats = await stat(compiledApiDir).catch(() => null);

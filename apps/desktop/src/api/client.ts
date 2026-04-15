@@ -117,10 +117,16 @@ export const apiClient = {
     return request<WorkspaceLayoutState>(`/api/ui-preferences/layouts/${scope}`);
   },
 
-  updateWorkspaceLayout(scope: WorkspacePageScope, cards: WorkspaceCardLayout[]) {
+  updateWorkspaceLayout(
+    scope: WorkspacePageScope,
+    state: {
+      cards: WorkspaceCardLayout[];
+      collapsedSections?: Record<string, boolean>;
+    },
+  ) {
     return request<WorkspaceLayoutState>(`/api/ui-preferences/layouts/${scope}`, {
       method: "PUT",
-      body: JSON.stringify({ cards }),
+      body: JSON.stringify(state),
     });
   },
 

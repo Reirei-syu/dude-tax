@@ -23,6 +23,7 @@ const navigationOrderPayloadSchema = z.object({
 });
 
 const pageLayoutPayloadSchema = z.object({
+  collapsedSections: z.record(z.string().trim().min(1), z.boolean()).optional(),
   cards: z.array(uiPreferenceSchemas.workspaceCardLayoutSchema),
 });
 
@@ -94,7 +95,7 @@ export const registerUiPreferenceRoutes = async (app: FastifyInstance) => {
       return replyValidationError(reply, parsedBody.error.flatten());
     }
 
-    return uiPreferencesRepository.setPageLayout(parsedParams.data.scope, parsedBody.data.cards);
+    return uiPreferencesRepository.setPageLayout(parsedParams.data.scope, parsedBody.data);
   });
 
   app.delete("/api/ui-preferences/layouts/:scope", async (request, reply) => {

@@ -68,6 +68,7 @@ export type WorkspaceCardLayout = {
 export type WorkspaceLayoutState = {
   scope: WorkspacePageScope;
   cards: WorkspaceCardLayout[];
+  collapsedSections: Record<string, boolean>;
 };
 
 export type FloatingDialogLayout = {

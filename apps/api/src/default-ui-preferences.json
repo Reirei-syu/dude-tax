@@ -1,0 +1,280 @@
+{
+  "sidebarCollapsed": false,
+  "navigationOrder": [
+    "/",
+    "/quick-calc",
+    "/units",
+    "/employees",
+    "/entry",
+    "/result-confirmation",
+    "/history",
+    "/policy",
+    "/maintenance"
+  ],
+  "pageLayouts": {
+    "page:employees": {
+      "scope": "page:employees",
+      "cards": [
+        {
+          "cardId": "employees-create",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 9,
+          "z": 0
+        },
+        {
+          "cardId": "employees-import",
+          "canvasId": "root",
+          "x": 0,
+          "y": 9,
+          "w": 6,
+          "h": 10,
+          "z": 1
+        },
+        {
+          "cardId": "employees-list",
+          "canvasId": "root",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 13,
+          "z": 2
+        }
+      ],
+      "collapsedSections": {
+        "employees-import-group": false
+      }
+    },
+    "page:entry": {
+      "scope": "page:entry",
+      "cards": [
+        {
+          "cardId": "entry-overview",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 6.3,
+          "h": 9.7,
+          "z": 1
+        },
+        {
+          "cardId": "entry-import",
+          "canvasId": "root",
+          "x": 6.3,
+          "y": 0,
+          "w": 5.7,
+          "h": 9.7,
+          "z": 0
+        },
+        {
+          "cardId": "entry-result-summary",
+          "canvasId": "root",
+          "x": 0,
+          "y": 9.7,
+          "w": 12,
+          "h": 18,
+          "z": 2
+        }
+      ],
+      "collapsedSections": {
+        "entry-import-group": false
+      }
+    },
+    "page:history": {
+      "scope": "page:history",
+      "cards": [
+        {
+          "cardId": "history-main",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 9.8,
+          "z": 0
+        }
+      ],
+      "collapsedSections": {}
+    },
+    "page:home": {
+      "scope": "page:home",
+      "cards": [
+        {
+          "cardId": "home-policy",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 6.3,
+          "z": 0
+        },
+        {
+          "cardId": "home-overview",
+          "canvasId": "root",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 6.3,
+          "z": 1
+        },
+        {
+          "cardId": "home-tax-table",
+          "canvasId": "root",
+          "x": 0,
+          "y": 6.3,
+          "w": 12,
+          "h": 10.6,
+          "z": 2
+        }
+      ],
+      "collapsedSections": {
+        "home-tax-table": false
+      }
+    },
+    "page:maintenance": {
+      "scope": "page:maintenance",
+      "cards": [
+        {
+          "cardId": "maintenance-backup",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 8,
+          "z": 3
+        },
+        {
+          "cardId": "maintenance-tax",
+          "canvasId": "root",
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 19.7,
+          "z": 0
+        },
+        {
+          "cardId": "maintenance-versions",
+          "canvasId": "root",
+          "x": 0,
+          "y": 27.7,
+          "w": 12,
+          "h": 9.7,
+          "z": 1
+        },
+        {
+          "cardId": "maintenance-impact",
+          "canvasId": "root",
+          "x": 0,
+          "y": 37.4,
+          "w": 12,
+          "h": 5.4,
+          "z": 2
+        },
+        {
+          "cardId": "maintenance-audit",
+          "canvasId": "root",
+          "x": 0,
+          "y": 42.8,
+          "w": 12,
+          "h": 6.5,
+          "z": 4
+        }
+      ],
+      "collapsedSections": {
+        "backup": false,
+        "taxMaintenance": false,
+        "comprehensive": false,
+        "bonus": false,
+        "basic": false,
+        "versions": false,
+        "impact": false,
+        "audit": false
+      }
+    },
+    "page:policy": {
+      "scope": "page:policy",
+      "cards": [
+        {
+          "cardId": "policy-comprehensive-v2",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 11.1,
+          "z": 0
+        },
+        {
+          "cardId": "policy-bonus-v2",
+          "canvasId": "root",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 11.1,
+          "z": 1
+        },
+        {
+          "cardId": "policy-items-v2",
+          "canvasId": "root",
+          "x": 0,
+          "y": 11.1,
+          "w": 12,
+          "h": 18,
+          "z": 2
+        }
+      ],
+      "collapsedSections": {
+        "policy-comprehensive-v2": false,
+        "policy-bonus-v2": false
+      }
+    },
+    "page:quick-calc": {
+      "scope": "page:quick-calc",
+      "cards": [
+        {
+          "cardId": "quick-calc-entry",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 9,
+          "z": 0
+        }
+      ],
+      "collapsedSections": {}
+    },
+    "page:units": {
+      "scope": "page:units",
+      "cards": [
+        {
+          "cardId": "units-years",
+          "canvasId": "root",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 8,
+          "z": 0
+        },
+        {
+          "cardId": "units-create",
+          "canvasId": "root",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 8,
+          "z": 1
+        },
+        {
+          "cardId": "units-list",
+          "canvasId": "root",
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 8,
+          "z": 2
+        }
+      ],
+      "collapsedSections": {}
+    }
+  }
+}

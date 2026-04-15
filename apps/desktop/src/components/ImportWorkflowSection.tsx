@@ -6,6 +6,7 @@ import type {
 } from "@dude-tax/core";
 import { type ChangeEvent, useId, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
+import { useWorkspaceCollapseState } from "./WorkspaceLayout";
 import { parseImportFileToCsvText } from "../pages/import-file-parser";
 import { buildImportPreviewDetail } from "../pages/import-preview-details";
 
@@ -36,6 +37,7 @@ type Props = {
   downloadButtonLabel: string;
   groupTitle?: string;
   groupDescription?: string;
+  collapseStateKey?: string;
   defaultCollapsed?: boolean;
   defaultConflictStrategy?: ImportConflictStrategy;
   onDownloadTemplate: () => Promise<void>;
@@ -52,6 +54,7 @@ export const ImportWorkflowSection = ({
   downloadButtonLabel,
   groupTitle,
   groupDescription,
+  collapseStateKey,
   defaultCollapsed = false,
   defaultConflictStrategy = "skip",
   onDownloadTemplate,
@@ -67,7 +70,8 @@ export const ImportWorkflowSection = ({
   const [committing, setCommitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isGroupCollapsed, setIsGroupCollapsed] = useState(
+  const { isCollapsed: isGroupCollapsed, toggleCollapsed } = useWorkspaceCollapseState(
+    groupTitle ? collapseStateKey ?? null : null,
     Boolean(groupTitle && defaultCollapsed),
   );
   const groupContentId = useId();
@@ -463,7 +467,7 @@ export const ImportWorkflowSection = ({
             aria-expanded={!isGroupCollapsed}
             className="ghost-button"
             type="button"
-            onClick={() => setIsGroupCollapsed((currentValue) => !currentValue)}
+            onClick={toggleCollapsed}
           >
             {isGroupCollapsed ? "展开" : "折叠"}
           </button>

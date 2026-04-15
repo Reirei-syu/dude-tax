@@ -86,6 +86,7 @@ export const mergeLayoutState = (
 
   return {
     scope,
+    collapsedSections: storedState?.collapsedSections ?? {},
     cards: defaultLayouts.map((defaultLayout) =>
       clampWorkspaceCardLayout(
         {

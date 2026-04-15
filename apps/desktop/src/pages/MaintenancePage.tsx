@@ -12,7 +12,13 @@ import {
 } from "@dude-tax/core";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
-import { WorkspaceCanvas, WorkspaceItem, WorkspaceLayoutRoot } from "../components/WorkspaceLayout";
+import {
+  WorkspaceCanvas,
+  WorkspaceItem,
+  WorkspaceLayoutRoot,
+  useWorkspaceCollapseRegistry,
+  useWorkspaceCollapseState,
+} from "../components/WorkspaceLayout";
 import { useAppContext } from "../context/AppContextProvider";
 import {
   applyLinePrefixEdit,
@@ -110,7 +116,7 @@ const readFileAsDataUrl = (file: File) =>
 const joinWindowsLikePath = (directoryPath: string, fileName: string) =>
   `${directoryPath.replace(/[\\/]+$/, "")}\\${fileName}`;
 
-export const MaintenancePage = () => {
+const MaintenancePageContent = () => {
   const { context } = useAppContext();
   const currentUnit = context?.units.find((unit) => unit.id === context.currentUnitId) ?? null;
   const currentUnitId = context?.currentUnitId ?? null;
@@ -134,8 +140,6 @@ export const MaintenancePage = () => {
   const [backupErrorMessage, setBackupErrorMessage] = useState<string | null>(null);
   const [selectedBackupPath, setSelectedBackupPath] = useState<string | null>(null);
   const [customVersionName, setCustomVersionName] = useState("");
-  const [collapsedSections, setCollapsedSections] = useState(defaultCollapsedSections);
-  const [collapsedPolicyItems, setCollapsedPolicyItems] = useState<Record<string, boolean>>({});
   const [savingPolicyItemId, setSavingPolicyItemId] = useState<string | null>(null);
   const [policyItemFeedback, setPolicyItemFeedback] = useState<{
     itemId: string;
@@ -144,6 +148,25 @@ export const MaintenancePage = () => {
   } | null>(null);
   const [editingVersionId, setEditingVersionId] = useState<number | null>(null);
   const [editingVersionName, setEditingVersionName] = useState("");
+  const taxMaintenanceState = useWorkspaceCollapseState(
+    "taxMaintenance",
+    defaultCollapsedSections.taxMaintenance,
+  );
+  const policyItemsSectionState = useWorkspaceCollapseState(
+    "policyItems",
+    defaultCollapsedSections.policyItems,
+  );
+  const basicState = useWorkspaceCollapseState("basic", defaultCollapsedSections.basic);
+  const comprehensiveState = useWorkspaceCollapseState(
+    "comprehensive",
+    defaultCollapsedSections.comprehensive,
+  );
+  const bonusState = useWorkspaceCollapseState("bonus", defaultCollapsedSections.bonus);
+  const versionsState = useWorkspaceCollapseState("versions", defaultCollapsedSections.versions);
+  const impactState = useWorkspaceCollapseState("impact", defaultCollapsedSections.impact);
+  const backupState = useWorkspaceCollapseState("backup", defaultCollapsedSections.backup);
+  const auditState = useWorkspaceCollapseState("audit", defaultCollapsedSections.audit);
+  const collapseRegistry = useWorkspaceCollapseRegistry();
 
   const applyTaxPolicyState = (nextTaxPolicy: TaxPolicyResponse) => {
     setTaxPolicy(nextTaxPolicy);
@@ -151,7 +174,6 @@ export const MaintenancePage = () => {
     setPolicyItems(clonePolicyItems(nextTaxPolicy.policyItems));
     setImpactPreview(null);
     setCustomVersionName("");
-    setCollapsedPolicyItems({});
     setEditingVersionId(null);
     setEditingVersionName("");
   };
@@ -171,7 +193,6 @@ export const MaintenancePage = () => {
       setDraftSettings(cloneTaxPolicySettings(buildDefaultTaxPolicySettings()));
       setPolicyItems([]);
       setCustomVersionName("");
-      setCollapsedPolicyItems({});
       setEditingVersionId(null);
       setEditingVersionName("");
     } finally {
@@ -237,6 +258,29 @@ export const MaintenancePage = () => {
     );
   }, [draftSettings, policyItems, taxPolicy]);
 
+  const collapsedSections = {
+    taxMaintenance: taxMaintenanceState.isCollapsed,
+    policyItems: policyItemsSectionState.isCollapsed,
+    basic: basicState.isCollapsed,
+    comprehensive: comprehensiveState.isCollapsed,
+    bonus: bonusState.isCollapsed,
+    versions: versionsState.isCollapsed,
+    impact: impactState.isCollapsed,
+    backup: backupState.isCollapsed,
+    audit: auditState.isCollapsed,
+  };
+
+  const collapsedPolicyItems = useMemo(
+    () =>
+      Object.fromEntries(
+        policyItems.map((item) => [
+          item.id,
+          collapseRegistry.collapsedSections[`policy-item::${item.id}`] ?? false,
+        ]),
+      ),
+    [collapseRegistry.collapsedSections, policyItems],
+  );
+
   const updatePolicyItem = (itemId: string, patch: Partial<TaxPolicyItem>) => {
     setPolicyItemFeedback((currentFeedback) =>
       currentFeedback?.itemId === itemId ? null : currentFeedback,
@@ -287,10 +331,7 @@ export const MaintenancePage = () => {
   };
 
   const togglePolicyItem = (itemId: string) => {
-    setCollapsedPolicyItems((currentItems) => ({
-      ...currentItems,
-      [itemId]: !currentItems[itemId],
-    }));
+    void collapseRegistry.toggleCollapsedSection?.(`policy-item::${itemId}`, false);
   };
 
   const removePolicyItem = (itemId: string) => {
@@ -310,11 +351,6 @@ export const MaintenancePage = () => {
     setPolicyItemFeedback((currentFeedback) =>
       currentFeedback?.itemId === itemId ? null : currentFeedback,
     );
-    setCollapsedPolicyItems((currentItems) => {
-      const nextItems = { ...currentItems };
-      delete nextItems[itemId];
-      return nextItems;
-    });
     setPolicyItems((currentItems) =>
       normalizePolicyItems(currentItems.filter((item) => item.id !== itemId)),
     );
@@ -331,10 +367,19 @@ export const MaintenancePage = () => {
   };
 
   const toggleSection = (sectionKey: MaintenanceSectionKey) => {
-    setCollapsedSections((currentSections) => ({
-      ...currentSections,
-      [sectionKey]: !currentSections[sectionKey],
-    }));
+    const collapseStateByKey = {
+      taxMaintenance: taxMaintenanceState,
+      policyItems: policyItemsSectionState,
+      basic: basicState,
+      comprehensive: comprehensiveState,
+      bonus: bonusState,
+      versions: versionsState,
+      impact: impactState,
+      backup: backupState,
+      audit: auditState,
+    } as const;
+
+    collapseStateByKey[sectionKey].toggleCollapsed();
   };
 
   const saveTaxPolicy = async () => {
@@ -632,7 +677,6 @@ export const MaintenancePage = () => {
   };
 
   return (
-    <WorkspaceLayoutRoot scope="page:maintenance">
       <WorkspaceCanvas>
         <WorkspaceItem
           cardId="maintenance-tax"
@@ -1656,6 +1700,11 @@ export const MaintenancePage = () => {
           </article>
         </WorkspaceItem>
       </WorkspaceCanvas>
-    </WorkspaceLayoutRoot>
   );
 };
+
+export const MaintenancePage = () => (
+  <WorkspaceLayoutRoot scope="page:maintenance">
+    <MaintenancePageContent />
+  </WorkspaceLayoutRoot>
+);

@@ -66,3 +66,87 @@ test("新数据库初始化时会写入内置默认政策内容", () => {
   assert.equal(parsed.firstTitle, "赡养老人");
   assert.equal(parsed.allHaveIllustration, true);
 });
+
+test("新数据库初始化时会写入默认 UI 偏好，并只保留最新税率版本且不保留 test 单位", () => {
+  fs.rmSync(seedDatabasePath, { force: true });
+
+  const script = `
+    const { database, closeDatabase } = await import('./src/db/database.ts');
+    const versionRows = database.prepare(
+      'SELECT id, version_name, is_active FROM tax_policy_versions ORDER BY id'
+    ).all();
+    const auditCount = database.prepare(
+      'SELECT COUNT(*) AS total FROM tax_policy_audit_logs'
+    ).get().total;
+    const unitCount = database.prepare(
+      'SELECT COUNT(*) AS total FROM units'
+    ).get().total;
+    const preferenceKeys = database.prepare(
+      "SELECT key FROM app_preferences WHERE key LIKE 'ui_%' ORDER BY key"
+    ).all().map((row) => row.key);
+    const navOrder = database.prepare(
+      "SELECT value FROM app_preferences WHERE key = 'ui_nav_order'"
+    ).get()?.value ?? null;
+    const policyLayout = database.prepare(
+      "SELECT value FROM app_preferences WHERE key = 'ui_layout::page:policy'"
+    ).get()?.value ?? null;
+    console.log(JSON.stringify({
+      versionRows,
+      auditCount,
+      unitCount,
+      preferenceKeys,
+      navOrder: navOrder ? JSON.parse(navOrder) : null,
+      policyLayout: policyLayout ? JSON.parse(policyLayout) : null,
+    }));
+    closeDatabase();
+  `;
+
+  const output = execFileSync(process.execPath, ["--import", "tsx", "--eval", script], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DUDE_TAX_DB_PATH: seedDatabasePath,
+    },
+    encoding: "utf8",
+  }).trim();
+
+  const parsed = JSON.parse(output) as {
+    versionRows: Array<{ id: number; version_name: string; is_active: number }>;
+    auditCount: number;
+    unitCount: number;
+    preferenceKeys: string[];
+    navOrder: string[] | null;
+    policyLayout: {
+      scope: string;
+      cards: Array<{ cardId: string }>;
+      collapsedSections: Record<string, boolean>;
+    } | null;
+  };
+
+  assert.deepEqual(parsed.versionRows, [{ id: 1, version_name: "最新", is_active: 1 }]);
+  assert.equal(parsed.auditCount, 0);
+  assert.equal(parsed.unitCount, 0);
+  assert.equal(
+    parsed.preferenceKeys.includes("ui_layout::page:policy") &&
+      parsed.preferenceKeys.includes("ui_layout::page:maintenance") &&
+      parsed.preferenceKeys.includes("ui_nav_order") &&
+      parsed.preferenceKeys.includes("ui_sidebar_collapsed"),
+    true,
+  );
+  assert.deepEqual(parsed.navOrder, [
+    "/",
+    "/quick-calc",
+    "/units",
+    "/employees",
+    "/entry",
+    "/result-confirmation",
+    "/history",
+    "/policy",
+    "/maintenance",
+  ]);
+  assert.deepEqual(parsed.policyLayout?.cards.map((card) => card.cardId), [
+    "policy-comprehensive-v2",
+    "policy-bonus-v2",
+    "policy-items-v2",
+  ]);
+});

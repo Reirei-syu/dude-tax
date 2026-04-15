@@ -14,6 +14,8 @@ const desktopStylesSource = fs.readFileSync(
 );
 
 test("批量导入工作区折叠时通过 hidden 控制内容区显示", () => {
+  assert.equal(importWorkflowSectionSource.includes("collapseStateKey"), true);
+  assert.equal(importWorkflowSectionSource.includes("useWorkspaceCollapseState"), true);
   assert.equal(
     importWorkflowSectionSource.includes('hidden={isGroupCollapsed}'),
     true,

@@ -743,6 +743,7 @@ export const MonthRecordEntryPage = () => {
             downloadButtonLabel="下载月度模板"
             groupTitle="月度批量导入工作区"
             groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
+            collapseStateKey="entry-import-group"
             defaultCollapsed={true}
             defaultConflictStrategy="overwrite"
             onDownloadTemplate={() =>

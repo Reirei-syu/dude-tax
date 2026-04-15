@@ -10,6 +10,8 @@ const collapsibleSectionCardSource = fs.readFileSync(
 
 test("共享折叠卡片组件支持默认折叠与可访问折叠控制", () => {
   assert.equal(collapsibleSectionCardSource.includes("defaultCollapsed = false"), true);
+  assert.equal(collapsibleSectionCardSource.includes("useWorkspaceCollapseState"), true);
+  assert.equal(collapsibleSectionCardSource.includes("cardId ?? null"), true);
   assert.equal(collapsibleSectionCardSource.includes("aria-controls={contentId}"), true);
   assert.equal(collapsibleSectionCardSource.includes("aria-expanded={!isCollapsed}"), true);
   assert.equal(

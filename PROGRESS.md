@@ -5,12 +5,20 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：工作区卡片精细缩放、重叠编辑与右键手动整理已完成
+- 当前任务：政策参考页头移除与折叠状态持久化已完成
 - 方案路径：已按 2026-04-13 会话内实现计划执行（未单独落盘）
 
 ## 当前轮次目标
 
 - 已完成：
+  - 政策参考页已删除顶部“政策参考”卡片，业务卡片默认布局整体上移
+  - 共享 `CollapsibleSectionCard` 已支持按页面 scope 记住最后一次展开状态
+  - `ImportWorkflowSection` 分组壳已支持通过稳定 key 持久化最后一次展开状态
+  - 系统维护页顶层 section、税率维护子卡与动态政策条目已改为持久化折叠状态
+  - `WorkspaceLayoutState` 已新增 `collapsedSections`，并通过 `ui-preferences` 布局接口读写
+  - `npm run test --workspace @dude-tax/desktop -- src/pages/current-policy-page.test.ts src/components/collapsible-section-card.test.ts src/components/import-workflow-section.test.ts src/pages/maintenance-page.test.ts`
+  - `npm run test --workspace @dude-tax/api -- src/ui-preferences.test.ts`
+  - `npm run typecheck --workspaces --if-present`
   - 工作区布局模型已升级为 `x/y/w/h` 采用 `0.1 格` 精度、并新增 `z` 层级持久化字段
   - 拖拽与缩放结束后不再自动吸附或自动避让，卡片可在宽工作区内重叠摆放
   - 卡片右键菜单已落地，支持在非交互区执行“顶置 / 靠左 / 靠右”

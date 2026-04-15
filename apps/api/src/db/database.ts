@@ -10,6 +10,7 @@ import {
   type TaxPolicySettingsInput,
 } from "@dude-tax/core";
 import { getDefaultPolicyContentJson } from "../default-policy-content.js";
+import { getDefaultUiPreferences } from "../default-ui-preferences.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const ACTIVE_TAX_POLICY_VERSION_ID_KEY = "active_tax_policy_version_id";
@@ -33,6 +34,7 @@ database.pragma("journal_mode = WAL");
 database.pragma("foreign_keys = ON");
 
 const DEFAULT_SEEDED_UNIT_YEAR = new Date().getFullYear();
+const DEFAULT_INITIAL_TAX_POLICY_VERSION_NAME = "最新";
 
 const ensureColumnExists = (tableName: string, columnName: string, columnSql: string) => {
   const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
@@ -631,6 +633,26 @@ const getLegacyInitialNotes = () => {
   return getDefaultPolicyContentJson();
 };
 
+const ensureDefaultUiPreferences = () => {
+  const seed = getDefaultUiPreferences();
+
+  if (getPreference("ui_sidebar_collapsed") === null) {
+    setPreference("ui_sidebar_collapsed", seed.sidebarCollapsed ? "true" : "false");
+  }
+
+  if (getPreference("ui_nav_order") === null && seed.navigationOrder.length) {
+    setPreference("ui_nav_order", JSON.stringify(seed.navigationOrder));
+  }
+
+  Object.entries(seed.pageLayouts).forEach(([scope, layoutState]) => {
+    if (!layoutState || getPreference(`ui_layout::${scope}`) !== null) {
+      return;
+    }
+
+    setPreference(`ui_layout::${scope}`, JSON.stringify(layoutState));
+  });
+};
+
 const ensureActiveTaxPolicyVersion = () => {
   const versionCount = Number(
     (
@@ -661,7 +683,7 @@ const ensureActiveTaxPolicyVersion = () => {
         `,
       )
       .run(
-        "初始税率版本",
+        DEFAULT_INITIAL_TAX_POLICY_VERSION_NAME,
         buildTaxPolicySignature(initialSettings),
         JSON.stringify(initialSettings),
         initialNotes,
@@ -731,6 +753,7 @@ const ensureActiveTaxPolicyVersion = () => {
 };
 
 ensureActiveTaxPolicyVersion();
+ensureDefaultUiPreferences();
 
 const ensureUnitYearsSeeded = () => {
   const units = database.prepare("SELECT id FROM units ORDER BY id ASC").all() as Array<{

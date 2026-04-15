@@ -317,6 +317,7 @@ export const EmployeeManagementPage = () => {
             downloadButtonLabel="下载员工模板"
             groupTitle="员工批量导入工作区"
             groupDescription="默认收起，展开后处理模板下载、导入预览和导入回执。"
+            collapseStateKey="employees-import-group"
             defaultCollapsed={true}
             onDownloadTemplate={() => downloadEmployeeImportTemplateWorkbook()}
             onImportCommitted={() => loadEmployees()}

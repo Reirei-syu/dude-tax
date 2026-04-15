@@ -6,6 +6,44 @@
 
 ## 任务列表
 
+### [x] 政策参考页头移除与折叠状态持久化
+
+- 类型：Feature
+- 模块：`packages/core` / `apps/api` / `apps/desktop` / `docs`
+- 描述：删除政策参考页顶部页头卡，并让共享折叠卡片、导入工作区分组壳和系统维护页自管折叠区都按页面 scope 记住用户最后一次展开状态。
+- 依赖：工作区卡片精细缩放、重叠编辑与右键手动整理
+- 风险：中
+- 优先级：3
+- 完成时间：2026-04-15
+- 修改文件：
+  - `packages/core/src/index.ts`
+  - `apps/api/src/repositories/ui-preferences-repository.ts`
+  - `apps/api/src/routes/ui-preferences.ts`
+  - `apps/api/src/ui-preferences.test.ts`
+  - `apps/desktop/src/api/client.ts`
+  - `apps/desktop/src/hooks/useWorkspaceLayout.ts`
+  - `apps/desktop/src/components/WorkspaceLayout.tsx`
+  - `apps/desktop/src/components/CollapsibleSectionCard.tsx`
+  - `apps/desktop/src/components/ImportWorkflowSection.tsx`
+  - `apps/desktop/src/components/collapsible-section-card.test.ts`
+  - `apps/desktop/src/components/import-workflow-section.test.ts`
+  - `apps/desktop/src/pages/CurrentPolicyPage.tsx`
+  - `apps/desktop/src/pages/current-policy-page.test.ts`
+  - `apps/desktop/src/pages/MaintenancePage.tsx`
+  - `apps/desktop/src/pages/maintenance-page.test.ts`
+  - `apps/desktop/src/pages/EmployeeManagementPage.tsx`
+  - `apps/desktop/src/pages/MonthRecordEntryPage.tsx`
+  - `apps/desktop/src/layout/workspace-layout.ts`
+  - `apps/desktop/src/layout/workspace-layout.test.ts`
+  - `PROGRESS.md`
+  - `docs/context/latest_context.md`
+  - `docs/tasks.md`
+  - `docs/context_memory/memory.md`
+- 影响范围：
+  - 政策参考页不再显示页头卡，业务卡片从页面顶部开始布局
+  - 可折叠卡片会优先恢复用户最后一次状态，而不是重复应用默认折叠
+  - 布局接口已支持随页面布局一起持久化 `collapsedSections`
+
 ### [x] 工作区卡片精细缩放、重叠编辑与右键手动整理
 
 - 类型：Feature

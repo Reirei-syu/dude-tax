@@ -203,34 +203,20 @@ export const CurrentPolicyPage = () => {
     <WorkspaceLayoutRoot scope="page:policy">
       <WorkspaceCanvas>
         <WorkspaceItem
-          cardId="policy-overview"
-          defaultLayout={{ x: 0, y: 0, w: 12, h: 8 }}
-          minH={8}
-          resizable={false}
-        >
-          <CollapsibleSectionCard
-            cardId="policy-overview"
-            className="placeholder-card"
-            description={`当前房间：${currentUnit?.unitName ?? "未选择单位"} / ${currentTaxYear ?? "-"} 年`}
-            headingTag="h1"
-            headerExtras={<span className="tag">{loading ? "加载中" : "已同步"}</span>}
-            title="政策参考"
-          >
-            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-          </CollapsibleSectionCard>
-        </WorkspaceItem>
-
-        <WorkspaceItem
-          cardId="policy-comprehensive"
-          defaultLayout={{ x: 0, y: 8, w: 6, h: 14 }}
+          cardId="policy-comprehensive-v2"
+          defaultLayout={{ x: 0, y: 0, w: 6, h: 14 }}
           minH={12}
         >
           <CollapsibleSectionCard
-            cardId="policy-comprehensive"
+            cardId="policy-comprehensive-v2"
             defaultCollapsed
             description="显示当前生效税率版本下的综合所得税率档位。"
+            headerExtras={
+              <span className="tag">{loading ? "加载中" : currentUnit ? `${currentUnit.unitName} / ${currentTaxYear ?? "-"} 年` : "未选择单位"}</span>
+            }
             title="综合税率表"
           >
+            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
             <table className="data-table">
               <thead>
                 <tr>
@@ -259,12 +245,12 @@ export const CurrentPolicyPage = () => {
         </WorkspaceItem>
 
         <WorkspaceItem
-          cardId="policy-bonus"
-          defaultLayout={{ x: 6, y: 8, w: 6, h: 14 }}
+          cardId="policy-bonus-v2"
+          defaultLayout={{ x: 6, y: 0, w: 6, h: 14 }}
           minH={12}
         >
           <CollapsibleSectionCard
-            cardId="policy-bonus"
+            cardId="policy-bonus-v2"
             defaultCollapsed
             description="显示当前生效税率版本下的年终奖单独计税档位。"
             title="年终奖单独计税税率表"
@@ -297,12 +283,12 @@ export const CurrentPolicyPage = () => {
         </WorkspaceItem>
 
         <WorkspaceItem
-          cardId="policy-items"
-          defaultLayout={{ x: 0, y: 22, w: 12, h: 18 }}
+          cardId="policy-items-v2"
+          defaultLayout={{ x: 0, y: 14, w: 12, h: 18 }}
           minH={16}
         >
           <CollapsibleSectionCard
-            cardId="policy-items"
+            cardId="policy-items-v2"
             className="placeholder-card"
             description="条目由系统维护模块统一维护，可按顺序展示多条政策说明。"
             title="扣除项说明"

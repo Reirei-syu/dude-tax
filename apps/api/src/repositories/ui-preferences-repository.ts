@@ -43,6 +43,7 @@ const workspaceCardLayoutSchema = z
 const workspaceLayoutStateSchema = z.object({
   scope: z.enum(WORKSPACE_PAGE_SCOPES),
   cards: z.array(workspaceCardLayoutSchema),
+  collapsedSections: z.record(z.string().trim().min(1), z.boolean()).optional(),
 });
 
 const floatingDialogLayoutSchema = z.object({
@@ -115,6 +116,13 @@ const normalizeCards = (cards: WorkspaceCardLayoutInput[]) =>
     };
   });
 
+const normalizeCollapsedSections = (collapsedSections?: Record<string, boolean>) =>
+  Object.fromEntries(
+    Object.entries(collapsedSections ?? {}).filter(
+      ([key, value]) => key.trim().length > 0 && typeof value === "boolean",
+    ),
+  );
+
 const buildPageLayoutKey = (scope: WorkspacePageScope) => `${PAGE_LAYOUT_KEY_PREFIX}${scope}`;
 const buildDialogLayoutKey = (scope: WorkspaceDialogScope) => `${DIALOG_LAYOUT_KEY_PREFIX}${scope}`;
 
@@ -181,19 +189,28 @@ export const uiPreferencesRepository = {
       return {
         scope,
         cards: [],
+        collapsedSections: {},
       };
     }
 
     return {
       scope,
       cards: normalizeCards(parsed.cards),
+      collapsedSections: normalizeCollapsedSections(parsed.collapsedSections),
     };
   },
 
-  setPageLayout(scope: WorkspacePageScope, cards: WorkspaceCardLayoutInput[]): WorkspaceLayoutState {
+  setPageLayout(
+    scope: WorkspacePageScope,
+    state: {
+      cards: WorkspaceCardLayoutInput[];
+      collapsedSections?: Record<string, boolean>;
+    },
+  ): WorkspaceLayoutState {
     const nextState: WorkspaceLayoutState = {
       scope,
-      cards: normalizeCards(cards),
+      cards: normalizeCards(state.cards),
+      collapsedSections: normalizeCollapsedSections(state.collapsedSections),
     };
     setPreference(buildPageLayoutKey(scope), JSON.stringify(nextState));
     return nextState;
