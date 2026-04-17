@@ -1,337 +1,67 @@
 # 项目进度与状态
 
-- 更新时间：2026-04-13
+- 更新时间：2026-04-17
 - 项目标识：dude-tax
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：固化初始 UI 默认值并重新打包已完成
-- 方案路径：已按 2026-04-13 会话内实现计划执行（未单独落盘）
-
-## 当前轮次目标
-
-- 已完成：
-  - 已将运行态 `test` 单位当前 UI 布局、导航顺序、侧边栏状态与折叠状态抽取为默认初始化种子
-  - 初始化数据库时默认不创建任何单位，安装后保持“无单位”初始状态
-  - 默认税率版本初始化时只保留 1 个版本，版本名固定为“最新”
-  - fresh DB 初始化时审计日志默认为空
-  - `npm run test --workspace @dude-tax/api -- src/default-policy-content.test.ts src/ui-preferences.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- src/pages/current-policy-page.test.ts src/components/collapsible-section-card.test.ts src/components/import-workflow-section.test.ts src/pages/maintenance-page.test.ts`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run release:win`
-  - 政策参考页已删除顶部“政策参考”卡片，业务卡片默认布局整体上移
-  - 共享 `CollapsibleSectionCard` 已支持按页面 scope 记住最后一次展开状态
-  - `ImportWorkflowSection` 分组壳已支持通过稳定 key 持久化最后一次展开状态
-  - 系统维护页顶层 section、税率维护子卡与动态政策条目已改为持久化折叠状态
-  - `WorkspaceLayoutState` 已新增 `collapsedSections`，并通过 `ui-preferences` 布局接口读写
-  - `npm run test --workspace @dude-tax/desktop -- src/pages/current-policy-page.test.ts src/components/collapsible-section-card.test.ts src/components/import-workflow-section.test.ts src/pages/maintenance-page.test.ts`
-  - `npm run test --workspace @dude-tax/api -- src/ui-preferences.test.ts`
-  - `npm run typecheck --workspaces --if-present`
-  - 工作区布局模型已升级为 `x/y/w/h` 采用 `0.1 格` 精度、并新增 `z` 层级持久化字段
-  - 拖拽与缩放结束后不再自动吸附或自动避让，卡片可在宽工作区内重叠摆放
-  - 卡片右键菜单已落地，支持在非交互区执行“顶置 / 靠左 / 靠右”
-  - “自动排列”已改为显式整理动作，允许微调卡片宽高以消除重叠并统一行列
-  - `npm run test --workspace @dude-tax/desktop -- src/layout/workspace-layout.test.ts src/components/workspace-layout-structure.test.ts`
-  - `npm run test --workspace @dude-tax/api -- src/ui-preferences.test.ts`
-  - `npm run typecheck --workspaces --if-present`
-  - 已将 `/result-confirmation` 导航标签从“结果确认”统一改为“缴纳确认”，并同步首页建议文案、导出文案与桌面 smoke 脚本入口
-  - 已将“月度数据录入”主卡片与员工列表编辑内容合并，主卡片标题改为“月度数据手工录入”
-  - 已将“结果确认”工作卡片改为“已纳税月份确认”，移除 4 个状态栏，仅保留月份按钮颜色表达确认状态
-  - 已删除系统维护页顶部 `maintenance-header` 卡片，并将其余工作区卡片默认布局整体上移
-  - 已为工作区布局增加废弃 `cardId` 自动清理，避免旧持久化布局残留空白
-  - `npm run test --workspace @dude-tax/desktop -- src/pages/month-record-entry-page.test.ts src/pages/result-confirmation-page.test.ts src/pages/maintenance-page.test.ts src/pages/navigation-order.test.ts src/pages/home-suggestions.test.ts src/components/workspace-layout-structure.test.ts`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - `node --check scripts/e2e/release-preflight.mjs`
-  - 已进一步缩小排序态右侧上下箭头按钮，避免上下重叠
-  - 已恢复导航项统一宽度，自定义排序按钮尺寸回调为原侧栏方案，仅将文字替换为上下箭头图标
-  - 排序态箭头控件改为悬浮在导航项右侧，可超出导航栏边缘显示，并通过模糊主面板/品牌卡降低视觉割裂感
-  - `npm run test --workspace @dude-tax/desktop -- src/components/workspace-layout-structure.test.ts`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - 已修复 `WorkspaceLayoutRoot` / `WorkspaceCanvas` 之间的渲染循环，fresh dev session 中不再出现 `Maximum update depth exceeded`
-  - 左侧导航排序已从整项拖拽改为排序模式下通过右侧上下箭头移动
-  - 排序模式下导航文字区保持可见但禁用，不再误触进入模块
-  - 自定义排序按钮已改为 icon-only 入口，并补齐 `aria-label` / `title`
-  - 已新增 `navigation-order.ts` 纯逻辑 helper 及边界测试
-  - 已补首页“前往政策参考”和年度结果页“前往计算中心”入口断言
-  - `npm run test --workspace @dude-tax/desktop -- src/components/navigation-order.test.ts src/components/workspace-layout-structure.test.ts src/pages/home-page.test.ts src/pages/annual-results/components/annual-results-overview-section.test.ts`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - 浏览器冒烟：`#/ -> #/units`、排序模式文字区禁跳转、箭头移动顺序生效、首页入口 `#/policy`
-  - 已新增左下角描边缩放手柄，与右下角手柄共存
-  - 已新增工作区底部临时扩展空白区，支持继续向下拉伸卡片
-  - 已新增“自动排列”按钮，支持向上回填和轻微横向重叠保留并排
-  - 已修复员工批量导入区卡片滚动问题与“隐藏已离职员工”控件单行样式
-  - 已修复卡片缩放结束后仍触发自动吸附 / 自动重排的问题
-  - 已新增 `ui_nav_order` 偏好，支持左侧导航拖拽排序与全局顺序记忆
-  - 已修复导航项外层在 `pointerdown` 提前 `preventDefault` 导致主模块无法切换的问题
-  - 抽屉按钮已调整为品牌卡片右侧居中定位，不再压住标题卡片
-  - 卡片拖拽起点已放宽到非交互区域，不再局限于标题区
-  - 卡片与主要弹窗正文区已接入整体等比缩放
-  - 已修复 `WorkspaceCanvas` 在局部重渲染时把临时拖拽 / 缩放状态覆盖回持久化值的问题
-  - 右下角缩放手柄已改为描边角标样式
-  - `npm run test --workspace @dude-tax/api -- src/**/*.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- src/**/*.test.ts`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run build:api`
-  - `npm run build:desktop`
-  - 已新增共享 UI 布局协议：页面布局、弹窗布局、导航抽屉状态统一进入 `@dude-tax/core`
-  - 已新增本地 API `ui-preferences` 路由，支持侧边栏状态、页面布局、弹窗布局的读写与重置
-  - 左侧导航已支持抽屉式收起 / 恢复，并记忆全局状态
-  - 首页、单位管理、员工信息、快速计算、月度数据录入、结果确认、历史查询、政策参考、系统维护主工作区已接入可拖拽 / 可缩放布局
-  - 年度工作台、结果明细、员工编辑、选择员工弹窗已接入浮动窗口布局
-  - 已新增布局纯函数测试、结构测试与 API 偏好测试
-  - `npm run test --workspace @dude-tax/api -- src/**/*.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- src/**/*.test.ts`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run build:api`
-  - `npm run build:desktop`
-  - 已定位安装版 `Failed to fetch` 根因：前端在安装环境下可能拿不到 preload 注入的 `apiBaseUrl`，回退为 `file://` 请求导致网络层直接失败
-  - `apps/desktop/electron/main.cjs` 已改为在窗口 URL 查询参数中显式注入 `salaryTaxApiBaseUrl`
-  - `apps/desktop/src/api/client.ts` 已新增从 `window.location.search` 读取本地 API 地址的兜底逻辑
-  - 已新增桌面端回归测试，覆盖查询参数兜底与主进程 URL 注入
-  - 已重新生成本地安装包，版本号保持 `0.1.0-alpha`
-  - 本地安装包路径：`D:\coding\completed\dude-tax\dude-tax-installer-x64.exe`
-  - 根工作区与各 package 版本统一为 `0.1.0-alpha`
-  - Electron preload 暴露的桌面端版本改为动态读取根 `package.json`
-  - 新增 `scripts/build-installer.mjs` 与 `scripts/installer/dude-tax.iss`
-  - 新增 GitHub Actions 工作流 `.github/workflows/windows-release.yml`
-  - `npm run release:win` 已通过，生成本地 Windows 安装包
-  - 安装包产物：`dist-electron/installer/dude-tax-installer-x64.exe`
-  - 安装包 SHA256：`17E9F4A433141AD8820DB17CDF27F162BFAF6C53016EA600DAD00AA8CC962928`
-  - 已约定稳定下载资产名：`dude-tax-installer-x64.exe`
-  - 员工信息模块已改为“新增员工卡片 + 编辑员工独立对话框”双态结构，不再复用同一张表单卡片
-  - `packages/core` 新增 `EmployeeRosterStatusKind` 与 `deriveEmployeeRosterStatus(employee, taxYear)`
-  - 员工列表已按当前选中税年显示“YYYY-MM-DD入职 / 在职 / YYYY-MM-DD离职 / 已离职”四态
-  - 员工列表新增“隐藏已离职员工”开关，仅过滤以前年度离职员工
-  - 已补齐 `docs/context_memory/memory.md`
-  - 已补齐 `.gitignore` 中的 Agent 内部文档忽略规则
-  - `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
-  - `npm run typecheck --workspace @dude-tax/core`
-  - `npm run typecheck --workspace @dude-tax/desktop`
-  - `npm run typecheck --workspace @dude-tax/api`
-  - `git status --ignored --short`
-  - 月度录入工作台新增“入职前 / 离职后收入录入”三选强提示，覆盖保存当前改动、应用到下月、应用到后续月份
-  - 已修复“跳过异常月份”分支会遗漏当前异常源月份、并错误保留离职后复制结果的问题
-  - `EmployeeYearRecordWorkspace` 已补充 `hireDate` / `leaveDate`
-  - 后端 `/year-record-workspace` 与单月 `/month-records/:taxMonth` 接口新增就业月份收入冲突硬阻断与显式确认放行
-  - `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
-  - `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
-  - 系统维护页新增“单位备份”独立卡片，支持查看纳入年份、最近目录、建议文件名与最近一次成功备份结果
-  - 本地 API 新增 `GET /api/units/:unitId/backup-draft` 与 `POST /api/units/:unitId/backup`
-  - 备份产物固定为 ZIP，内部包含 `backup.json`，范围限定为当前单位全部年份业务数据与关联税率版本/审计日志
-  - 备份目录按全局偏好记忆，后续备份可直接复用最近目录
-  - Electron 新增 `pickSavePath` 桥接，由主进程统一决定默认目录并返回目标路径
-  - `npm run test --workspace @dude-tax/api -- unit-backup.test.ts`
-  - `npm run test --workspace @dude-tax/desktop -- maintenance-page.test.ts api/client.test.ts`
-  - 新增浅色系、卡通风、`￥` 主题应用图标
-  - 图标已接入 Electron 窗口与 Windows 打包
-  - `npm run package:win` 已通过，验证 `ICO` 资源可被打包链路接受
-  - 发布前 E2E 方案、任务和上下文文档已同步
-  - `npm run test --workspaces --if-present`
-  - `npm run typecheck --workspaces --if-present`
-  - `npm run build:api`
-  - `npm run build:desktop`
-  - `npm run package:win`
-  - 新增 `scripts/e2e/release-preflight.mjs`，并完成真实发布包主流程回放
-  - 修正后的 `desktop-full-chain-soak.mjs` 已完成严格 60 分钟单次复跑
-- 本轮修复：
-  - 修复工作区布局控制器在注册 canvas actions 时重复触发根组件重渲染的问题
-  - 将导航排序交互从拖拽改为按钮式上下移动，降低误触与不可预期点击
-  - 将排序开关改成图标按钮，减少排序态和普通态的视觉噪音
-  - 补齐导航与页面内主功能入口的回归断言，覆盖首页和年度结果页
-  - 修复员工在入职前月份、离职后月份仍能静默保存收入的问题
-  - 修复复制场景下“跳过异常月份”未回退当前异常源月份的问题
-  - 修复复制到后续月份时“跳过异常月份”仍把收入带入离职后月份的问题
-  - 新增“跳过异常月份，仅保存/复制合法月份”的快捷分支，减少手工回退
-  - 新增单位维度 ZIP 备份能力，避免只能整库处理而无法单独按单位归档
-  - 修复桌面端缺少“仅选路径不直接写文件”桥接的问题
-  - 将备份文件名中的 Windows 非法字符统一安全化，避免保存失败
-  - 修复发布包 E2E 脚本在 remote debugging 端口未就绪时直接失败的问题
-  - 改用 `--user-data-dir=<temp>` 隔离发布包 userData，避免污染真实用户数据
-  - 修复 React 受控表单 / 下拉框在自动化脚本中的填值兼容性
-  - 修复月度录入、结果确认、历史查询、政策参考的页面级等待条件与错误元素命中问题
-
-> 说明：以下“本轮修改 / 验证结果 / 风险备注”内容来自上一轮长稳压测与真实壳烟测，作为本轮发布前全面 E2E 的现有基线证据。
+- 当前任务：开发态与安装版数据库隔离
 
 ## 本轮修改
 
-- 安装版 `Failed to fetch` 修复：
-  - `apps/desktop/electron/main.cjs` 新增 `buildRendererUrl`，在开发 URL 和生产 `loadFile` 两条路径都注入 runtime query
-  - `apps/desktop/src/api/client.ts` 新增 `salaryTaxApiBaseUrl` 查询参数兜底
-  - `apps/desktop/src/api/client.test.ts` 新增“桌面桥接缺失时回退到查询参数”的回归测试
-  - `apps/desktop/src/electron-runtime-config.test.ts` 新增主进程注入查询参数的源码断言
-- 发布链路：
-  - 统一根项目、`apps/api`、`apps/desktop`、`packages/core`、`packages/config` 版本为 `0.1.0-alpha`
-  - 新增 Inno Setup 安装包脚本，沿用 `package:win` 产物生成真正的安装器 `.exe`
-  - `scripts/package-win.mjs` 改为在 Electron 打包临时副本内替换 `better-sqlite3` Electron ABI，避免 Windows 文件锁
-  - GitHub Actions 新增 Windows Release 工作流，发布版本 tag 资产并同步滚动更新 `installer-latest` 稳定下载入口
-- 员工信息模块：
-  - `packages/core` 新增员工列表四态状态类型与按税年派生函数
-  - `apps/desktop` 新增 `EmployeeEditDialog`，将已有员工编辑迁移到独立对话框
-  - `apps/desktop` 新增 `employee-list-filter.ts` 纯函数，统一状态标签与“隐藏已离职员工”过滤逻辑
-  - `EmployeeManagementPage` 改为新增 / 编辑双状态，并按当前税年展示员工四态状态
-  - 运行时文档补齐 `docs/context_memory/memory.md`，并补充 `.gitignore` 忽略规则
-- 就业月份收入冲突提示：
-  - `packages/core` 新增入离职月份收入冲突判定能力与冲突月份聚合结果
-  - `apps/api` 新增 `EmploymentIncomeConflictError` 与 409 结构化冲突响应
-  - `apps/desktop` 新增自定义三选弹层、工作台本地预检与“仅处理合法月份”分支
-- 单位备份模块：
-  - `packages/core` 新增单位备份协议类型、清单结构与摘要计数
-  - `apps/api` 新增 `unit-backup-service.ts`，负责草稿信息、数据抽取、`backup.json` 写入、PowerShell `Compress-Archive` 压缩和最近目录持久化
-  - `apps/desktop` 新增 `pickSavePath` 桥接、备份客户端接口与系统维护页“单位备份”卡片
-  - 文档同步更新 `AGENTS.md`、`PROJECT_SPEC.md`、`prd.md`
-- 后端稳定性修复：
-  - `annual_tax_result_versions` 新增“完全相同结果不追加历史版本”保护，只刷新当前结果时间戳
-  - `confirmed-results` 与 detail 改为一次性预加载当前单位 / 年度的员工、确认月份与月度记录，再按 `employeeId -> taxMonth` 内存分组
-- 测试补充：
-  - 新增“无变更重复重算不追加版本历史”回归测试
-  - 新增 `confirmed-results` 多员工、多确认月份语义回归测试
-  - 新增压测 CLI 参数校验与失败输出测试
-- 压测能力：
-  - 新增 `scripts/stress/desktop-full-chain-soak.mjs`
-  - 新增压测工作区 `docs/stress/2026-04-10-desktop-full-chain-soak/`
-  - 输出 `summary.json`、每分钟 `metrics-*.json`、导入样本 CSV
-- Electron 构建链路修复：
-  - 修复桌面端生产构建输出绝对 `/assets/...` 资源路径导致 `file://` 场景下 renderer 空白页的问题
-  - `@dude-tax/desktop` 构建脚本改为 `vite build --base ./`
-- 真实 Electron 壳烟测：
-  - 单位管理：新增 2027 年
-  - 员工信息：真实文件导入 2 名员工
-  - 月度数据录入：真实文件导入 24 行月度记录并执行计算
-  - 结果确认：确认 1 月
-  - 历史查询：命中 `EMP-SMOKE-001`
-  - 系统维护：完成单项保存、创建版本、重命名、绑定 / 解绑作用域
-  - 政策参考：验证绑定态 / 解绑态条目切换与原图预览
-- 真实 Electron 壳折叠矩阵：
-  - 首页、单位管理、员工信息、月度数据录入、快速计算、结果确认、历史查询、政策参考的顶层折叠卡全部完成“展开 -> 收起”状态切换验证
+- 新增 `apps/desktop/electron/database-path.cjs`，负责安装版数据库路径解析、写权限探测和旧库迁移
+- `apps/desktop/electron/main.cjs` 改为通过 helper 决定安装版 managed API 的数据库路径
+- `apps/api/src/db/database.ts` 暴露 `databaseFilePath`，便于验证 API 实际打开的数据库文件
+- `apps/api/package.json` 的 `dev` 脚本显式注入 `DUDE_TAX_DB_PATH=../../data/dev/dude-tax.dev.db`
+- `apps/desktop/package.json` 的 `dev` 脚本为 Electron 开发壳显式注入同一条 dev 库路径
+- `scripts/e2e/release-preflight.mjs` 新增安装目录数据库路径检查
+- 新增 desktop/api 数据库路径回归测试
 
 ## 影响范围
 
 - `apps/api`
 - `apps/desktop`
-- `packages/core`
-- `scripts/stress`
-- `docs`
+- `scripts/e2e`
+- 项目运行时文档
 
-## 任务进度
+## 当前进度
 
 - 当前主任务进度：100%
-- 已完成：
-  - 就业月份收入强提示 core / api / desktop 全链路落地
-  - 入离职月份冲突测试、后端阻断测试、页面强提示测试全部转绿
-  - 单位备份草稿接口、执行接口、Electron 桥接与系统维护卡片落地
-  - 单位备份 API / Desktop 失败测试先行补齐并全部转绿
-  - 年度结果版本历史去重修复
-  - `confirmed-results` / detail 批量化查询修复
-  - 压测 CLI 与工作区文档落地
-  - Electron 生产构建相对资源路径修复
-  - API 回归、构建与脚本测试通过
-  - 短时样本与正式 soak 产物生成完成
-  - Electron 壳页面级主流程烟测
-  - Electron 壳顶层折叠矩阵验证
-- 未完成：
-  - 如需严格满 60 分钟单次 soak，需使用修正后的脚本复跑一轮
+
+已完成：
+
+- 开发态默认数据库切换为仓库内独立 dev 库
+- 安装版默认数据库切换为安装目录 `data/dude-tax.db`
+- 安装目录不可写时自动回退到 `userData`
+- 旧 `userData` 库首次升级自动复制迁移
+- 发布前脚本可检查安装版是否优先落库到安装目录
+- desktop/api 路径回归测试已转绿
+
+未完成：
+
+- 真实安装包升级场景的人工冒烟验证
+- `.gitignore` 已忽略但仍被追踪的 Agent 文档清理
+- Vite bundle warning 优化
 
 ## 验证结果
 
-- `npm run test --workspace @dude-tax/desktop -- src/api/client.test.ts src/electron-runtime-config.test.ts`
-- `npm run typecheck --workspace @dude-tax/desktop`
-- `npm run release:win`
-- `npm run test --workspaces --if-present`
-- `npm run typecheck --workspaces --if-present`
-- `npm run release:win`
-- `Get-FileHash dist-electron\\installer\\dude-tax-installer-x64.exe -Algorithm SHA256`
-- `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
-- `npm run test --workspace @dude-tax/desktop -- employee-list-filter.test.ts employee-management-page.test.ts`
-- `npm run typecheck --workspace @dude-tax/core`
-- `npm run typecheck --workspace @dude-tax/desktop`
-- `npm run typecheck --workspace @dude-tax/api`
-- `git status --ignored --short`
-- `npm run test --workspace @dude-tax/core -- employee-status.test.ts`
-- `npm run test --workspace @dude-tax/api -- year-entry.test.ts month-records.test.ts`
-- `npm run test --workspace @dude-tax/desktop -- month-record-entry-page.test.ts month-record-employment-conflict.test.ts`
-- `npm run typecheck --workspace @dude-tax/desktop`
-- `npm run typecheck --workspaces --if-present`
-- `npm run build:api`
-- `npm run build:desktop`
-- `npm run test --workspace @dude-tax/api -- unit-backup.test.ts`
-- `npm run test --workspace @dude-tax/desktop -- maintenance-page.test.ts api/client.test.ts`
-- `npm run typecheck --workspace @dude-tax/api`
-- `npm run typecheck --workspace @dude-tax/desktop`
-- `npm run test --workspace @dude-tax/api -- annual-results.test.ts confirmed-results.test.ts year-entry.test.ts`
-- `npm run build --workspace @dude-tax/api`
-- `npm run build --workspace @dude-tax/desktop`
-- `node --test scripts/stress/desktop-full-chain-soak.test.mjs`
-- `node scripts/stress/desktop-full-chain-soak.mjs --duration-minutes 0.2 --api-base-url http://127.0.0.1:3101 --db-path <temp-db> --seed-employees 20 --tax-year 2026 --unit-name 短时压测单位 --output-dir docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/short-sample --phase-profile desktop-full-chain`
-- `node scripts/stress/desktop-full-chain-soak.mjs --duration-minutes 60 --api-base-url http://127.0.0.1:3102 --db-path <temp-db> --seed-employees 500 --tax-year 2026 --unit-name 一小时压测单位 --output-dir docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/full-run-1h --phase-profile desktop-full-chain`
-- `node scripts/stress/desktop-full-chain-soak.mjs --duration-minutes 0.2 --api-base-url http://127.0.0.1:3103 --db-path <temp-db> --seed-employees 20 --tax-year 2026 --unit-name 修正后短时压测单位 --output-dir docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/short-sample-postfix --phase-profile desktop-full-chain`
-- Electron 真实壳页面级烟测产物：
-  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/summary.json`
-  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/01-home-initial.png`
-  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/08-maintenance-flow.png`
-  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/09-policy-title-restored-a.png`
-- Electron 顶层折叠矩阵产物：
-  - `docs/stress/2026-04-10-desktop-full-chain-soak/artifacts/electron-ui-smoke/toggle-summary.json`
-- 正式 soak 关键结果：
-  - 基线 `confirmed-results=52.52ms`
-  - burst 478 次无变更重算后 `annualResultVersionCount=500`
-  - burst 阶段 DB 增长率 `1.65%`
-  - 恢复后 `confirmed-results=46.65ms`
-  - API 重启窗口 `18:04:59 -> 18:05:05`
+- `npm run test --workspace @dude-tax/desktop -- src/electron-database-path.test.ts src/electron-runtime-config.test.ts`
+- `npm run test --workspace @dude-tax/api -- src/db/database-path.test.ts`
 
 ## 风险备注
 
-- 当前导航排序、内容缩放与拖拽放宽主要通过单元 / 结构测试验证，尚未补真实 Electron 人工手感验证。
-- 当前尾部空白区扩展与自动排列的组合行为主要通过纯函数和结构测试验证，尚未补真实 Electron 人工手感验证。
-- 新增工作区布局已覆盖主页面与主要弹窗，但尚未补真实 Electron 壳人工拖拽烟测证据
-- 系统维护页“税率维护”父卡内部仍保留原有静态子卡排布，当前先保证顶层主卡片可自由布局
-- `vite build` 仍有 bundle 过大 warning，当前不阻断本轮交付
-
-- 这次修复解决的是“renderer 取不到 API 基地址”的链路；如果未来 preload 整体失效，查询参数兜底仍能保障 API 请求，但桌面桥接能力本身仍需单独关注。
-- GitHub Actions 的 Windows Release 工作流依赖 `windows-latest` 上可用的 Chocolatey 安装 Inno Setup；若 runner 镜像策略变化，需要同步调整安装命令。
-- 当前稳定下载链接采用滚动 release tag `installer-latest`，后续更新安装包时必须继续使用同名资产 `dude-tax-installer-x64.exe`。
-- 员工编辑弹窗目前以源码断言和纯函数测试为主，尚未补真实 Electron 壳交互 smoke。
-- “隐藏已离职员工”当前仅在页面内存态生效，刷新页面后恢复默认显示，这是本轮有意保持的最小实现。
-- 就业月份收入冲突提示当前只覆盖“工资收入 / 年终奖 / 其他收入”三类字段；预扣税额与扣除项仍不触发强提示，这是当前明确口径。
-- 当前桌面前端已做本地预检，后端也做硬阻断；如果未来导入模块也要复用同规则，建议抽到导入链路统一校验。
-- 单位备份 ZIP 当前依赖 Windows PowerShell `Compress-Archive`；符合现阶段 Windows-only 交付目标，但未来若扩到 macOS/Linux 需替换为跨平台压缩实现。
-- 单位备份本期仅做导出，不含恢复链路；恢复能力仍需后续单独设计与验收。
-- 发布前全面 E2E 已通过，但 `vite build` 仍有 bundle 过大 warning，当前不阻断发布。
-- 真实发布包与严格 60 分钟 soak 均已通过；当前未发现新的 P1/P0 稳定性问题。
-- `vite build` 仍有 bundle 过大 warning，但构建成功，不影响本轮交付。
-- 真实 Electron 壳启动时出现 Chromium 磁盘缓存告警，但页面级烟测已实际走通，暂按环境级 P3 观察项记录。
-- 正式 soak 使用旧版脚本完成，`--duration-minutes 60` 的阶段权重实际覆盖约 55 分钟；run 后已修正 baseline 窗口计时，若需要严格满 60 分钟单次证据，应补一轮复跑。
+- 安装目录权限在真实用户环境中仍可能触发回退路径，需要人工验证体验
+- 若绕过 workspace `dev` 脚本单独启动 API 且不传 `DUDE_TAX_DB_PATH`，仍会回落到旧默认路径
+- 发布前脚本当前依赖测试包目录可写这一前提
 
 ## Lessons Learned
 
-- 导航拖拽排序不能直接复用卡片拖拽逻辑；必须引入拖拽阈值，才能避免“点击切页”和“拖动排序”互相误伤。
-- “外框变小 + 内容滚动”不等于用户感知的可缩放，正文区需要显式做比例缩放，用户才会认为卡片真的被缩小了。
-- 侧边栏抽屉按钮的视觉锚点应该跟品牌卡片绑定，而不是跟整个侧栏绑定，否则很容易在视觉上漂移。
-- 自动排列不能只做碰撞下推；必须再做向上回填和轻微横向重叠保留，用户才会觉得布局“聪明”而不是“机械”。
-- 这类“全页面可拖拽 / 可缩放”需求，先把布局协议沉到 `core`，再让 API 和桌面端共用，能明显降低后续 scope 漂移风险。
-- 页面级自由布局如果不做 scope 约束，很容易因为多个页面互相覆盖同一偏好键而污染布局；固定 `ui_layout::<scope>` 是必要前提。
-- 大型工作台弹窗的“最大化 / 还原”最好把 `isMaximized` 与普通 rect 一起持久化，这样重启后仍能恢复上次窗口状态。
+- 这类“串库”问题不能只改 API 默认值，必须同时收紧 Electron 主进程、workspace dev 脚本和发布前检查
+- 安装版数据库迁移优先用“复制不删除”，可以显著降低升级风险
+- Electron 路径策略最好抽成纯 Node helper，避免把文件系统逻辑散落在主进程里
 
-- Electron 安装版里，依赖 `additionalArguments -> preload -> process.argv` 的 runtime 注入并不够稳，关键运行参数还应该有 URL / IPC 级兜底。
-- 在 Windows 上直接改动仓库根目录的 `better-sqlite3` Electron 预编译二进制非常容易撞到文件锁；正确做法是在打包临时副本里替换 ABI。
-- 如果希望 GitHub 下载链接长期不变，不应依赖 `releases/latest` 对 prerelease 的语义，而应维护一个固定 tag 的滚动 release。
-- 这类“新增态”和“编辑态”共存的页面，最好在首次复杂化时就拆成独立状态源，否则列表选中、高亮、错误提示会互相污染。
-- 与“自然月状态”不同，员工主档状态更适合封装成“相对当前税年”的纯函数，页面只消费结果，避免年份切换后多处规则漂移。
-- 这种“用户可继续，但必须强知情”的规则不适合用原生 `window.confirm`；一旦需要“继续 / 跳过 / 取消”三选，最好直接上自定义弹层。
-- 前端本地强提示和后端硬阻断必须共享同一套月份判定口径，否则很容易出现“前端允许、后端拒绝”或相反的分叉。
-- Windows-only 桌面能力优先复用 PowerShell 原生命令，先保证零新增依赖和可交付，再考虑跨平台抽象。
-- “选路径”和“写文件”需要分离；备份这类由后端生成内容的场景，不应复用前端直接写字节流的导出桥接。
-- 单位级备份若不追溯关联税率版本，后续恢复会丢失语义；至少要沿 `scope version id + policy_signature` 回收关联版本。
-- Windows `ICO` 不要手写二进制目录头；优先复用现有依赖生成，兼容性更稳。
-- 图标生成链路保留 `SVG -> 多尺寸 PNG -> ICO` 三层产物，后续调样式时回改成本最低。
-- 版本历史类长稳缺陷必须在“当前结果写入前”做精确比较，不能在写完之后再清理；后者会污染 `version_sequence` 和数据库增长曲线。
-- `confirmed-results` 这类纯读链路，一旦业务语义依赖“员工 + 确认月份 + 月度记录”三张表，优先做批量预加载与内存分组，避免服务层逐员工回表。
-- 同一 workspace 的 SQLite 文件型测试不能并行跑；并行执行会制造 `EPERM` 假失败，必须串行。
-- 真实 Electron 壳即使不做页面自动化，也能通过“真实 API 连接 + 真实 Electron + CDP DOM 点击回放”完成高价值主流程烟测。
-- `--duration-minutes` 这类阶段化压测参数，必须保证所有阶段的总窗口严格闭合；否则名义时长和实际时长会偏离。
-- Electron `file://` 场景必须使用相对资源路径；只要构建产物里残留绝对 `/assets/...`，壳层进程虽然能启动，但 renderer 会是空白页。
-- 页面级 Electron 烟测与折叠矩阵验证适合拆成两份产物：主流程 `summary.json` 和独立的 `toggle-summary.json`，便于区分业务流程与纯 UI 交互问题。
-- 发布包 E2E 隔离优先使用 `--user-data-dir=<temp>`，不要一次性覆写 `USERPROFILE` / `TMP` / `TEMP`；后者会破坏 remote debugging 与壳层启动。
-- React 受控输入与下拉框不能只改 DOM 值，必须走原生 setter + `input/change` 事件，否则 UI 看似填值，组件状态其实没更新。
-- 页面级等待条件不能盯骨架文案或初始空状态；应等待真正的数据态切换，否则会把“还没加载”误判成“查询为空”。
-- 文本点击匹配要限定元素类型；像“查询”这类短文本如果不限制到 `button`，很容易误点侧边栏导航。
+## 下一步建议
+
+1. 用真实安装包验证旧 `userData` 库升级迁移到安装目录的体验
+2. 清理已加入 `.gitignore` 但仍被 Git 跟踪的 Agent 内部文档
+3. 继续处理 Vite bundle warning 与桌面包体优化

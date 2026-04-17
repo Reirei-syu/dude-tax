@@ -951,11 +951,32 @@ const main = async () => {
     });
 
     const databaseExists = fs.existsSync(runtimeConfig.databasePath);
+    const expectedInstallDatabasePath = path.join(
+      path.dirname(args.appPath),
+      "data",
+      "dude-tax.db",
+    );
+    const legacyUserDataDatabasePath = path.join(userDataDir, "data", "dude-tax.db");
     if (!databaseExists) {
       issues.push({
         priority: "P1",
         title: "managed API 数据库未落盘",
         detail: `未找到数据库文件：${runtimeConfig.databasePath}`,
+      });
+    }
+
+    if (runtimeConfig.databasePath !== expectedInstallDatabasePath) {
+      issues.push({
+        priority: "P1",
+        title: "鍙戝竷鍖呮暟鎹簱鏈紭鍏堣惤鍒板畨瑁呯洰褰?",
+        detail: `鏈熸湜锛?{expectedInstallDatabasePath}锛屽疄闄咃細${runtimeConfig.databasePath}`,
+      });
+    }
+    if (runtimeConfig.databasePath === legacyUserDataDatabasePath) {
+      issues.push({
+        priority: "P1",
+        title: "鍙戝竷鍖呬粛鍦ㄤ娇鐢?userData 鏃ц矾寰勬暟鎹簱",
+        detail: `鍙戝竷鍓岴2E 褰撳墠涓嶅簲鍥為€€鍒帮細${legacyUserDataDatabasePath}`,
       });
     }
 
@@ -967,6 +988,11 @@ const main = async () => {
         tempRoot,
         steps,
         issues,
+        databaseChecks: {
+          expectedInstallDatabasePath,
+          legacyUserDataDatabasePath,
+          actualDatabasePath: runtimeConfig.databasePath,
+        },
         artifacts: {
           ...screenshots,
           electronStdoutPath: stdoutPath,

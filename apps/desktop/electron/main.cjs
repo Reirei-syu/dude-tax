@@ -5,6 +5,7 @@ const fsSync = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
+const { resolveManagedApiDatabasePath } = require("./database-path.cjs");
 
 let managedApiProcess = null;
 let isShuttingDown = false;
@@ -122,11 +123,15 @@ const resolveWindowIconPath = () => {
 };
 
 const startManagedApi = async () => {
+  const explicitDatabasePath = process.env.DUDE_TAX_DB_PATH
+    ? path.resolve(process.env.DUDE_TAX_DB_PATH)
+    : "";
+
   if (process.env.SALARY_TAX_API_BASE_URL) {
     return buildRuntimeConfig({
       apiBaseUrl: process.env.SALARY_TAX_API_BASE_URL,
       managedApi: false,
-      databasePath: process.env.DUDE_TAX_DB_PATH,
+      databasePath: explicitDatabasePath,
     });
   }
 
@@ -134,13 +139,17 @@ const startManagedApi = async () => {
     return buildRuntimeConfig({
       apiBaseUrl: process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:3001",
       managedApi: false,
-      databasePath: process.env.DUDE_TAX_DB_PATH,
+      databasePath: explicitDatabasePath,
     });
   }
 
   const port = await findAvailablePort(3001);
   const apiBaseUrl = `http://127.0.0.1:${port}`;
-  const databasePath = path.join(app.getPath("userData"), "data", "dude-tax.db");
+  const databaseResolution = resolveManagedApiDatabasePath({
+    explicitDatabasePath,
+    executablePath: process.execPath,
+    userDataPath: app.getPath("userData"),
+  });
   const apiEntryPath = path.join(app.getAppPath(), "apps", "api", "dist", "server.mjs");
   const logPath = path.join(app.getPath("userData"), "logs", "managed-api.log");
 
@@ -152,7 +161,7 @@ const startManagedApi = async () => {
       NODE_ENV: "production",
       HOST: "127.0.0.1",
       PORT: String(port),
-      DUDE_TAX_DB_PATH: databasePath,
+      DUDE_TAX_DB_PATH: databaseResolution.databasePath,
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -172,7 +181,7 @@ const startManagedApi = async () => {
   return buildRuntimeConfig({
     apiBaseUrl,
     managedApi: true,
-    databasePath,
+    databasePath: databaseResolution.databasePath,
   });
 };
 

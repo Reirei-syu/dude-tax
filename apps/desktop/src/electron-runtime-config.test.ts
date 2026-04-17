@@ -8,8 +8,18 @@ const electronMainSource = fs.readFileSync(
   "utf8",
 );
 
-test("桌面主进程会把本地 API 地址注入到窗口 URL 查询参数中", () => {
+test("desktop main injects API base url into renderer query parameters", () => {
   assert.equal(electronMainSource.includes("buildRendererUrl"), true);
   assert.equal(electronMainSource.includes("salaryTaxApiBaseUrl"), true);
-  assert.equal(electronMainSource.includes("mainWindow.loadFile(path.join(__dirname, \"../dist/index.html\"), {"), true);
+  assert.equal(
+    electronMainSource.includes(
+      'mainWindow.loadFile(path.join(__dirname, "../dist/index.html"), {',
+    ),
+    true,
+  );
+});
+
+test("desktop main resolves managed API database path through helper", () => {
+  assert.equal(electronMainSource.includes("resolveManagedApiDatabasePath"), true);
+  assert.equal(electronMainSource.includes("databaseResolution.databasePath"), true);
 });

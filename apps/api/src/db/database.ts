@@ -26,6 +26,8 @@ const databaseFile = process.env.DUDE_TAX_DB_PATH
   ? path.resolve(process.env.DUDE_TAX_DB_PATH)
   : path.join(fallbackDataDir, "dude-tax.db");
 
+export const databaseFilePath = databaseFile;
+
 fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 
 export const database = new Database(databaseFile);

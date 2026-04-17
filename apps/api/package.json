@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "dev": "tsx watch src/server.ts",
+    "dev": "cross-env DUDE_TAX_DB_PATH=../../data/dev/dude-tax.dev.db tsx watch src/server.ts",
     "start:dist": "node dist/server.mjs",
     "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
