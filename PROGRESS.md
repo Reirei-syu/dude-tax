@@ -5,24 +5,22 @@
 - 产品显示名：工资薪金个税计算器
 - 当前阶段：Execution
 - 当前版本：v0.1.0-alpha
-- 当前任务：开发态与安装版数据库隔离
+- 当前任务：沉淀本项目 UI 成果为可复用 Skill
 
 ## 本轮修改
 
-- 新增 `apps/desktop/electron/database-path.cjs`，负责安装版数据库路径解析、写权限探测和旧库迁移
-- `apps/desktop/electron/main.cjs` 改为通过 helper 决定安装版 managed API 的数据库路径
-- `apps/api/src/db/database.ts` 暴露 `databaseFilePath`，便于验证 API 实际打开的数据库文件
-- `apps/api/package.json` 的 `dev` 脚本显式注入 `DUDE_TAX_DB_PATH=../../data/dev/dude-tax.dev.db`
-- `apps/desktop/package.json` 的 `dev` 脚本为 Electron 开发壳显式注入同一条 dev 库路径
-- `scripts/e2e/release-preflight.mjs` 新增安装目录数据库路径检查
-- 新增 desktop/api 数据库路径回归测试
+- 新增可自动发现的 skill 目录：`C:\\Users\\11441\\.codex\\skills\\myfavouriteui`
+- 编写 `SKILL.md`，将本项目桌面工作台 UI 约束整理为复用规则
+- 新增 `references/dude-tax-ui-achievements.md`，总结本项目 UI 已完成成果与代码落点
+- 新增 `references/myfavouriteui-blueprint.md`，提供页面骨架、命名规则与最低验证清单
+- 重建 `agents/openai.yaml`，设置 `MyfavouriteUI` 展示名与默认 prompt
+- 同步更新 `docs/context_memory/memory.md`、`docs/context/latest_context.md`、`docs/tasks.md`
 
 ## 影响范围
 
-- `apps/api`
-- `apps/desktop`
-- `scripts/e2e`
-- 项目运行时文档
+- `apps/desktop` 的 UI 能力沉淀与复用方式
+- `C:\\Users\\11441\\.codex\\skills\\myfavouriteui`
+- 项目运行态文档
 
 ## 当前进度
 
@@ -30,12 +28,10 @@
 
 已完成：
 
-- 开发态默认数据库切换为仓库内独立 dev 库
-- 安装版默认数据库切换为安装目录 `data/dude-tax.db`
-- 安装目录不可写时自动回退到 `userData`
-- 旧 `userData` 库首次升级自动复制迁移
-- 发布前脚本可检查安装版是否优先落库到安装目录
-- desktop/api 路径回归测试已转绿
+- 提炼出本项目稳定的 UI 协议：固定上下文条、页面级工作区、折叠卡、浮动工作窗
+- 将首页、月度录入、系统维护、导入工作流等页面原型归纳为可复用模式
+- 为 skill 补齐成果总结与实施蓝图两个参考文档
+- skill 结构校验已通过
 
 未完成：
 
@@ -45,23 +41,22 @@
 
 ## 验证结果
 
-- `npm run test --workspace @dude-tax/desktop -- src/electron-database-path.test.ts src/electron-runtime-config.test.ts`
-- `npm run test --workspace @dude-tax/api -- src/db/database-path.test.ts`
+- `py C:\\Users\\11441\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py C:\\Users\\11441\\.codex\\skills\\myfavouriteui`
+- `py -c "from pathlib import Path; import yaml; data=yaml.safe_load(Path(r'C:\\Users\\11441\\.codex\\skills\\myfavouriteui\\agents\\openai.yaml').read_text(encoding='utf-8')); print(data)"`
 
 ## 风险备注
 
-- 安装目录权限在真实用户环境中仍可能触发回退路径，需要人工验证体验
-- 若绕过 workspace `dev` 脚本单独启动 API 且不传 `DUDE_TAX_DB_PATH`，仍会回落到旧默认路径
-- 发布前脚本当前依赖测试包目录可写这一前提
+- 当前 skill 基于 `dude-tax` 的桌面工作台协议，后续若 UI 风格大改，需要同步维护 skill
+- `generate_openai_yaml.py` 在 Windows 下依赖 `PYTHONUTF8=1` 才能稳定读取 UTF-8 技能文件
 
 ## Lessons Learned
 
-- 这类“串库”问题不能只改 API 默认值，必须同时收紧 Electron 主进程、workspace dev 脚本和发布前检查
-- 安装版数据库迁移优先用“复制不删除”，可以显著降低升级风险
-- Electron 路径策略最好抽成纯 Node helper，避免把文件系统逻辑散落在主进程里
+- UI 成果沉淀不该只写视觉总结，必须把 `scope`、`cardId`、工作区行为和测试约束一起固化
+- 这类可复用 skill 更适合写成“页面协议 + 交互合同 + 验证清单”，而不是单纯组件清单
+- 在 Windows 上处理技能脚本时，要优先确认 Python 编码环境，否则元数据生成容易出错
 
 ## 下一步建议
 
-1. 用真实安装包验证旧 `userData` 库升级迁移到安装目录的体验
+1. 回到产品主线，执行真实安装包升级迁移冒烟验证
 2. 清理已加入 `.gitignore` 但仍被 Git 跟踪的 Agent 内部文档
-3. 继续处理 Vite bundle warning 与桌面包体优化
+3. 后续新增桌面页面时优先复用 `myfavouriteui` skill 中的页面骨架与验证清单
