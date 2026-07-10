@@ -1,4 +1,5 @@
-//! 单实例：在数据目录对 dude-tax.lock 独占打开；第二进程失败。
+//! 单实例：在数据目录对 lock 文件独占打开；第二进程失败。
+//! 开发版与安装版使用不同锁文件名，互不抢锁。
 
 use std::fs::OpenOptions;
 use std::path::PathBuf;
@@ -22,13 +23,21 @@ impl Default for InstanceLockState {
     }
 }
 
+fn lock_file_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        "dude-tax-dev.lock"
+    } else {
+        "dude-tax.lock"
+    }
+}
+
 pub fn acquire_lock_for_app(app: &AppHandle) -> Result<String, String> {
     let dir = app
         .path()
         .app_config_dir()
         .map_err(|e| format!("无法解析应用配置目录: {e}"))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建配置目录: {e}"))?;
-    let lock_path: PathBuf = dir.join("dude-tax.lock");
+    let lock_path: PathBuf = dir.join(lock_file_name());
 
     let mut opts = OpenOptions::new();
     opts.create(true).write(true).read(true).truncate(true);
@@ -55,7 +64,12 @@ pub fn acquire_lock_for_app(app: &AppHandle) -> Result<String, String> {
 
     use std::io::Write;
     let mut f = file;
-    let _ = writeln!(f, "pid={}", std::process::id());
+    let _ = writeln!(
+        f,
+        "pid={} mode={}",
+        std::process::id(),
+        if cfg!(debug_assertions) { "dev" } else { "release" }
+    );
 
     let state = app.state::<InstanceLockState>();
     let mut guard = state
@@ -70,13 +84,12 @@ pub fn acquire_lock_for_app(app: &AppHandle) -> Result<String, String> {
 /// 前端可选二次确认（setup 已抢锁）
 #[tauri::command]
 pub fn try_acquire_instance_lock(app: AppHandle) -> Result<String, String> {
-    // 若 setup 已持有则返回路径
     let state = app.state::<InstanceLockState>();
     {
         let guard = state._file.lock().map_err(|_| "锁状态异常".to_string())?;
         if guard.is_some() {
             if let Ok(dir) = app.path().app_config_dir() {
-                return Ok(dir.join("dude-tax.lock").to_string_lossy().to_string());
+                return Ok(dir.join(lock_file_name()).to_string_lossy().to_string());
             }
         }
     }

@@ -19,7 +19,9 @@ import type { SqlClient } from './sql-client';
 import { SqlJsClient } from './sqljs-client';
 import { buildNextYearSnapshot } from './year-roll';
 
-/** 与 tauri-client 保持一致；避免 Web 回退静态依赖 plugin-sql */
+import { getTauriDbUrl } from './db-paths';
+
+/** 正式安装版默认库；开发版见 getTauriDbUrl() */
 export const DEFAULT_TAURI_DB_URL = 'sqlite:dude-tax.db';
 
 export interface WorkspaceSnapshot {
@@ -64,11 +66,9 @@ export class TaxRepository {
     return new TaxRepository(client);
   }
 
-  static async openTauri(
-    dbUrl: string = DEFAULT_TAURI_DB_URL,
-  ): Promise<TaxRepository> {
+  static async openTauri(dbUrl?: string): Promise<TaxRepository> {
     const { TauriSqlClient } = await import('./tauri-client');
-    const client = await TauriSqlClient.open(dbUrl);
+    const client = await TauriSqlClient.open(dbUrl ?? getTauriDbUrl());
     return new TaxRepository(client);
   }
 

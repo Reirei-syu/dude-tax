@@ -16,16 +16,13 @@
         "title": "Dude Tax",
         "width": 1280,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "minWidth": 960,
+        "minHeight": 640
       }
     ],
     "security": {
       "csp": null
-    }
-  },
-  "plugins": {
-    "sql": {
-      "preload": ["sqlite:dude-tax.db"]
     }
   },
   "bundle": {
@@ -38,9 +35,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "shortDescription": "个人所得税预估与年终奖优化本地工具",
+    "longDescription": "Dude Tax — 累计预扣个税预估与年终奖计税方式对比。数据保存在用户配置目录，与开发环境数据库相互独立。",
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "both",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
       }
     }
   }

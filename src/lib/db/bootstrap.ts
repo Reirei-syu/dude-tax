@@ -2,10 +2,8 @@
  * 应用启动：选择 Tauri SQLite 或 sql.js + localStorage（Web 开发回退）
  */
 
-import { DEFAULT_TAURI_DB_URL, TaxRepository } from './repository';
-
-const TAURI_DB_NAME = 'dude-tax.db';
-const TAURI_DB_URL = DEFAULT_TAURI_DB_URL;
+import { getTauriDbFileName, getTauriDbUrl } from './db-paths';
+import { TaxRepository } from './repository';
 
 export const LS_DB_KEY = 'taxopt-helper-db';
 export const LS_LAST_WS = 'taxopt-helper-last-ws';
@@ -74,13 +72,14 @@ export function persistWebDb(repo: TaxRepository): void {
  */
 export async function openAppRepository(): Promise<OpenRepositoryResult> {
   if (isTauriRuntime()) {
-    const repo = await TaxRepository.openTauri(TAURI_DB_URL);
+    const dbFile = getTauriDbFileName();
+    const repo = await TaxRepository.openTauri(getTauriDbUrl());
     await maybeMigrateLocalStorageToTauri(repo);
-    let dbPathHint = `${TAURI_DB_NAME}（应用配置目录 AppConfig）`;
+    let dbPathHint = `${dbFile}（应用配置目录 AppConfig；开发版与安装版文件名不同）`;
     try {
       const { appConfigDir, join } = await import('@tauri-apps/api/path');
       const dir = await appConfigDir();
-      dbPathHint = await join(dir, TAURI_DB_NAME);
+      dbPathHint = await join(dir, dbFile);
     } catch {
       /* path API 不可用时保留简短提示 */
     }
