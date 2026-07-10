@@ -2,51 +2,40 @@ import { useMemo } from 'react';
 import { GlassCard } from '../common/GlassCard';
 import { useTaxStore } from '../../lib/store/useTaxStore';
 import { formatYuan } from '../../lib/tax/fen';
+import { buildAllStaffTaxTable } from '../../lib/tax/all-staff-table';
 
 /**
  * 全员预扣汇总：本工作年度所有员工 1–12 月本期应预扣税额明细
+ * 依赖 dataEpoch（O(1)）而非 JSON.stringify 全量 monthlyRecords
  */
 export function AllStaffTaxCard({ fill = false }: { fill?: boolean }) {
   const employees = useTaxStore((s) => s.employees);
-  const monthlyRecords = useTaxStore((s) => s.monthlyRecords);
   const workspace = useTaxStore((s) => s.workspace);
+  const dataEpoch = useTaxStore((s) => s.dataEpoch);
   const getEmployeeCalc = useTaxStore((s) => s.getEmployeeCalc);
 
   const list = useMemo(
-    () => Object.values(employees).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')),
+    () =>
+      Object.values(employees).sort((a, b) =>
+        a.name.localeCompare(b.name, 'zh-CN'),
+      ),
     [employees],
   );
 
-  // 任一员工档案或月度数据变化时重算
-  const depKey = useMemo(
-    () =>
-      JSON.stringify({
-        e: list.map((e) => ({
-          id: e.id,
-          h: e.hireDate,
-          l: e.leaveDate,
-          f: e.isFirstTime,
-        })),
-        m: monthlyRecords,
-        y: workspace?.year,
-      }),
-    [list, monthlyRecords, workspace?.year],
-  );
-
+  // dataEpoch：任意员工变更时递增；计税走 per-id 缓存，未改员工不重算引擎
   const table = useMemo(() => {
-    const rows = list.map((emp) => {
-      const calc = getEmployeeCalc(emp.id);
-      const monthly = Array.from({ length: 12 }, (_, i) => calc[i]?.thisMonthTax ?? 0);
-      const yearTotal = monthly.reduce((s, v) => s + v, 0);
-      return { emp, monthly, yearTotal };
-    });
-    const colTotals = Array.from({ length: 12 }, (_, i) =>
-      rows.reduce((s, r) => s + r.monthly[i]!, 0),
-    );
-    const grandTotal = colTotals.reduce((s, v) => s + v, 0);
-    return { rows, colTotals, grandTotal };
+    const built = buildAllStaffTaxTable(list, getEmployeeCalc);
+    return {
+      rows: built.rows.map((r) => ({
+        emp: employees[r.employeeId]!,
+        monthly: r.monthly,
+        yearTotal: r.yearTotal,
+      })),
+      colTotals: built.colTotals,
+      grandTotal: built.grandTotal,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depKey, getEmployeeCalc, list]);
+  }, [list, dataEpoch, workspace?.year, getEmployeeCalc, employees]);
 
   const year = workspace?.year ?? new Date().getFullYear();
 
@@ -61,7 +50,9 @@ export function AllStaffTaxCard({ fill = false }: { fill?: boolean }) {
           暂无员工。请先在花名册中添加员工并录入工资。
         </p>
       ) : (
-        <div className={`data-table-wrap ${fill ? 'max-h-none' : 'max-h-[28rem]'}`}>
+        <div
+          className={`data-table-wrap ${fill ? 'max-h-none' : 'max-h-[28rem]'}`}
+        >
           <table className="data-table all-staff-tax-table">
             <thead>
               <tr>

@@ -28,17 +28,31 @@ import {
   getDefaultBoardLayout,
   saveUserDefaultLayout,
   type TaxRepository,
-  type WorkspaceSnapshot,
 } from '../db/repository';
 import { createPersistQueue, type PersistQueue } from '../db/persist-queue';
-import {
-  compareBonusMethods,
-  computeMonthlyPrewithhold,
-} from '../tax/engine';
+import { compareBonusMethods } from '../tax/engine';
 import type { BonusCompareResult, MonthCalcResult } from '../../types';
+import { createDirtyTracker } from './dirty-tracker';
+import { createTaxCalcCache } from './tax-calc-cache';
 
 function newId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
+}
+
+/** 模块级：脏追踪 + 计税缓存（跨 action，测试可重置） */
+const dirtyTracker = createDirtyTracker();
+const taxCalcCache = createTaxCalcCache();
+
+export function getTaxCalcInvokeCount(employeeId: string): number {
+  return taxCalcCache.getInvokeCount(employeeId);
+}
+
+export function resetTaxCalcInvokeCounts(): void {
+  taxCalcCache.resetInvokeCounts();
+}
+
+export function getDirtyEmployeeIdsForTests(): string[] {
+  return dirtyTracker.getDirtyEmployeeIds();
 }
 
 export interface TaxState {
@@ -54,6 +68,10 @@ export interface TaxState {
   statusBanner: string | null;
   repo: TaxRepository | null;
   hydrated: boolean;
+  /**
+   * 任意员工数据变更时递增；UI 用其作廉价依赖（避免 JSON.stringify 全量 monthlyRecords）
+   */
+  dataEpoch: number;
 
   // actions
   setRepo: (repo: TaxRepository | null) => void;
@@ -169,19 +187,48 @@ export interface TaxState {
   lastPersistError: string | null;
 }
 
-function employeeList(state: TaxState): Employee[] {
-  return Object.values(state.employees);
+/** 增量落盘任务（执行时按当前脏集合构建） */
+export interface IncrementalPersistJob {
+  organization: Organization;
+  workspace: Workspace;
+  dirtyIds: string[];
+  removedIds: string[];
+  layoutDirty: boolean;
+  dirtyEmployees: Employee[];
+  monthlyRecords: Record<string, MonthInput[]>;
+  bonusRecords: Record<string, number>;
+  boardLayout: BoardLayout | null;
 }
 
-function buildSnapshot(state: TaxState) {
+export function buildIncrementalPersistJob(
+  state: TaxState,
+): IncrementalPersistJob | null {
   if (!state.organization || !state.workspace) return null;
+  const dirtyIds = dirtyTracker.getDirtyEmployeeIds();
+  const removedIds = dirtyTracker.getRemovedEmployeeIds();
+  const layoutDirty = dirtyTracker.isLayoutDirty();
+  if (dirtyIds.length === 0 && removedIds.length === 0 && !layoutDirty) {
+    return null;
+  }
+  const dirtyEmployees = dirtyIds
+    .map((id) => state.employees[id])
+    .filter((e): e is Employee => Boolean(e));
+  const monthlyRecords: Record<string, MonthInput[]> = {};
+  const bonusRecords: Record<string, number> = {};
+  for (const id of dirtyIds) {
+    monthlyRecords[id] = state.monthlyRecords[id] ?? emptyYearMonths();
+    bonusRecords[id] = state.bonusRecords[id] ?? 0;
+  }
   return {
     organization: state.organization,
     workspace: state.workspace,
-    employees: employeeList(state),
-    monthlyRecords: state.monthlyRecords,
-    bonusRecords: state.bonusRecords,
-    boardLayout: state.boardLayout,
+    dirtyIds,
+    removedIds,
+    layoutDirty,
+    dirtyEmployees,
+    monthlyRecords,
+    bonusRecords,
+    boardLayout: layoutDirty ? state.boardLayout : null,
   };
 }
 
@@ -192,15 +239,31 @@ let layoutPersistTimer: ReturnType<typeof setTimeout> | null = null;
 /** 模块级串行写队列（单 store 进程） */
 let persistQueue: PersistQueue | null = null;
 
-function getPersistQueue(get: () => TaxState, set: (p: Partial<TaxState>) => void): PersistQueue {
+function getPersistQueue(
+  get: () => TaxState,
+  set: (p: Partial<TaxState>) => void,
+): PersistQueue {
   if (!persistQueue) {
-    persistQueue = createPersistQueue<WorkspaceSnapshot>(
-      () => buildSnapshot(get()),
-      async (snap) => {
+    persistQueue = createPersistQueue<IncrementalPersistJob>(
+      () => buildIncrementalPersistJob(get()),
+      async (job) => {
         const repo = get().repo;
-        if (!repo) return;
+        if (!repo || !job) return;
         try {
-          await repo.saveSnapshot(snap);
+          await repo.saveIncremental({
+            organization: job.organization,
+            workspace: job.workspace,
+            dirtyEmployees: job.dirtyEmployees,
+            monthlyRecords: job.monthlyRecords,
+            bonusRecords: job.bonusRecords,
+            removedIds: job.removedIds,
+            boardLayout: job.boardLayout,
+          });
+          dirtyTracker.clearAfterWrite({
+            dirtyIds: job.dirtyIds,
+            removedIds: job.removedIds,
+            layout: job.layoutDirty,
+          });
           if (get().lastPersistError) set({ lastPersistError: null });
         } catch (e) {
           const msg =
@@ -215,9 +278,18 @@ function getPersistQueue(get: () => TaxState, set: (p: Partial<TaxState>) => voi
   return persistQueue;
 }
 
-/** 测试用：重置写队列（避免跨用例串扰） */
+/** 测试用：重置写队列与脏/缓存状态 */
 export function resetPersistQueueForTests(): void {
   persistQueue = null;
+  dirtyTracker.reset();
+  taxCalcCache.clear();
+  taxCalcCache.resetInvokeCounts();
+}
+
+function bumpDirty(employeeId: string): { dataEpoch: number } {
+  dirtyTracker.markEmployee(employeeId);
+  taxCalcCache.invalidate(employeeId);
+  return { dataEpoch: dirtyTracker.getDataEpoch() };
 }
 
 function schedulePersist(get: () => TaxState) {
@@ -231,6 +303,7 @@ function schedulePersist(get: () => TaxState) {
 }
 
 function scheduleLayoutPersist(get: () => TaxState) {
+  dirtyTracker.markLayout();
   if (layoutPersistTimer) clearTimeout(layoutPersistTimer);
   layoutPersistTimer = setTimeout(() => {
     layoutPersistTimer = null;
@@ -265,10 +338,13 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   repo: null,
   hydrated: false,
   lastPersistError: null,
+  dataEpoch: 0,
 
   setRepo: (repo) => set({ repo }),
 
   hydrateFromSnapshot: (args) => {
+    dirtyTracker.reset();
+    taxCalcCache.clear();
     const map: Record<string, Employee> = {};
     for (const e of args.employees) map[e.id] = e;
     const rawNodes = args.boardLayout.nodes?.length
@@ -282,6 +358,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
       employees: map,
       monthlyRecords: args.monthlyRecords,
       bonusRecords: args.bonusRecords,
+      dataEpoch: dirtyTracker.getDataEpoch(),
       boardLayout: {
         nodes,
         viewport: args.boardLayout.viewport,
@@ -292,11 +369,14 @@ export const useTaxStore = create<TaxState>((set, get) => ({
     });
     // 补全新卡片后写回，避免下次启动又缺卡
     if (layoutPatched && get().repo) {
+      dirtyTracker.markLayout();
       void flushPersistTimer(get);
     }
   },
 
   bootstrapDefault: (orgName = '默认单位', year = new Date().getFullYear()) => {
+    dirtyTracker.reset();
+    taxCalcCache.clear();
     const orgId = newId('org');
     const wsId = newId('ws');
     const empId = newId('emp');
@@ -318,6 +398,8 @@ export const useTaxStore = create<TaxState>((set, get) => ({
     for (let i = 0; i < 12; i++) {
       months[i] = { ...emptyMonth(), salary: 10_000 };
     }
+    dirtyTracker.markEmployee(empId);
+    dirtyTracker.markLayout();
     set({
       organization,
       workspace,
@@ -329,6 +411,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
       pendingConfirm: null,
       statusBanner: null,
       hydrated: true,
+      dataEpoch: dirtyTracker.getDataEpoch(),
     });
     schedulePersist(get);
   },
@@ -349,17 +432,21 @@ export const useTaxStore = create<TaxState>((set, get) => ({
       leaveDate: null,
       isFirstTime: false,
     };
+    const epoch = bumpDirty(id);
     set((s) => ({
       employees: { ...s.employees, [id]: emp },
       monthlyRecords: { ...s.monthlyRecords, [id]: emptyYearMonths() },
       bonusRecords: { ...s.bonusRecords, [id]: 0 },
       selectedEmployeeId: id,
+      ...epoch,
     }));
     schedulePersist(get);
     return id;
   },
 
   removeEmployee: (id) => {
+    dirtyTracker.markRemoved(id);
+    taxCalcCache.invalidate(id);
     set((s) => {
       const { [id]: _, ...employees } = s.employees;
       const { [id]: __, ...monthlyRecords } = s.monthlyRecords;
@@ -368,7 +455,13 @@ export const useTaxStore = create<TaxState>((set, get) => ({
         s.selectedEmployeeId === id
           ? Object.keys(employees)[0] ?? null
           : s.selectedEmployeeId;
-      return { employees, monthlyRecords, bonusRecords, selectedEmployeeId: selected };
+      return {
+        employees,
+        monthlyRecords,
+        bonusRecords,
+        selectedEmployeeId: selected,
+        dataEpoch: dirtyTracker.getDataEpoch(),
+      };
     });
     schedulePersist(get);
   },
@@ -378,12 +471,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthSalary: (employeeId, month, salary) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(salary) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.salary = v;
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -391,12 +488,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthFreeIncome: (employeeId, month, freeIncome) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(freeIncome) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.freeIncome = v;
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -404,12 +505,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthSocial: (employeeId, month, field, value) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(value) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.social = { ...cur.social, [field]: v };
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -417,12 +522,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthSpecialAddl: (employeeId, month, field, value) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(value) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.specialAddl = { ...cur.specialAddl, [field]: v };
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -430,12 +539,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthOther: (employeeId, month, field, value) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(value) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.other = { ...cur.other, [field]: v };
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -443,12 +556,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthDonation: (employeeId, month, donation) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(donation) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.donation = v;
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -456,12 +573,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthTaxReduction: (employeeId, month, taxReduction) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(taxReduction) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.taxReduction = v;
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -469,25 +590,33 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   updateMonthTreatyReduction: (employeeId, month, treatyReduction) => {
     if (month < 1 || month > 12) return;
     const v = Math.max(0, Number(treatyReduction) || 0);
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const cur = cloneMonth(months[month - 1] ?? emptyMonth());
       cur.treatyReduction = v;
       months[month - 1] = cur;
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
 
   copyMonthToFollowing: (employeeId, fromMonth) => {
     if (fromMonth < 1 || fromMonth > 11) return;
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const src = cloneMonth(months[fromMonth - 1] ?? emptyMonth());
       for (let m = fromMonth + 1; m <= 12; m++) {
         months[m - 1] = cloneMonth(src);
       }
-      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
     });
     schedulePersist(get);
   },
@@ -565,9 +694,16 @@ export const useTaxStore = create<TaxState>((set, get) => ({
         if (entry.bonus != null) {
           bonusRecords[empId] = Math.max(0, Number(entry.bonus) || 0);
         }
+        dirtyTracker.markEmployee(empId);
+        taxCalcCache.invalidate(empId);
       }
 
-      return { employees, monthlyRecords, bonusRecords };
+      return {
+        employees,
+        monthlyRecords,
+        bonusRecords,
+        dataEpoch: dirtyTracker.getDataEpoch(),
+      };
     });
 
     schedulePersist(get);
@@ -575,16 +711,19 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   },
 
   setBonus: (employeeId, amount) => {
+    const epoch = bumpDirty(employeeId);
     set((s) => ({
       bonusRecords: {
         ...s.bonusRecords,
         [employeeId]: Math.max(0, Number(amount) || 0),
       },
+      ...epoch,
     }));
     schedulePersist(get);
   },
 
   setIsFirstTime: (employeeId, flag) => {
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const emp = s.employees[employeeId];
       if (!emp) return s;
@@ -593,6 +732,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
           ...s.employees,
           [employeeId]: { ...emp, isFirstTime: flag },
         },
+        ...epoch,
       };
     });
     schedulePersist(get);
@@ -629,6 +769,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   },
 
   clearLeaveDate: (employeeId) => {
+    const epoch = bumpDirty(employeeId);
     set((s) => {
       const emp = s.employees[employeeId];
       if (!emp) return s;
@@ -637,6 +778,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
           ...s.employees,
           [employeeId]: { ...emp, leaveDate: null },
         },
+        ...epoch,
       };
     });
     schedulePersist(get);
@@ -691,11 +833,14 @@ export const useTaxStore = create<TaxState>((set, get) => ({
             ? `该员工入职日早于 ${taxYear} 年，本工作年度月度数据未清零。`
             : `该员工按 ${taxYear} 年口径于 ${scope.hireMonth >= 13 ? '—' : scope.hireMonth} 月入职，对应之前月份已自动处理为无收入。`;
 
+      dirtyTracker.markEmployee(p.employeeId);
+      taxCalcCache.invalidate(p.employeeId);
       return {
         employees: { ...s.employees, [p.employeeId]: updated },
         monthlyRecords: { ...s.monthlyRecords, [p.employeeId]: months },
         pendingConfirm: null,
         statusBanner: banner,
+        dataEpoch: dirtyTracker.getDataEpoch(),
       };
     });
     schedulePersist(get);
@@ -738,17 +883,11 @@ export const useTaxStore = create<TaxState>((set, get) => ({
     if (!emp) return [];
     const months = s.monthlyRecords[employeeId] ?? emptyYearMonths();
     const taxYear = s.workspace?.year ?? new Date().getFullYear();
-    const empScope = resolveTaxYearEmployment(
-      emp.hireDate,
-      emp.leaveDate,
-      taxYear,
-      emp.isFirstTime,
-    );
-    return computeMonthlyPrewithhold({
-      hireMonth: empScope.hireMonth,
-      leaveMonth: empScope.leaveMonth,
-      isFirstTime: empScope.isFirstTime,
+    return taxCalcCache.getOrCompute(employeeId, {
+      employee: emp,
       months,
+      taxYear,
+      revision: dirtyTracker.getEmployeeRevision(employeeId),
     });
   },
 
@@ -818,6 +957,7 @@ export function createIsolatedStoreState(
     repo: null,
     hydrated: false,
     lastPersistError: null,
+    dataEpoch: 0,
     ...partial,
   });
   return useTaxStore.getState();

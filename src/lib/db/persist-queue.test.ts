@@ -63,19 +63,19 @@ describe('store persistNow overlapping (real saveSnapshot)', () => {
     const empId = useTaxStore.getState().selectedEmployeeId!;
     useTaxStore.getState().updateMonthSalary(empId, 1, 1_000);
 
-    // 自定义慢写：劫持 saveSnapshot
+    // 自定义慢写：劫持增量 saveIncremental（当前落盘路径）
     let release!: () => void;
     const gate = new Promise<void>((r) => {
       release = r;
     });
     let saveCount = 0;
-    const orig = repo.saveSnapshot.bind(repo);
-    repo.saveSnapshot = async (snap) => {
+    const orig = repo.saveIncremental.bind(repo);
+    repo.saveIncremental = async (args) => {
       saveCount += 1;
       if (saveCount === 1) {
         await gate;
       }
-      return orig(snap);
+      return orig(args);
     };
 
     resetPersistQueueForTests();

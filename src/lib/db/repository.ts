@@ -560,6 +560,52 @@ export class TaxRepository {
     );
   }
 
+  /**
+   * 增量落盘：仅写脏员工 / 删除 / 布局，避免人多时全表 UPSERT。
+   * 调用方可 spy saveMonthly 验证未触碰的员工不会写 12 月。
+   */
+  async saveIncremental(args: {
+    organization: Organization;
+    workspace: Workspace;
+    /** 待写入的脏员工（完整档案） */
+    dirtyEmployees: Employee[];
+    monthlyRecords: Record<string, MonthInput[]>;
+    bonusRecords: Record<string, number>;
+    removedIds: string[];
+    boardLayout: BoardLayout | null;
+  }): Promise<void> {
+    await this.client.withTransaction(async () => {
+      await this.client.execute(
+        `INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name=excluded.name`,
+        [
+          args.organization.id,
+          args.organization.name,
+          args.organization.createdAt,
+        ],
+      );
+      await this.client.execute(
+        `INSERT INTO workspaces (id, org_id, year) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET year=excluded.year`,
+        [args.workspace.id, args.workspace.orgId, args.workspace.year],
+      );
+      for (const id of args.removedIds) {
+        await this.deleteEmployee(id);
+      }
+      for (const emp of args.dirtyEmployees) {
+        await this.saveEmployee(emp);
+        await this.saveMonthly(
+          emp.id,
+          args.monthlyRecords[emp.id] ?? emptyYearMonths(),
+        );
+        await this.saveBonus(emp.id, args.bonusRecords[emp.id] ?? 0);
+      }
+      if (args.boardLayout) {
+        await this.saveLayout(args.workspace.id, args.boardLayout);
+      }
+    });
+  }
+
   async saveSnapshot(snap: WorkspaceSnapshot): Promise<void> {
     await this.client.withTransaction(async () => {
       await this.client.execute(
