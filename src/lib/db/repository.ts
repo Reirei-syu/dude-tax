@@ -334,6 +334,22 @@ export class TaxRepository {
     return true;
   }
 
+  /**
+   * 用给定快照列表完整替换库内全部业务数据（事务）。
+   * 用于备份恢复；失败则整事务回滚。
+   */
+  async replaceAllSnapshots(snapshots: WorkspaceSnapshot[]): Promise<void> {
+    await this.client.withTransaction(async () => {
+      const orgs = await this.listOrganizations();
+      for (const o of orgs) {
+        await this.deleteOrganization(o.id);
+      }
+      for (const snap of snapshots) {
+        await this.saveSnapshot(snap);
+      }
+    });
+  }
+
   async loadWorkspace(workspaceId: string): Promise<WorkspaceSnapshot | null> {
     const wsRows = await this.client.select<{
       id: string;

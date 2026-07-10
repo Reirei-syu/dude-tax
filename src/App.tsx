@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, Calculator, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Building2,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
+  Database,
+  Download,
+  HardDriveDownload,
+  Save,
+  Upload,
+} from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { TaxCanvas } from './components/canvas/TaxCanvas';
 import { ConfirmModal } from './components/common/ConfirmModal';
@@ -11,6 +21,13 @@ import {
   rememberWorkspaceId,
   type PersistMode,
 } from './lib/db/bootstrap';
+import {
+  BackupFormatError,
+  buildBackupFilename,
+  downloadBackupFile,
+  exportBackupBytes,
+  restoreBackupBytes,
+} from './lib/db/backup';
 import { TaxRepository } from './lib/db/repository';
 import { useTaxStore } from './lib/store/useTaxStore';
 import { POLICY_VERSION_BANNER } from './lib/tax/brackets';
@@ -36,6 +53,8 @@ export default function App() {
   const [dbPathHint, setDbPathHint] = useState('');
   const [orgManagerOpen, setOrgManagerOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [dataBusy, setDataBusy] = useState(false);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   const refreshWorkspaceList = useCallback(async (r: TaxRepository) => {
     setWorkspaces(await r.listWorkspaces());
@@ -218,7 +237,7 @@ export default function App() {
     };
   }, [setRepo, hydrateFromSnapshot, bootstrapDefault]);
 
-  // 关闭 / 刷新 / 切走页面前尽量刷写；Tauri 关窗会 await 落盘
+  // 关闭 / 刷新 / 切走页面前尽量刷写；Tauri 关窗会 await 落盘后再关
   useEffect(() => {
     const flush = () => {
       void useTaxStore.getState().flushPersist().catch(() => {
@@ -234,22 +253,56 @@ export default function App() {
 
     let unlistenClose: (() => void) | undefined;
     let cancelled = false;
+    /** 防止 destroy 再次触发 CloseRequested 时重复 preventDefault 卡死 */
+    let closing = false;
+
+    const flushWithTimeout = (ms: number) =>
+      Promise.race([
+        useTaxStore.getState().flushPersist(),
+        new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), ms);
+        }),
+      ]);
+
     (async () => {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         if (cancelled) return;
         const win = getCurrentWindow();
         unlistenClose = await win.onCloseRequested(async (event) => {
-          // 阻止默认关闭，先 await 落盘再销毁
+          // 二次进入（通常来自 destroy）：不再拦截，允许窗口真正关闭
+          if (closing) return;
+
           event.preventDefault();
+          closing = true;
+
           try {
-            await useTaxStore.getState().flushPersist();
+            await flushWithTimeout(8_000);
           } catch (e) {
             console.error('close flush failed', e);
-            toast.error('保存失败，请重试关闭或检查磁盘');
-            return;
+            // 仍继续关闭，避免用户永远关不掉窗口
+            toast.message('关闭前保存未完成，已尽量落盘');
           }
-          await win.destroy();
+
+          // 先卸监听，避免 destroy → CloseRequested 再进本逻辑
+          try {
+            unlistenClose?.();
+            unlistenClose = undefined;
+          } catch {
+            /* ignore */
+          }
+
+          try {
+            await win.destroy();
+          } catch (e) {
+            console.error('window destroy failed', e);
+            // 兜底：再试一次关闭 API
+            try {
+              await win.close();
+            } catch {
+              /* ignore */
+            }
+          }
         });
       } catch {
         /* 非 Tauri 环境：仅浏览器事件 */
@@ -261,7 +314,12 @@ export default function App() {
       window.removeEventListener('pagehide', flush);
       window.removeEventListener('beforeunload', flush);
       document.removeEventListener('visibilitychange', onVisibility);
-      unlistenClose?.();
+      try {
+        unlistenClose?.();
+      } catch {
+        /* ignore */
+      }
+      // 卸载时不要 fire-and-forget 再拦一次关窗路径
       flush();
     };
   }, []);
@@ -367,6 +425,102 @@ export default function App() {
     }
   };
 
+  /** 立即保存：刷写 debounce 中的编辑到持久化存储 */
+  const handleForceSave = async () => {
+    if (!repo) {
+      toast.error('数据库未就绪，无法保存');
+      return;
+    }
+    setDataBusy(true);
+    try {
+      await useTaxStore.getState().flushPersist();
+      toast.success('已立即保存到本地数据库');
+    } catch (e) {
+      console.error(e);
+      toast.error(
+        e instanceof Error ? `保存失败：${e.message}` : '保存失败',
+      );
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
+  /** 导出全量备份（先 flush 再导出） */
+  const handleExportBackup = async () => {
+    if (!repo) {
+      toast.error('数据库未就绪，无法导出备份');
+      return;
+    }
+    setDataBusy(true);
+    try {
+      await useTaxStore.getState().flushPersist();
+      const bytes = await exportBackupBytes(repo);
+      const name = buildBackupFilename();
+      downloadBackupFile(name, bytes);
+      toast.success(`已导出备份：${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error(
+        e instanceof Error ? `导出失败：${e.message}` : '导出备份失败',
+      );
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
+  /** 从备份文件恢复（覆盖当前全部数据） */
+  const handleRestoreBackupFile = async (file: File) => {
+    if (!repo) {
+      toast.error('数据库未就绪，无法恢复');
+      return;
+    }
+    const ok = window.confirm(
+      `确定从备份「${file.name}」恢复吗？\n\n将覆盖当前全部单位、员工与工资数据，且不可撤销。\n建议先点「导出备份」留一份当前数据。`,
+    );
+    if (!ok) return;
+
+    setDataBusy(true);
+    try {
+      await useTaxStore.getState().flushPersist().catch(() => {
+        /* 仍尝试恢复 */
+      });
+      const buf = new Uint8Array(await file.arrayBuffer());
+      await restoreBackupBytes(repo, buf);
+
+      const list = await repo.listWorkspaces();
+      setWorkspaces(list);
+      if (list.length === 0) {
+        bootstrapDefault('默认单位', new Date().getFullYear());
+        await useTaxStore.getState().persistNow();
+        await refreshWorkspaceList(repo);
+        toast.success('已恢复备份（备份为空，已重建默认单位）');
+        return;
+      }
+      let targetId = list[0]!.id;
+      const last = readLastWorkspaceId();
+      if (last && list.some((w) => w.id === last)) targetId = last;
+      const snap = await repo.loadWorkspace(targetId);
+      if (snap) {
+        switchWorkspaceSnapshot(snap);
+        rememberWorkspaceId(snap.workspace.id);
+      }
+      toast.success(
+        `已从备份恢复：${list.length} 个工作区。请核对单位与年度。`,
+      );
+    } catch (e) {
+      console.error(e);
+      if (e instanceof BackupFormatError) {
+        toast.error(`备份无效，未修改当前数据：${e.message}`);
+      } else {
+        toast.error(
+          e instanceof Error ? `恢复失败：${e.message}` : '恢复失败',
+        );
+      }
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
   if (!hydrated) {
     return (
       <div className="app-loading">
@@ -449,9 +603,58 @@ export default function App() {
           <div className="app-divider hidden md:block" />
 
           <div className="nav-canvas-tools">
+            <input
+              ref={backupFileInputRef}
+              type="file"
+              accept=".dude-tax-backup,.json,application/json"
+              className="hidden"
+              aria-hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void handleRestoreBackupFile(f);
+              }}
+            />
             <button
               type="button"
               className="btn btn-primary btn-sm"
+              tabIndex={navCollapsed ? -1 : 0}
+              disabled={dataBusy || !repo}
+              title="将当前未落盘的编辑立即写入本地数据库，降低关窗/断电丢数风险"
+              onClick={() => {
+                void handleForceSave();
+              }}
+            >
+              <Save size={14} />
+              立即保存
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              tabIndex={navCollapsed ? -1 : 0}
+              disabled={dataBusy || !repo}
+              title="导出全部单位与工作区数据为备份文件，请保存到安全位置"
+              onClick={() => {
+                void handleExportBackup();
+              }}
+            >
+              <Download size={14} />
+              导出备份
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              tabIndex={navCollapsed ? -1 : 0}
+              disabled={dataBusy || !repo}
+              title="从备份文件恢复；将覆盖当前全部数据，请先导出备份"
+              onClick={() => backupFileInputRef.current?.click()}
+            >
+              <Upload size={14} />
+              从备份恢复
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
               tabIndex={navCollapsed ? -1 : 0}
               title="将当前卡片位置、大小与画布缩放保存为默认，之后「恢复默认布局」即回到此状态"
               onClick={() => {
@@ -463,6 +666,7 @@ export default function App() {
                 }
               }}
             >
+              <HardDriveDownload size={14} />
               保存当前布局为默认
             </button>
             <button
