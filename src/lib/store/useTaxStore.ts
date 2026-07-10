@@ -1,0 +1,824 @@
+/**
+ * Zustand 全局状态：工作区 / 员工 / 月度 / 年终奖 / 画布 / 入职离职确认
+ */
+
+import { create } from 'zustand';
+import type {
+  BoardLayout,
+  BoardNode,
+  BoardViewport,
+  Employee,
+  MonthInput,
+  Organization,
+  PendingConfirm,
+  Workspace,
+} from '../../types';
+import {
+  cloneMonth,
+  emptyMonth,
+  emptyYearMonths,
+  type OtherDeductDetail,
+  type SocialDeductDetail,
+  type SpecialAddlDetail,
+} from '../../types';
+import { dateToMonth, resolveTaxYearEmployment } from '../utils/date';
+import { monthsToZeroOnEmploymentConfirm } from '../utils/hire-leave-zero';
+import {
+  ensureBoardHasAllCards,
+  getDefaultBoardLayout,
+  saveUserDefaultLayout,
+  type TaxRepository,
+  type WorkspaceSnapshot,
+} from '../db/repository';
+import { createPersistQueue, type PersistQueue } from '../db/persist-queue';
+import {
+  compareBonusMethods,
+  computeMonthlyPrewithhold,
+} from '../tax/engine';
+import type { BonusCompareResult, MonthCalcResult } from '../../types';
+
+function newId(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
+}
+
+export interface TaxState {
+  organization: Organization | null;
+  workspace: Workspace | null;
+  employees: Record<string, Employee>;
+  monthlyRecords: Record<string, MonthInput[]>;
+  bonusRecords: Record<string, number>;
+  boardLayout: BoardLayout;
+  selectedEmployeeId: string | null;
+  pendingConfirm: PendingConfirm | null;
+  /** 持久 banner 文案（入职/离职确认后） */
+  statusBanner: string | null;
+  repo: TaxRepository | null;
+  hydrated: boolean;
+
+  // actions
+  setRepo: (repo: TaxRepository | null) => void;
+  hydrateFromSnapshot: (args: {
+    organization: Organization;
+    workspace: Workspace;
+    employees: Employee[];
+    monthlyRecords: Record<string, MonthInput[]>;
+    bonusRecords: Record<string, number>;
+    boardLayout: BoardLayout;
+  }) => void;
+  bootstrapDefault: (orgName?: string, year?: number) => void;
+  switchWorkspaceSnapshot: (args: {
+    organization: Organization;
+    workspace: Workspace;
+    employees: Employee[];
+    monthlyRecords: Record<string, MonthInput[]>;
+    bonusRecords: Record<string, number>;
+    boardLayout: BoardLayout;
+  }) => void;
+
+  addEmployee: (name: string) => string;
+  removeEmployee: (id: string) => void;
+  selectEmployee: (id: string | null) => void;
+  updateMonthSalary: (
+    employeeId: string,
+    month: number,
+    salary: number,
+  ) => void;
+  updateMonthFreeIncome: (
+    employeeId: string,
+    month: number,
+    freeIncome: number,
+  ) => void;
+  updateMonthSocial: (
+    employeeId: string,
+    month: number,
+    field: keyof SocialDeductDetail,
+    value: number,
+  ) => void;
+  updateMonthSpecialAddl: (
+    employeeId: string,
+    month: number,
+    field: keyof SpecialAddlDetail,
+    value: number,
+  ) => void;
+  updateMonthOther: (
+    employeeId: string,
+    month: number,
+    field: keyof OtherDeductDetail,
+    value: number,
+  ) => void;
+  updateMonthDonation: (
+    employeeId: string,
+    month: number,
+    donation: number,
+  ) => void;
+  updateMonthTaxReduction: (
+    employeeId: string,
+    month: number,
+    taxReduction: number,
+  ) => void;
+  updateMonthTreatyReduction: (
+    employeeId: string,
+    month: number,
+    treatyReduction: number,
+  ) => void;
+  /** 将 fromMonth 的工资与全部扣除明细复制到后续月份（fromMonth+1…12） */
+  copyMonthToFollowing: (employeeId: string, fromMonth: number) => void;
+  /**
+   * 批量导入月度工资（按姓名匹配；可选自动新建员工）
+   * @returns 导入统计
+   */
+  applySalaryImport: (
+    plan: {
+      byEmployeeName: Map<
+        string,
+        {
+          months: Partial<Record<number, MonthInput & { __partial?: boolean }>>;
+          bonus: number | null;
+        }
+      >;
+    },
+    opts?: { createMissing?: boolean },
+  ) => {
+    updated: number;
+    created: number;
+    monthsWritten: number;
+    skippedNames: string[];
+  };
+  setBonus: (employeeId: string, amount: number) => void;
+  setIsFirstTime: (employeeId: string, flag: boolean) => void;
+  setHireDate: (employeeId: string, dateStr: string) => void;
+  setLeaveDate: (employeeId: string, dateStr: string) => void;
+  /** 清空离职日期（不弹确认） */
+  clearLeaveDate: (employeeId: string) => void;
+  confirmPendingAction: () => void;
+  cancelPendingAction: () => void;
+  updateBoardNodes: (nodes: BoardNode[]) => void;
+  updateBoardViewport: (viewport: BoardViewport) => void;
+  resetBoardLayout: () => void;
+  /** 将当前画布布局（含视口）存为用户默认 */
+  saveCurrentLayoutAsDefault: () => void;
+
+  /** 派生计算（纯函数，不写库） */
+  getEmployeeCalc: (employeeId: string) => MonthCalcResult[];
+  getBonusCompare: (employeeId: string) => BonusCompareResult | null;
+
+  persistNow: () => Promise<void>;
+  /** 立即落盘（布局调整 / 关闭页面前） */
+  flushPersist: () => Promise<void>;
+  /** 最近一次持久化错误（供 UI 提示） */
+  lastPersistError: string | null;
+}
+
+function employeeList(state: TaxState): Employee[] {
+  return Object.values(state.employees);
+}
+
+function buildSnapshot(state: TaxState) {
+  if (!state.organization || !state.workspace) return null;
+  return {
+    organization: state.organization,
+    workspace: state.workspace,
+    employees: employeeList(state),
+    monthlyRecords: state.monthlyRecords,
+    bonusRecords: state.bonusRecords,
+    boardLayout: state.boardLayout,
+  };
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+/** 布局/视口写库防抖（避免拖拽时全量 snapshot 过频） */
+let layoutPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 模块级串行写队列（单 store 进程） */
+let persistQueue: PersistQueue | null = null;
+
+function getPersistQueue(get: () => TaxState, set: (p: Partial<TaxState>) => void): PersistQueue {
+  if (!persistQueue) {
+    persistQueue = createPersistQueue<WorkspaceSnapshot>(
+      () => buildSnapshot(get()),
+      async (snap) => {
+        const repo = get().repo;
+        if (!repo) return;
+        try {
+          await repo.saveSnapshot(snap);
+          if (get().lastPersistError) set({ lastPersistError: null });
+        } catch (e) {
+          const msg =
+            e instanceof Error ? e.message : '保存失败，请检查磁盘空间或权限';
+          set({ lastPersistError: msg });
+          console.error('persistNow failed', e);
+          throw e;
+        }
+      },
+    );
+  }
+  return persistQueue;
+}
+
+/** 测试用：重置写队列（避免跨用例串扰） */
+export function resetPersistQueueForTests(): void {
+  persistQueue = null;
+}
+
+function schedulePersist(get: () => TaxState) {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void get()
+      .persistNow()
+      .catch((e) => console.error('persist failed', e));
+  }, 500);
+}
+
+function scheduleLayoutPersist(get: () => TaxState) {
+  if (layoutPersistTimer) clearTimeout(layoutPersistTimer);
+  layoutPersistTimer = setTimeout(() => {
+    layoutPersistTimer = null;
+    void get()
+      .persistNow()
+      .catch((e) => console.error('layout persist failed', e));
+  }, 400);
+}
+
+async function flushPersistTimer(get: () => TaxState): Promise<void> {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  if (layoutPersistTimer) {
+    clearTimeout(layoutPersistTimer);
+    layoutPersistTimer = null;
+  }
+  await get().persistNow();
+}
+
+export const useTaxStore = create<TaxState>((set, get) => ({
+  organization: null,
+  workspace: null,
+  employees: {},
+  monthlyRecords: {},
+  bonusRecords: {},
+  boardLayout: getDefaultBoardLayout(),
+  selectedEmployeeId: null,
+  pendingConfirm: null,
+  statusBanner: null,
+  repo: null,
+  hydrated: false,
+  lastPersistError: null,
+
+  setRepo: (repo) => set({ repo }),
+
+  hydrateFromSnapshot: (args) => {
+    const map: Record<string, Employee> = {};
+    for (const e of args.employees) map[e.id] = e;
+    const rawNodes = args.boardLayout.nodes?.length
+      ? args.boardLayout.nodes
+      : getDefaultBoardLayout().nodes;
+    const nodes = ensureBoardHasAllCards(rawNodes);
+    const layoutPatched = nodes.length !== rawNodes.length;
+    set({
+      organization: args.organization,
+      workspace: args.workspace,
+      employees: map,
+      monthlyRecords: args.monthlyRecords,
+      bonusRecords: args.bonusRecords,
+      boardLayout: {
+        nodes,
+        viewport: args.boardLayout.viewport,
+      },
+      selectedEmployeeId: args.employees[0]?.id ?? null,
+      pendingConfirm: null,
+      hydrated: true,
+    });
+    // 补全新卡片后写回，避免下次启动又缺卡
+    if (layoutPatched && get().repo) {
+      void flushPersistTimer(get);
+    }
+  },
+
+  bootstrapDefault: (orgName = '默认单位', year = new Date().getFullYear()) => {
+    const orgId = newId('org');
+    const wsId = newId('ws');
+    const empId = newId('emp');
+    const organization: Organization = {
+      id: orgId,
+      name: orgName,
+      createdAt: new Date().toISOString(),
+    };
+    const workspace: Workspace = { id: wsId, orgId, year };
+    const employee: Employee = {
+      id: empId,
+      workspaceId: wsId,
+      name: '示例员工',
+      hireDate: `${year}-01-01`,
+      leaveDate: null,
+      isFirstTime: false,
+    };
+    const months = emptyYearMonths();
+    for (let i = 0; i < 12; i++) {
+      months[i] = { ...emptyMonth(), salary: 10_000 };
+    }
+    set({
+      organization,
+      workspace,
+      employees: { [empId]: employee },
+      monthlyRecords: { [empId]: months },
+      bonusRecords: { [empId]: 0 },
+      boardLayout: getDefaultBoardLayout(),
+      selectedEmployeeId: empId,
+      pendingConfirm: null,
+      statusBanner: null,
+      hydrated: true,
+    });
+    schedulePersist(get);
+  },
+
+  switchWorkspaceSnapshot: (args) => {
+    get().hydrateFromSnapshot(args);
+  },
+
+  addEmployee: (name) => {
+    const ws = get().workspace;
+    if (!ws) return '';
+    const id = newId('emp');
+    const emp: Employee = {
+      id,
+      workspaceId: ws.id,
+      name: name || '新员工',
+      hireDate: `${ws.year}-01-01`,
+      leaveDate: null,
+      isFirstTime: false,
+    };
+    set((s) => ({
+      employees: { ...s.employees, [id]: emp },
+      monthlyRecords: { ...s.monthlyRecords, [id]: emptyYearMonths() },
+      bonusRecords: { ...s.bonusRecords, [id]: 0 },
+      selectedEmployeeId: id,
+    }));
+    schedulePersist(get);
+    return id;
+  },
+
+  removeEmployee: (id) => {
+    set((s) => {
+      const { [id]: _, ...employees } = s.employees;
+      const { [id]: __, ...monthlyRecords } = s.monthlyRecords;
+      const { [id]: ___, ...bonusRecords } = s.bonusRecords;
+      const selected =
+        s.selectedEmployeeId === id
+          ? Object.keys(employees)[0] ?? null
+          : s.selectedEmployeeId;
+      return { employees, monthlyRecords, bonusRecords, selectedEmployeeId: selected };
+    });
+    schedulePersist(get);
+  },
+
+  selectEmployee: (id) => set({ selectedEmployeeId: id }),
+
+  updateMonthSalary: (employeeId, month, salary) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(salary) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.salary = v;
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthFreeIncome: (employeeId, month, freeIncome) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(freeIncome) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.freeIncome = v;
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthSocial: (employeeId, month, field, value) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(value) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.social = { ...cur.social, [field]: v };
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthSpecialAddl: (employeeId, month, field, value) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(value) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.specialAddl = { ...cur.specialAddl, [field]: v };
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthOther: (employeeId, month, field, value) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(value) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.other = { ...cur.other, [field]: v };
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthDonation: (employeeId, month, donation) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(donation) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.donation = v;
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthTaxReduction: (employeeId, month, taxReduction) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(taxReduction) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.taxReduction = v;
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  updateMonthTreatyReduction: (employeeId, month, treatyReduction) => {
+    if (month < 1 || month > 12) return;
+    const v = Math.max(0, Number(treatyReduction) || 0);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.treatyReduction = v;
+      months[month - 1] = cur;
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  copyMonthToFollowing: (employeeId, fromMonth) => {
+    if (fromMonth < 1 || fromMonth > 11) return;
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const src = cloneMonth(months[fromMonth - 1] ?? emptyMonth());
+      for (let m = fromMonth + 1; m <= 12; m++) {
+        months[m - 1] = cloneMonth(src);
+      }
+      return { monthlyRecords: { ...s.monthlyRecords, [employeeId]: months } };
+    });
+    schedulePersist(get);
+  },
+
+  applySalaryImport: (plan, opts) => {
+    const createMissing = opts?.createMissing !== false;
+    const ws = get().workspace;
+    if (!ws) {
+      return { updated: 0, created: 0, monthsWritten: 0, skippedNames: [] };
+    }
+
+    let updated = 0;
+    let created = 0;
+    let monthsWritten = 0;
+    const skippedNames: string[] = [];
+
+    set((s) => {
+      const employees = { ...s.employees };
+      const monthlyRecords = { ...s.monthlyRecords };
+      const bonusRecords = { ...s.bonusRecords };
+
+      // 姓名 → id（同名取先出现的）
+      const nameToId = new Map<string, string>();
+      for (const emp of Object.values(employees)) {
+        if (!nameToId.has(emp.name)) nameToId.set(emp.name, emp.id);
+      }
+
+      for (const [name, entry] of plan.byEmployeeName) {
+        let empId = nameToId.get(name);
+        if (!empId) {
+          if (!createMissing) {
+            skippedNames.push(name);
+            continue;
+          }
+          empId = newId('emp');
+          const year = ws.year;
+          employees[empId] = {
+            id: empId,
+            workspaceId: ws.id,
+            name,
+            hireDate: `${year}-01-01`,
+            leaveDate: null,
+            isFirstTime: false,
+          };
+          monthlyRecords[empId] = emptyYearMonths();
+          bonusRecords[empId] = 0;
+          nameToId.set(name, empId);
+          created += 1;
+        } else {
+          updated += 1;
+        }
+
+        const months = [
+          ...(monthlyRecords[empId] ?? emptyYearMonths()).map((m) =>
+            cloneMonth(m),
+          ),
+        ];
+        for (const [monthStr, data] of Object.entries(entry.months)) {
+          const month = Number(monthStr);
+          if (month < 1 || month > 12 || !data) continue;
+          // PartialMonthPatch：仅覆盖有值的字段；空单元格不把原数据抹 0
+          const patch = data as MonthInput & { __partial?: boolean };
+          if (patch.__partial) {
+            months[month - 1] = mergeMonthPatch(
+              months[month - 1] ?? emptyMonth(),
+              patch,
+            );
+          } else {
+            months[month - 1] = cloneMonth(data);
+          }
+          monthsWritten += 1;
+        }
+        monthlyRecords[empId] = months;
+
+        if (entry.bonus != null) {
+          bonusRecords[empId] = Math.max(0, Number(entry.bonus) || 0);
+        }
+      }
+
+      return { employees, monthlyRecords, bonusRecords };
+    });
+
+    schedulePersist(get);
+    return { updated, created, monthsWritten, skippedNames };
+  },
+
+  setBonus: (employeeId, amount) => {
+    set((s) => ({
+      bonusRecords: {
+        ...s.bonusRecords,
+        [employeeId]: Math.max(0, Number(amount) || 0),
+      },
+    }));
+    schedulePersist(get);
+  },
+
+  setIsFirstTime: (employeeId, flag) => {
+    set((s) => {
+      const emp = s.employees[employeeId];
+      if (!emp) return s;
+      return {
+        employees: {
+          ...s.employees,
+          [employeeId]: { ...emp, isFirstTime: flag },
+        },
+      };
+    });
+    schedulePersist(get);
+  },
+
+  setHireDate: (employeeId, dateStr) => {
+    if (!get().employees[employeeId]) return;
+    const targetMonth = dateToMonth(dateStr);
+    set({
+      pendingConfirm: {
+        employeeId,
+        type: 'hire',
+        targetMonth,
+        proposedDate: dateStr,
+      },
+    });
+  },
+
+  setLeaveDate: (employeeId, dateStr) => {
+    if (!get().employees[employeeId]) return;
+    if (!dateStr) {
+      get().clearLeaveDate(employeeId);
+      return;
+    }
+    const targetMonth = dateToMonth(dateStr);
+    set({
+      pendingConfirm: {
+        employeeId,
+        type: 'leave',
+        targetMonth,
+        proposedDate: dateStr,
+      },
+    });
+  },
+
+  clearLeaveDate: (employeeId) => {
+    set((s) => {
+      const emp = s.employees[employeeId];
+      if (!emp) return s;
+      return {
+        employees: {
+          ...s.employees,
+          [employeeId]: { ...emp, leaveDate: null },
+        },
+      };
+    });
+    schedulePersist(get);
+  },
+
+  cancelPendingAction: () => set({ pendingConfirm: null }),
+
+  confirmPendingAction: () => {
+    const p = get().pendingConfirm;
+    if (!p) return;
+    const emp = get().employees[p.employeeId];
+    if (!emp) {
+      set({ pendingConfirm: null });
+      return;
+    }
+    const taxYear = get().workspace?.year ?? new Date().getFullYear();
+    const otherDate =
+      p.type === 'hire' ? emp.leaveDate : emp.hireDate;
+    const zeroMonths = monthsToZeroOnEmploymentConfirm(
+      p.type,
+      p.proposedDate,
+      taxYear,
+      otherDate,
+    );
+
+    set((s) => {
+      const months = [...(s.monthlyRecords[p.employeeId] ?? emptyYearMonths())];
+      for (const m of zeroMonths) {
+        months[m - 1] = emptyMonth();
+      }
+
+      const updated: Employee = {
+        ...emp,
+        hireDate:
+          p.type === 'hire' ? p.proposedDate : emp.hireDate,
+        leaveDate:
+          p.type === 'leave' ? p.proposedDate : emp.leaveDate,
+      };
+
+      const scope = resolveTaxYearEmployment(
+        updated.hireDate,
+        updated.leaveDate,
+        taxYear,
+        updated.isFirstTime,
+      );
+      const banner =
+        p.type === 'leave'
+          ? zeroMonths.length === 0
+            ? `该员工离职日在 ${taxYear} 年之后，本工作年度月度数据未清零（年终奖仍可录入）。`
+            : `该员工按 ${taxYear} 年口径于 ${scope.leaveMonth ?? p.targetMonth} 月离职，后续月份工资与扣除已自动清零（年终奖仍可录入）。`
+          : zeroMonths.length === 0
+            ? `该员工入职日早于 ${taxYear} 年，本工作年度月度数据未清零。`
+            : `该员工按 ${taxYear} 年口径于 ${scope.hireMonth >= 13 ? '—' : scope.hireMonth} 月入职，对应之前月份已自动处理为无收入。`;
+
+      return {
+        employees: { ...s.employees, [p.employeeId]: updated },
+        monthlyRecords: { ...s.monthlyRecords, [p.employeeId]: months },
+        pendingConfirm: null,
+        statusBanner: banner,
+      };
+    });
+    schedulePersist(get);
+  },
+
+  updateBoardNodes: (nodes) => {
+    set((s) => ({
+      boardLayout: {
+        nodes,
+        viewport: s.boardLayout.viewport,
+      },
+    }));
+    // 布局防抖落盘，避免拖拽过程中频繁全量 snapshot
+    scheduleLayoutPersist(get);
+  },
+
+  updateBoardViewport: (viewport) => {
+    set((s) => ({
+      boardLayout: {
+        nodes: s.boardLayout.nodes,
+        viewport: { ...viewport },
+      },
+    }));
+    scheduleLayoutPersist(get);
+  },
+
+  resetBoardLayout: () => {
+    set({ boardLayout: getDefaultBoardLayout() });
+    void flushPersistTimer(get);
+  },
+
+  saveCurrentLayoutAsDefault: () => {
+    const layout = get().boardLayout;
+    saveUserDefaultLayout(layout);
+  },
+
+  getEmployeeCalc: (employeeId) => {
+    const s = get();
+    const emp = s.employees[employeeId];
+    if (!emp) return [];
+    const months = s.monthlyRecords[employeeId] ?? emptyYearMonths();
+    const taxYear = s.workspace?.year ?? new Date().getFullYear();
+    const empScope = resolveTaxYearEmployment(
+      emp.hireDate,
+      emp.leaveDate,
+      taxYear,
+      emp.isFirstTime,
+    );
+    return computeMonthlyPrewithhold({
+      hireMonth: empScope.hireMonth,
+      leaveMonth: empScope.leaveMonth,
+      isFirstTime: empScope.isFirstTime,
+      months,
+    });
+  },
+
+  getBonusCompare: (employeeId) => {
+    const s = get();
+    const bonus = s.bonusRecords[employeeId] ?? 0;
+    const months = s.getEmployeeCalc(employeeId);
+    if (!months.length) return null;
+    return compareBonusMethods(months, bonus);
+  },
+
+  persistNow: async () => {
+    const s = get();
+    if (!s.repo || !s.organization || !s.workspace) return;
+    await getPersistQueue(get, set).enqueue();
+  },
+
+  flushPersist: async () => {
+    await flushPersistTimer(get);
+  },
+}));
+
+/** 合并 CSV 部分字段补丁：未提供的字段（NaN 哨兵）保留原值 */
+export function mergeMonthPatch(
+  base: MonthInput,
+  patch: MonthInput,
+): MonthInput {
+  const b = cloneMonth(base);
+  const keep = (v: number) => Number.isNaN(v);
+  if (!keep(patch.salary)) b.salary = patch.salary;
+  if (!keep(patch.freeIncome)) b.freeIncome = patch.freeIncome;
+  if (!keep(patch.donation)) b.donation = patch.donation;
+  if (!keep(patch.taxReduction)) b.taxReduction = patch.taxReduction;
+  if (!keep(patch.treatyReduction)) b.treatyReduction = patch.treatyReduction;
+
+  for (const k of Object.keys(b.social) as (keyof typeof b.social)[]) {
+    const v = patch.social[k];
+    if (!keep(v)) b.social[k] = v;
+  }
+  for (const k of Object.keys(b.specialAddl) as (keyof typeof b.specialAddl)[]) {
+    const v = patch.specialAddl[k];
+    if (!keep(v)) b.specialAddl[k] = v;
+  }
+  for (const k of Object.keys(b.other) as (keyof typeof b.other)[]) {
+    const v = patch.other[k];
+    if (!keep(v)) b.other[k] = v;
+  }
+  return b;
+}
+
+/** 测试辅助：同步创建隔离 store 状态（不依赖 React） */
+export function createIsolatedStoreState(
+  partial?: Partial<TaxState>,
+): TaxState {
+  resetPersistQueueForTests();
+  // 使用真实 store 的 getState 并重置
+  useTaxStore.setState({
+    organization: null,
+    workspace: null,
+    employees: {},
+    monthlyRecords: {},
+    bonusRecords: {},
+    boardLayout: getDefaultBoardLayout(),
+    selectedEmployeeId: null,
+    pendingConfirm: null,
+    statusBanner: null,
+    repo: null,
+    hydrated: false,
+    lastPersistError: null,
+    ...partial,
+  });
+  return useTaxStore.getState();
+}

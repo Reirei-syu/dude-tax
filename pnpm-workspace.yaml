@@ -1,0 +1,6 @@
+packages:
+  - '.'
+
+# pnpm 11+：允许依赖在安装时执行构建脚本（esbuild 需 native binary）
+allowBuilds:
+  esbuild: true
