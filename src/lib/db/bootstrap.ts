@@ -66,6 +66,45 @@ export function persistWebDb(repo: TaxRepository): void {
 }
 
 /**
+ * Web 回退：任意会改库的写路径之后 re-export 整库到 localStorage。
+ * 必须同时劫持 saveSnapshot（备份恢复/全量）与 saveIncremental（日常编辑）。
+ */
+export function wireWebLocalStoragePersist(repo: TaxRepository): TaxRepository {
+  const reexport = () => {
+    try {
+      persistWebDb(repo);
+    } catch {
+      /* quota — 调用方可 toast */
+    }
+  };
+
+  const origSnap = repo.saveSnapshot.bind(repo);
+  repo.saveSnapshot = async (snap) => {
+    await origSnap(snap);
+    reexport();
+  };
+
+  const origInc = repo.saveIncremental.bind(repo);
+  repo.saveIncremental = async (args) => {
+    await origInc(args);
+    reexport();
+  };
+
+  const origReplace = repo.replaceAllSnapshots.bind(repo);
+  repo.replaceAllSnapshots = async (snapshots) => {
+    await origReplace(snapshots);
+    reexport();
+  };
+
+  return repo;
+}
+
+/** 测试/启动共用：从 localStorage 解码字节 */
+export function loadWebDbBytesFromLocalStorage(): Uint8Array | null {
+  return decodeBytesFromLocalStorage();
+}
+
+/**
  * 打开应用仓库。
  * - Tauri：sqlite:dude-tax.db（AppConfig 目录）
  * - Web：sql.js 内存 + localStorage 整库快照
@@ -87,20 +126,10 @@ export async function openAppRepository(): Promise<OpenRepositoryResult> {
   }
 
   const bytes = decodeBytesFromLocalStorage();
-  const repo = bytes
+  const raw = bytes
     ? await TaxRepository.createFromBytes(bytes)
     : await TaxRepository.createInMemory();
-
-  // 劫持：每次 snapshot 后写回 localStorage（Web 开发）
-  const orig = repo.saveSnapshot.bind(repo);
-  repo.saveSnapshot = async (snap) => {
-    await orig(snap);
-    try {
-      persistWebDb(repo);
-    } catch {
-      /* quota — 调用方可 toast */
-    }
-  };
+  const repo = wireWebLocalStoragePersist(raw);
 
   return {
     repo,
