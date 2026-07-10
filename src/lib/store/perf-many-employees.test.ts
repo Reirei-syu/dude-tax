@@ -142,3 +142,25 @@ describe('AllStaffTaxCard source avoids full monthlyRecords stringify', () => {
     expect(src).toMatch(/buildAllStaffTaxTable/);
   });
 });
+
+describe('resetBoardLayout marks layout dirty', () => {
+  it('resetBoardLayout persists via saveIncremental layout write', async () => {
+    resetPersistQueueForTests();
+    createIsolatedStoreState();
+    const repo = await TaxRepository.createInMemory();
+    useTaxStore.getState().setRepo(repo);
+    useTaxStore.getState().bootstrapDefault('布局单位', 2026);
+    await useTaxStore.getState().persistNow();
+
+    let layoutWrites = 0;
+    const orig = repo.saveIncremental.bind(repo);
+    repo.saveIncremental = async (args) => {
+      if (args.boardLayout) layoutWrites += 1;
+      return orig(args);
+    };
+
+    useTaxStore.getState().resetBoardLayout();
+    await useTaxStore.getState().flushPersist();
+    expect(layoutWrites).toBeGreaterThanOrEqual(1);
+  });
+});

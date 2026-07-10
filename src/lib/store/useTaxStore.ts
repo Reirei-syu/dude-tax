@@ -187,7 +187,7 @@ export interface TaxState {
   lastPersistError: string | null;
 }
 
-/** 增量落盘任务（执行时按当前脏集合构建） */
+/** 增量落盘任务（执行时按当前脏集合构建，并捕获 revision 供写后安全清脏） */
 export interface IncrementalPersistJob {
   organization: Organization;
   workspace: Workspace;
@@ -198,6 +198,9 @@ export interface IncrementalPersistJob {
   monthlyRecords: Record<string, MonthInput[]>;
   bonusRecords: Record<string, number>;
   boardLayout: BoardLayout | null;
+  revisionsAtCapture: Record<string, number>;
+  removedGensAtCapture: Record<string, number>;
+  layoutGenAtCapture: number;
 }
 
 export function buildIncrementalPersistJob(
@@ -215,9 +218,15 @@ export function buildIncrementalPersistJob(
     .filter((e): e is Employee => Boolean(e));
   const monthlyRecords: Record<string, MonthInput[]> = {};
   const bonusRecords: Record<string, number> = {};
+  const revisionsAtCapture: Record<string, number> = {};
   for (const id of dirtyIds) {
     monthlyRecords[id] = state.monthlyRecords[id] ?? emptyYearMonths();
     bonusRecords[id] = state.bonusRecords[id] ?? 0;
+    revisionsAtCapture[id] = dirtyTracker.getEmployeeRevision(id);
+  }
+  const removedGensAtCapture: Record<string, number> = {};
+  for (const id of removedIds) {
+    removedGensAtCapture[id] = dirtyTracker.getRemovedGeneration(id);
   }
   return {
     organization: state.organization,
@@ -229,6 +238,9 @@ export function buildIncrementalPersistJob(
     monthlyRecords,
     bonusRecords,
     boardLayout: layoutDirty ? state.boardLayout : null,
+    revisionsAtCapture,
+    removedGensAtCapture,
+    layoutGenAtCapture: dirtyTracker.getLayoutGeneration(),
   };
 }
 
@@ -263,6 +275,9 @@ function getPersistQueue(
             dirtyIds: job.dirtyIds,
             removedIds: job.removedIds,
             layout: job.layoutDirty,
+            revisionsAtCapture: job.revisionsAtCapture,
+            removedGensAtCapture: job.removedGensAtCapture,
+            layoutGenAtCapture: job.layoutGenAtCapture,
           });
           if (get().lastPersistError) set({ lastPersistError: null });
         } catch (e) {
@@ -868,6 +883,7 @@ export const useTaxStore = create<TaxState>((set, get) => ({
   },
 
   resetBoardLayout: () => {
+    dirtyTracker.markLayout();
     set({ boardLayout: getDefaultBoardLayout() });
     void flushPersistTimer(get);
   },

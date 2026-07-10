@@ -51,8 +51,8 @@ describe('createPersistQueue', () => {
   });
 });
 
-describe('store persistNow overlapping (real saveSnapshot)', () => {
-  it('final disk state matches later edits when two persists overlap', async () => {
+describe('store persistNow overlapping with dirty still set', () => {
+  it('mid-flight re-edit stays dirty and final disk matches memory (no clearAfterWrite wipe)', async () => {
     resetPersistQueueForTests();
     createIsolatedStoreState();
     const repo = await TaxRepository.createInMemory();
@@ -63,33 +63,49 @@ describe('store persistNow overlapping (real saveSnapshot)', () => {
     const empId = useTaxStore.getState().selectedEmployeeId!;
     useTaxStore.getState().updateMonthSalary(empId, 1, 1_000);
 
-    // 自定义慢写：劫持增量 saveIncremental（当前落盘路径）
+    // 慢写：第一趟 save 挂起；不 reset dirty
     let release!: () => void;
     const gate = new Promise<void>((r) => {
       release = r;
     });
     let saveCount = 0;
+    const writtenSalaries: number[] = [];
     const orig = repo.saveIncremental.bind(repo);
     repo.saveIncremental = async (args) => {
       saveCount += 1;
+      const sal = args.monthlyRecords[empId]?.[0]?.salary;
+      if (typeof sal === 'number') writtenSalaries.push(sal);
       if (saveCount === 1) {
         await gate;
       }
       return orig(args);
     };
 
-    resetPersistQueueForTests();
-    // 重新绑定 queue 到当前 getState
+    // 第一趟：脏仍在，开始慢写（捕获 1000）
     const pSlow = useTaxStore.getState().persistNow();
-    // 在慢写等待期间改成更高工资
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 慢写进行中再次编辑 → revision 升高，清脏时不得抹掉
     useTaxStore.getState().updateMonthSalary(empId, 1, 9_999);
+    expect(useTaxStore.getState().monthlyRecords[empId]![0]!.salary).toBe(
+      9_999,
+    );
     const pFast = useTaxStore.getState().persistNow();
+
     release();
     await Promise.all([pSlow, pFast]);
+
+    // 至少两趟写；最后一趟与内存一致
+    expect(saveCount).toBeGreaterThanOrEqual(2);
+    expect(writtenSalaries[writtenSalaries.length - 1]).toBe(9_999);
 
     const wsId = useTaxStore.getState().workspace!.id;
     const loaded = await repo.loadWorkspace(wsId);
     expect(loaded).not.toBeNull();
     expect(loaded!.monthlyRecords[empId]![0]!.salary).toBe(9_999);
+    expect(useTaxStore.getState().monthlyRecords[empId]![0]!.salary).toBe(
+      9_999,
+    );
   });
 });
