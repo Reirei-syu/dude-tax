@@ -70,6 +70,12 @@ export interface MonthInput {
   taxReduction: number;
   /** 协定减免 */
   treatyReduction: number;
+  /**
+   * 工资单上的个税扣缴（元）。
+   * null = 未录入，不参与「实扣 vs 应预扣」差异；0 为合法实扣。
+   * 不参与累计预扣引擎，仅对照台账。
+   */
+  payrollTaxWithheld: number | null;
 }
 
 export interface Employee {
@@ -207,6 +213,7 @@ export const emptyMonth = (): MonthInput => ({
   donation: 0,
   taxReduction: 0,
   treatyReduction: 0,
+  payrollTaxWithheld: null,
 });
 
 export const emptyYearMonths = (): MonthInput[] =>
@@ -276,7 +283,19 @@ export function cloneMonth(m: MonthInput): MonthInput {
     donation: m.donation || 0,
     taxReduction: m.taxReduction || 0,
     treatyReduction: m.treatyReduction || 0,
+    payrollTaxWithheld:
+      m.payrollTaxWithheld == null || !Number.isFinite(m.payrollTaxWithheld)
+        ? null
+        : Math.max(0, m.payrollTaxWithheld),
   };
+}
+
+/** 规范化工资单扣缴：缺省/非有限 → null；否则非负元 */
+export function normalizePayrollTaxWithheld(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, n);
 }
 
 /**
@@ -320,6 +339,7 @@ export function normalizeMonthInput(raw: unknown): MonthInput {
       donation,
       taxReduction: Number(r.taxReduction) || 0,
       treatyReduction: Number(r.treatyReduction) || 0,
+      payrollTaxWithheld: normalizePayrollTaxWithheld(r.payrollTaxWithheld),
     };
   }
 
@@ -336,5 +356,6 @@ export function normalizeMonthInput(raw: unknown): MonthInput {
     donation: otherTotal,
     taxReduction: 0,
     treatyReduction: 0,
+    payrollTaxWithheld: normalizePayrollTaxWithheld(r.payrollTaxWithheld),
   };
 }

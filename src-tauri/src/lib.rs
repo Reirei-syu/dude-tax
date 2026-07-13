@@ -1,7 +1,14 @@
 mod instance_lock;
 
 use instance_lock::{acquire_lock_for_app, try_acquire_instance_lock, InstanceLockState};
+use tauri::AppHandle;
 use tauri_plugin_sql::{Migration, MigrationKind};
+
+/// 前端落盘后强制退出（避免 onCloseRequested + destroy 在 dev 下卡死）
+#[tauri::command]
+fn force_quit(app: AppHandle) {
+    app.exit(0);
+}
 
 fn make_migrations() -> Vec<Migration> {
     vec![Migration {
@@ -23,6 +30,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(InstanceLockState::default())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 // 安装包 / release
@@ -31,7 +40,10 @@ pub fn run() {
                 .add_migrations(dev_url, make_migrations())
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![try_acquire_instance_lock])
+        .invoke_handler(tauri::generate_handler![
+            try_acquire_instance_lock,
+            force_quit
+        ])
         .setup(|app| {
             match acquire_lock_for_app(app.handle()) {
                 Ok(path) => {

@@ -147,7 +147,13 @@ export class TaxRepository {
     );
     await this.client.execute(
       'INSERT INTO board_layouts (workspace_id, nodes_json) VALUES (?, ?)',
-      [workspace.id, JSON.stringify(defaultBoardNodes())],
+      [
+        workspace.id,
+        JSON.stringify({
+          nodes: defaultBoardNodes(),
+          viewport: { ...DEFAULT_BOARD_VIEWPORT },
+        }),
+      ],
     );
     return workspace;
   }
@@ -298,6 +304,9 @@ export class TaxRepository {
     return organization;
   }
 
+  /**
+   * 删除单位（独立事务）。内部 body 无事务，供 replaceAllSnapshots 嵌套调用。
+   */
   async deleteOrganization(orgId: string): Promise<boolean> {
     const check = await this.client.select<{ id: string }>(
       'SELECT id FROM organizations WHERE id = ?',
@@ -306,46 +315,50 @@ export class TaxRepository {
     if (!check.length) return false;
 
     await this.client.withTransaction(async () => {
-      const wsRows = await this.client.select<{ id: string }>(
-        'SELECT id FROM workspaces WHERE org_id = ?',
-        [orgId],
-      );
-      for (const row of wsRows) {
-        const wsId = str(row.id);
-        const empRows = await this.client.select<{ id: string }>(
-          'SELECT id FROM employees WHERE workspace_id = ?',
-          [wsId],
-        );
-        for (const emp of empRows) {
-          await this.deleteEmployee(str(emp.id));
-        }
-        await this.client.execute(
-          'DELETE FROM board_layouts WHERE workspace_id = ?',
-          [wsId],
-        );
-        await this.client.execute('DELETE FROM workspaces WHERE id = ?', [
-          wsId,
-        ]);
-      }
-      await this.client.execute('DELETE FROM organizations WHERE id = ?', [
-        orgId,
-      ]);
+      await this.deleteOrganizationBody(orgId);
     });
     return true;
+  }
+
+  /** 无外层事务；调用方须已在事务中或接受非原子删除 */
+  private async deleteOrganizationBody(orgId: string): Promise<void> {
+    const wsRows = await this.client.select<{ id: string }>(
+      'SELECT id FROM workspaces WHERE org_id = ?',
+      [orgId],
+    );
+    for (const row of wsRows) {
+      const wsId = str(row.id);
+      const empRows = await this.client.select<{ id: string }>(
+        'SELECT id FROM employees WHERE workspace_id = ?',
+        [wsId],
+      );
+      for (const emp of empRows) {
+        await this.deleteEmployee(str(emp.id));
+      }
+      await this.client.execute(
+        'DELETE FROM board_layouts WHERE workspace_id = ?',
+        [wsId],
+      );
+      await this.client.execute('DELETE FROM workspaces WHERE id = ?', [wsId]);
+    }
+    await this.client.execute('DELETE FROM organizations WHERE id = ?', [
+      orgId,
+    ]);
   }
 
   /**
    * 用给定快照列表完整替换库内全部业务数据（事务）。
    * 用于备份恢复；失败则整事务回滚。
+   * 不得在此事务内再调 withTransaction（会串行死锁）。
    */
   async replaceAllSnapshots(snapshots: WorkspaceSnapshot[]): Promise<void> {
     await this.client.withTransaction(async () => {
       const orgs = await this.listOrganizations();
       for (const o of orgs) {
-        await this.deleteOrganization(o.id);
+        await this.deleteOrganizationBody(o.id);
       }
       for (const snap of snapshots) {
-        await this.saveSnapshot(snap);
+        await this.saveSnapshotBody(snap);
       }
     });
   }
@@ -608,41 +621,46 @@ export class TaxRepository {
 
   async saveSnapshot(snap: WorkspaceSnapshot): Promise<void> {
     await this.client.withTransaction(async () => {
-      await this.client.execute(
-        `INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET name=excluded.name`,
-        [
-          snap.organization.id,
-          snap.organization.name,
-          snap.organization.createdAt,
-        ],
-      );
-      await this.client.execute(
-        `INSERT INTO workspaces (id, org_id, year) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET year=excluded.year`,
-        [snap.workspace.id, snap.workspace.orgId, snap.workspace.year],
-      );
-
-      const existing = await this.client.select<{ id: string }>(
-        'SELECT id FROM employees WHERE workspace_id = ?',
-        [snap.workspace.id],
-      );
-      const keep = new Set(snap.employees.map((e) => e.id));
-      for (const row of existing) {
-        const id = str(row.id);
-        if (!keep.has(id)) await this.deleteEmployee(id);
-      }
-
-      for (const emp of snap.employees) {
-        await this.saveEmployee(emp);
-        await this.saveMonthly(
-          emp.id,
-          snap.monthlyRecords[emp.id] ?? emptyYearMonths(),
-        );
-        await this.saveBonus(emp.id, snap.bonusRecords[emp.id] ?? 0);
-      }
-      await this.saveLayout(snap.workspace.id, snap.boardLayout);
+      await this.saveSnapshotBody(snap);
     });
+  }
+
+  /** 无外层事务；供 replaceAllSnapshots 在同一事务内调用 */
+  private async saveSnapshotBody(snap: WorkspaceSnapshot): Promise<void> {
+    await this.client.execute(
+      `INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name=excluded.name`,
+      [
+        snap.organization.id,
+        snap.organization.name,
+        snap.organization.createdAt,
+      ],
+    );
+    await this.client.execute(
+      `INSERT INTO workspaces (id, org_id, year) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET year=excluded.year`,
+      [snap.workspace.id, snap.workspace.orgId, snap.workspace.year],
+    );
+
+    const existing = await this.client.select<{ id: string }>(
+      'SELECT id FROM employees WHERE workspace_id = ?',
+      [snap.workspace.id],
+    );
+    const keep = new Set(snap.employees.map((e) => e.id));
+    for (const row of existing) {
+      const id = str(row.id);
+      if (!keep.has(id)) await this.deleteEmployee(id);
+    }
+
+    for (const emp of snap.employees) {
+      await this.saveEmployee(emp);
+      await this.saveMonthly(
+        emp.id,
+        snap.monthlyRecords[emp.id] ?? emptyYearMonths(),
+      );
+      await this.saveBonus(emp.id, snap.bonusRecords[emp.id] ?? 0);
+    }
+    await this.saveLayout(snap.workspace.id, snap.boardLayout);
   }
 }
 
@@ -651,70 +669,78 @@ export const DEFAULT_NODE_SIZE: Record<
   BoardNode['type'],
   { width: number; height: number }
 > = {
-  roster: { width: 360, height: 400 },
-  'salary-input': { width: 640, height: 720 },
-  'tax-summary': { width: 440, height: 420 },
-  'bonus-optimizer': { width: 420, height: 460 },
-  insights: { width: 380, height: 480 },
-  'all-staff-tax': { width: 920, height: 380 },
+  roster: { width: 739, height: 1010 },
+  'salary-input': { width: 995, height: 842 },
+  'tax-summary': { width: 740, height: 706 },
+  'bonus-optimizer': { width: 418, height: 535 },
+  insights: { width: 472, height: 520 },
+  'all-staff-tax': { width: 1164, height: 360 },
 };
 
 /**
  * 内置默认画布布局（代码基线）。
- * 用户可通过「保存当前布局为默认」覆盖为个人默认（localStorage）。
+ * 来源：dev 环境用户整理后「保存当前布局为默认」的一版状态（2026-07）。
+ * 用户仍可通过「保存当前布局为默认」覆盖为个人默认（localStorage）。
  */
 export function defaultBoardNodes(): BoardNode[] {
   return [
     {
       id: 'node_roster',
       type: 'roster',
-      position: { x: 24, y: 24 },
-      width: 360,
-      height: 420,
+      position: { x: -499, y: -278 },
+      width: 739,
+      height: 1010,
       data: { label: '员工花名册' },
     },
     {
       id: 'node_salary',
       type: 'salary-input',
-      position: { x: 408, y: 24 },
-      width: 680,
-      height: 760,
+      position: { x: 351, y: -275 },
+      width: 995,
+      height: 842,
       data: { label: '月度工资录入' },
     },
     {
       id: 'node_tax',
       type: 'tax-summary',
-      position: { x: 1112, y: 24 },
-      width: 460,
-      height: 440,
+      position: { x: 1495, y: -276 },
+      width: 740,
+      height: 706,
       data: { label: '预扣税额汇总' },
     },
     {
       id: 'node_bonus',
       type: 'bonus-optimizer',
-      position: { x: 1112, y: 488 },
-      width: 460,
-      height: 480,
+      position: { x: 1569, y: 500 },
+      width: 418,
+      height: 535,
       data: { label: '年终奖优化' },
     },
     {
       id: 'node_insights',
       type: 'insights',
-      position: { x: 24, y: 468 },
-      width: 360,
+      position: { x: 2064, y: 474 },
+      width: 472,
       height: 520,
       data: { label: '智能解读' },
     },
     {
       id: 'node_all_staff_tax',
       type: 'all-staff-tax',
-      position: { x: 408, y: 808 },
+      position: { x: 338, y: 636 },
       width: 1164,
       height: 360,
       data: { label: '全员预扣汇总' },
     },
   ];
 }
+
+/** 内置默认视口（与 defaultBoardNodes 配套） */
+export const DEFAULT_BOARD_VIEWPORT = {
+  x: 340,
+  y: 126,
+  zoom: 0.488,
+} as const;
 
 /** 用户自定义默认布局（浏览器 localStorage） */
 export const USER_DEFAULT_LAYOUT_KEY = 'taxopt-helper-default-layout';
@@ -768,7 +794,10 @@ export function getDefaultBoardLayout(): BoardLayout {
       /* fall through */
     }
   }
-  return { nodes: defaultBoardNodes() };
+  return {
+    nodes: defaultBoardNodes(),
+    viewport: { ...DEFAULT_BOARD_VIEWPORT },
+  };
 }
 
 /** 将当前布局保存为用户默认（供恢复默认使用） */

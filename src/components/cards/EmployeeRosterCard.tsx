@@ -138,9 +138,11 @@ export function EmployeeRosterCard({ fill = false }: { fill?: boolean }) {
               <tr>
                 <td
                   colSpan={5}
-                  className="py-8! text-center text-xs text-[var(--text-muted)]"
+                  className="py-8! text-center text-xs leading-relaxed text-[var(--text-muted)]"
                 >
-                  暂无员工，请先添加
+                  暂无员工。请在上方输入姓名后点击「添加」，
+                  <br />
+                  在员工花名册中新建员工（不会自动创建示例员工）。
                 </td>
               </tr>
             )}

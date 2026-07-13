@@ -314,6 +314,90 @@ select.field {
   background: var(--primary-soft);
 }
 
+/* 工资单扣缴差异：多扣中性强调、少扣警示 */
+.payroll-diff-over {
+  color: #3730a3;
+}
+
+.payroll-diff-under {
+  color: var(--warning);
+}
+
+.payroll-diff-cell-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0.15rem 0.35rem;
+  margin: 0;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.payroll-diff-cell-btn:hover {
+  background: var(--primary-soft);
+}
+
+.payroll-diff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(24, 24, 27, 0.45);
+}
+
+.payroll-diff-modal {
+  width: min(32rem, 100%);
+  max-height: min(90vh, 40rem);
+  overflow: auto;
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.payroll-diff-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* 工资单扣缴：录入框与功能按钮同一行依次排列 */
+.salary-payroll-inline-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+}
+
+.salary-payroll-inline-field {
+  flex: 0 1 10rem;
+  min-width: 7.5rem;
+}
+
+.salary-payroll-inline-due {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.salary-payroll-inline-due > span:first-child {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 /* ---------- Badge / chip ---------- */
 .badge {
   display: inline-flex;
@@ -714,7 +798,14 @@ select.field {
   font-size: 0.6875rem;
   color: var(--text-muted);
   line-height: 1.35;
-  max-width: 22rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 导航右侧：退出（利用 header flex 空位靠右） */
+.nav-exit-btn {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* ---------- Modal ---------- */
@@ -1081,6 +1172,62 @@ select.field {
   border: 2px solid var(--primary-border);
   border-top-color: var(--primary);
   animation: spin 0.7s linear infinite;
+}
+
+/* 无单位首次引导 */
+.empty-org-guide {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 0;
+  padding: 2rem 1.25rem;
+  background:
+    radial-gradient(
+      60% 50% at 50% 30%,
+      color-mix(in srgb, var(--primary) 12%, transparent),
+      transparent 70%
+    ),
+    var(--bg);
+}
+
+.empty-org-guide-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.85rem;
+  max-width: 26rem;
+  padding: 2rem 1.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow-lg, 0 18px 48px rgb(15 23 42 / 0.08));
+  backdrop-filter: blur(10px);
+}
+
+.empty-org-guide-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.9rem;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.empty-org-guide-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.empty-org-guide-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: var(--text-muted);
 }
 
 @keyframes spin {

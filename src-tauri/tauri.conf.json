@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Dude Tax",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "identifier": "com.dud.tax",
+  "mainBinaryName": "DudeTax",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -16,6 +17,7 @@
         "title": "Dude Tax",
         "width": 1280,
         "height": 800,
+        "maximized": true,
         "resizable": true,
         "minWidth": 960,
         "minHeight": 640
@@ -36,13 +38,20 @@
       "icons/icon.ico"
     ],
     "shortDescription": "个人所得税预估与年终奖优化本地工具",
-    "longDescription": "Dude Tax — 累计预扣个税预估与年终奖计税方式对比。数据保存在用户配置目录，与开发环境数据库相互独立。",
+    "longDescription": "Dude Tax — 累计预扣个税预估与年终奖计税方式对比。数据保存在用户配置目录，与开发环境数据库相互独立。安装程序通过产品标识检测是否已安装：已安装则进入更新/重装（覆盖程序文件，不清除用户数据）。",
     "windows": {
+      "allowDowngrades": true,
       "nsis": {
         "installMode": "both",
         "languages": ["SimpChinese", "English"],
         "displayLanguageSelector": false,
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "startMenuFolder": "Dude Tax",
+        "template": "windows/nsis/installer.nsi",
+        "customLanguageFiles": {
+          "SimpChinese": "windows/nsis/SimpChinese.nsh",
+          "English": "windows/nsis/English.nsh"
+        }
       }
     }
   }

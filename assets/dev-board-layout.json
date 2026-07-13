@@ -1,0 +1,87 @@
+{
+  "nodes": [
+    {
+      "id": "node_roster",
+      "type": "roster",
+      "position": {
+        "x": 24,
+        "y": 24
+      },
+      "width": 360,
+      "height": 420,
+      "data": {
+        "label": "员工花名册"
+      }
+    },
+    {
+      "id": "node_salary",
+      "type": "salary-input",
+      "position": {
+        "x": 408,
+        "y": 24
+      },
+      "width": 680,
+      "height": 760,
+      "data": {
+        "label": "月度工资录入"
+      }
+    },
+    {
+      "id": "node_tax",
+      "type": "tax-summary",
+      "position": {
+        "x": 1112,
+        "y": 24
+      },
+      "width": 460,
+      "height": 440,
+      "data": {
+        "label": "预扣税额汇总"
+      }
+    },
+    {
+      "id": "node_bonus",
+      "type": "bonus-optimizer",
+      "position": {
+        "x": 1112,
+        "y": 488
+      },
+      "width": 460,
+      "height": 480,
+      "data": {
+        "label": "年终奖优化"
+      }
+    },
+    {
+      "id": "node_insights",
+      "type": "insights",
+      "position": {
+        "x": 24,
+        "y": 468
+      },
+      "width": 360,
+      "height": 520,
+      "data": {
+        "label": "智能解读"
+      }
+    },
+    {
+      "id": "node_all_staff_tax",
+      "type": "all-staff-tax",
+      "position": {
+        "x": 408,
+        "y": 808
+      },
+      "width": 1164,
+      "height": 360,
+      "data": {
+        "label": "全员预扣汇总"
+      }
+    }
+  ],
+  "viewport": {
+    "x": 327.117562599473,
+    "y": 131.6858043556017,
+    "zoom": 0.4877822649237899
+  }
+}

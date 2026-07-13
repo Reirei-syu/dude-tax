@@ -10,9 +10,25 @@ describe('navbar data-safety controls', () => {
     expect(src).toContain('从备份恢复');
     expect(src).toMatch(/handleForceSave/);
     expect(src).toMatch(/handleExportBackup/);
-    expect(src).toMatch(/handleRestoreBackupFile/);
+    expect(src).toMatch(/handleRestoreBackup/);
     expect(src).toMatch(/exportBackupBytes/);
     expect(src).toMatch(/restoreBackupBytes/);
+    expect(src).toMatch(/saveBackupWithPicker/);
+    expect(src).toMatch(/pickBackupFileWithPicker/);
     expect(src).toMatch(/flushPersist/);
+  });
+});
+
+describe('backup file picker module', () => {
+  it('exposes save and open pickers with web fallback', async () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/lib/db/backup-file-picker.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/saveBackupWithPicker/);
+    expect(src).toMatch(/pickBackupFileWithPicker/);
+    expect(src).toMatch(/@tauri-apps\/plugin-dialog/);
+    expect(src).toMatch(/@tauri-apps\/plugin-fs/);
+    expect(src).toMatch(/downloadBackupFile/);
   });
 });

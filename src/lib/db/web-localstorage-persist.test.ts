@@ -9,6 +9,7 @@ import {
   persistWebDb,
   wireWebLocalStoragePersist,
 } from './bootstrap';
+import { emptyMonth } from '../../types';
 import { TaxRepository } from './repository';
 import {
   createIsolatedStoreState,
@@ -100,34 +101,8 @@ describe('wireWebLocalStoragePersist + saveIncremental', () => {
       ],
       monthlyRecords: {
         e1: Array.from({ length: 12 }, () => ({
+          ...emptyMonth(),
           salary: 100,
-          freeIncome: 0,
-          social: {
-            pension: 0,
-            medical: 0,
-            unemployment: 0,
-            housingFund: 0,
-          },
-          specialAddl: {
-            childEducation: 0,
-            continuingEdu: 0,
-            housingLoan: 0,
-            housingRent: 0,
-            elderlySupport: 0,
-            infantCare: 0,
-            personalPension: 0,
-          },
-          other: {
-            enterpriseAnnuity: 0,
-            commercialHealth: 0,
-            deferredPension: 0,
-            officialTransport: 0,
-            communication: 0,
-            lawyerFees: 0,
-          },
-          donation: 0,
-          taxReduction: 0,
-          treatyReduction: 0,
         })),
       },
       bonusRecords: { e1: 0 },

@@ -20,6 +20,9 @@ extracted-tax.db
 *.db
 mcps/
 
+# Design-only icon experiments (final icons live under src-tauri/icons, public/)
+assets/icon-candidates/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

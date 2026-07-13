@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -25,6 +25,18 @@ import {
 } from '../../types';
 import { formatYuan } from '../../lib/tax/fen';
 import { BASIC_DEDUCTION_PER_MONTH } from '../../lib/tax/brackets';
+import {
+  describePayrollTaxDiff,
+  formatPayrollDiffCell,
+  formatPayrollWithheldCell,
+  payrollDiffToneClass,
+  payrollTaxDiffYuan,
+} from '../../lib/tax/payroll-tax-diff';
+import {
+  ALL_MONTHS,
+  loadBatchPayrollMonths,
+  saveBatchPayrollMonths,
+} from '../../lib/ui/batch-payroll-months-pref';
 import {
   buildExportFilename,
   buildSalaryCsv,
@@ -81,6 +93,13 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
   const updateMonthTreatyReduction = useTaxStore(
     (s) => s.updateMonthTreatyReduction,
   );
+  const updateMonthPayrollTaxWithheld = useTaxStore(
+    (s) => s.updateMonthPayrollTaxWithheld,
+  );
+  const fillPayrollTaxWithheldFromDue = useTaxStore(
+    (s) => s.fillPayrollTaxWithheldFromDue,
+  );
+  const getEmployeeCalc = useTaxStore((s) => s.getEmployeeCalc);
   const copyMonthToFollowing = useTaxStore((s) => s.copyMonthToFollowing);
   const applySalaryImport = useTaxStore((s) => s.applySalaryImport);
   const setBonus = useTaxStore((s) => s.setBonus);
@@ -90,8 +109,12 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
   const workspace = useTaxStore((s) => s.workspace);
 
   const [editMonth, setEditMonth] = useState(1);
-  /** 明细录入区展开；折叠后便于查看全年 1–12 月速览 */
+  /** 明细录入区展开；折叠后便于查看全年 1–12 月速览（工资单扣缴不在折叠范围内） */
   const [detailExpanded, setDetailExpanded] = useState(true);
+  const [batchFillOpen, setBatchFillOpen] = useState(false);
+  const [batchMonths, setBatchMonths] = useState<number[]>(() =>
+    loadBatchPayrollMonths(),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const employeeCount = Object.keys(employees).length;
@@ -103,6 +126,58 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
   const yearHint = workspace?.year ?? new Date().getFullYear();
   const cur = months[editMonth - 1] ?? emptyYearMonths()[0]!;
   const totals = monthDeductTotals(cur);
+  const yearCalc = useMemo(() => {
+    if (!selectedId) return [];
+    return getEmployeeCalc(selectedId);
+    // monthlyRecords / 入离职变化会驱动 dataEpoch 或引用变化
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedId,
+    monthlyRecords,
+    emp?.hireDate,
+    emp?.leaveDate,
+    emp?.isFirstTime,
+    workspace?.year,
+    getEmployeeCalc,
+  ]);
+  const monthTaxDue = yearCalc[editMonth - 1]?.thisMonthTax ?? 0;
+  const payrollDiff = payrollTaxDiffYuan(cur.payrollTaxWithheld, monthTaxDue);
+  const payrollDiffHint = describePayrollTaxDiff(payrollDiff);
+
+  const openBatchFill = () => {
+    setBatchMonths(loadBatchPayrollMonths());
+    setBatchFillOpen(true);
+  };
+
+  const toggleBatchMonth = (m: number) => {
+    setBatchMonths((prev) => {
+      if (prev.includes(m)) return prev.filter((x) => x !== m);
+      return [...prev, m].sort((a, b) => a - b);
+    });
+  };
+
+  const confirmBatchFill = () => {
+    if (!emp) return;
+    if (batchMonths.length === 0) {
+      toast.message('请至少选择一个月');
+      return;
+    }
+    const saved = saveBatchPayrollMonths(batchMonths);
+    const written = fillPayrollTaxWithheldFromDue(emp.id, saved);
+    setBatchFillOpen(false);
+    if (written === 0) {
+      toast.message(
+        '所选月份均无收入且应预扣为 0，已跳过（不写入 0，避免误记为已录入）',
+      );
+      return;
+    }
+    const skipped = saved.length - written;
+    toast.success(
+      skipped > 0
+        ? `已写入 ${written} 个月工资单扣缴（${emp.name}）；跳过 ${skipped} 个闲置月`
+        : `已将 ${written} 个月的本期应预扣写入工资单扣缴（${emp.name}）`,
+    );
+  };
 
   const handleExportAll = () => {
     const people = peopleFromStore(employees, monthlyRecords, bonusRecords);
@@ -280,7 +355,9 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
       return;
     }
     copyMonthToFollowing(emp.id, editMonth);
-    toast.success(`已将 ${editMonth} 月数据复制到 ${editMonth + 1}–12 月`);
+    toast.success(
+      `已将 ${editMonth} 月工资与扣除复制到 ${editMonth + 1}–12 月（未覆盖工资单扣缴）`,
+    );
   };
 
   return (
@@ -343,7 +420,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
           title={
             editMonth >= 12
               ? '已是 12 月'
-              : `将 ${editMonth} 月全部明细复制到 ${editMonth + 1}–12 月`
+              : `将 ${editMonth} 月工资与扣除明细复制到 ${editMonth + 1}–12 月（不覆盖各月工资单扣缴）`
           }
           onClick={handleCopyFollowing}
         >
@@ -368,6 +445,71 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
       </div>
 
       <div className={fill ? 'min-h-0 space-y-3 overflow-auto' : 'space-y-3'}>
+        {/* 工资单个税扣缴：置顶且不随明细折叠 */}
+        <section className="salary-section">
+          <div className="salary-section-head">
+            <h4 className="salary-section-title">
+              工资单个税扣缴（{editMonth}月）
+            </h4>
+            <span className="text-[10px] text-[var(--text-faint)]">
+              对照台账 · 非申报应缴
+            </span>
+          </div>
+          <p className="mt-0 mb-2 text-[10px] text-[var(--text-faint)]">
+            写在工资条/工资表上的个税实扣。可先按临时标准填入，待社保等数据确定后更新本月扣除项，软件会重算应预扣并自动显示差异。
+          </p>
+          <div className="salary-payroll-inline-row">
+            <label className="salary-field salary-payroll-inline-field">
+              <span>工资单个税扣缴（元）</span>
+              <NumberInput
+                value={cur.payrollTaxWithheld}
+                nullable
+                ariaLabel={`${editMonth}月工资单个税扣缴`}
+                onChange={(v) =>
+                  updateMonthPayrollTaxWithheld(emp.id, editMonth, v)
+                }
+              />
+            </label>
+            <div className="salary-field salary-payroll-inline-due">
+              <span>本期应预扣（软件）</span>
+              <span className="num font-semibold text-[var(--text)] leading-8">
+                {formatYuan(monthTaxDue)}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm shrink-0"
+              title="将本月软件计算的本期应预扣写入工资单扣缴"
+              onClick={() =>
+                updateMonthPayrollTaxWithheld(emp.id, editMonth, monthTaxDue)
+              }
+            >
+              自动填写本月工资单扣缴数
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm shrink-0"
+              title="按所选月份，将各月本期应预扣批量写入工资单扣缴"
+              onClick={openBatchFill}
+            >
+              批量填入工资单扣缴数
+            </button>
+          </div>
+          {payrollDiffHint != null && (
+            <p
+              className={`mt-2 mb-0 text-[11px] leading-relaxed ${payrollDiffToneClass(payrollDiff)}`}
+            >
+              差异（扣缴 − 应预扣）：
+              <span className="num font-semibold">
+                {payrollDiff! > 0 ? '+' : ''}
+                {formatYuan(payrollDiff!)}
+              </span>
+              {' · '}
+              {payrollDiffHint}
+            </p>
+          )}
+        </section>
+
         {detailExpanded && (
         <div id="salary-detail-entry" className="space-y-3">
         {/* 本期收入及免税收入 | 年终奖 */}
@@ -384,7 +526,9 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                 <NumberInput
                   value={cur.salary}
                   ariaLabel={`${editMonth}月本期收入`}
-                  onChange={(v) => updateMonthSalary(emp.id, editMonth, v)}
+                  onChange={(v) =>
+                    updateMonthSalary(emp.id, editMonth, v ?? 0)
+                  }
                 />
               </label>
               <label className="salary-field">
@@ -393,7 +537,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   value={cur.freeIncome}
                   ariaLabel={`${editMonth}月本期免税收入`}
                   onChange={(v) =>
-                    updateMonthFreeIncome(emp.id, editMonth, v)
+                    updateMonthFreeIncome(emp.id, editMonth, v ?? 0)
                   }
                 />
               </label>
@@ -414,7 +558,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   value={bonus}
                   step={100}
                   ariaLabel={`${emp.name}年终奖金额`}
-                  onChange={(v) => setBonus(emp.id, v)}
+                  onChange={(v) => setBonus(emp.id, v ?? 0)}
                 />
               </label>
             </div>
@@ -443,7 +587,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   value={cur.social[key]}
                   ariaLabel={`${editMonth}月${label}`}
                   onChange={(v) =>
-                    updateMonthSocial(emp.id, editMonth, key, v)
+                    updateMonthSocial(emp.id, editMonth, key, v ?? 0)
                   }
                 />
               </label>
@@ -470,7 +614,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   value={cur.specialAddl[key]}
                   ariaLabel={`${editMonth}月${label}`}
                   onChange={(v) =>
-                    updateMonthSpecialAddl(emp.id, editMonth, key, v)
+                    updateMonthSpecialAddl(emp.id, editMonth, key, v ?? 0)
                   }
                 />
               </label>
@@ -494,7 +638,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   value={cur.other[key]}
                   ariaLabel={`${editMonth}月${label}`}
                   onChange={(v) =>
-                    updateMonthOther(emp.id, editMonth, key, v)
+                    updateMonthOther(emp.id, editMonth, key, v ?? 0)
                   }
                 />
               </label>
@@ -513,7 +657,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
               <NumberInput
                 value={cur.donation}
                 ariaLabel={`${editMonth}月准予扣除的捐赠额`}
-                onChange={(v) => updateMonthDonation(emp.id, editMonth, v)}
+                onChange={(v) => updateMonthDonation(emp.id, editMonth, v ?? 0)}
               />
             </label>
             <label className="salary-field">
@@ -522,7 +666,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                 value={cur.taxReduction}
                 ariaLabel={`${editMonth}月减免税额`}
                 onChange={(v) =>
-                  updateMonthTaxReduction(emp.id, editMonth, v)
+                  updateMonthTaxReduction(emp.id, editMonth, v ?? 0)
                 }
               />
             </label>
@@ -532,7 +676,7 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                 value={cur.treatyReduction}
                 ariaLabel={`${editMonth}月协定减免`}
                 onChange={(v) =>
-                  updateMonthTreatyReduction(emp.id, editMonth, v)
+                  updateMonthTreatyReduction(emp.id, editMonth, v ?? 0)
                 }
               />
             </label>
@@ -600,11 +744,17 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                   <th className="text-right!">专项</th>
                   <th className="text-right!">累计扣除</th>
                   <th className="text-right!">其他</th>
+                  <th className="text-right!">本期预扣</th>
+                  <th className="text-right!">工资单扣缴</th>
+                  <th className="text-right!">差异</th>
                 </tr>
               </thead>
               <tbody>
                 {months.map((m, i) => {
                   const t = monthDeductTotals(m);
+                  const due = yearCalc[i]?.thisMonthTax ?? 0;
+                  const withheld = m.payrollTaxWithheld;
+                  const diff = payrollTaxDiffYuan(withheld, due);
                   return (
                     <tr
                       key={i}
@@ -631,6 +781,19 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
                       <td className="num text-right">
                         {formatYuan(t.otherDeduct)}
                       </td>
+                      <td className="num text-right font-medium text-[var(--text)]">
+                        {formatYuan(due)}
+                      </td>
+                      <td className="num text-right text-[var(--text-muted)]">
+                        {formatPayrollWithheldCell(withheld)}
+                      </td>
+                      <td
+                        className={`num text-right font-medium ${payrollDiffToneClass(diff)}`}
+                        title={describePayrollTaxDiff(diff) ?? undefined}
+                      >
+                        {diff != null && diff > 0 ? '+' : ''}
+                        {formatPayrollDiffCell(diff)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -639,6 +802,88 @@ export function SalaryInputCard({ fill = false }: { fill?: boolean }) {
           </div>
         </section>
       </div>
+
+      {batchFillOpen && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="batch-payroll-title"
+          onClick={() => setBatchFillOpen(false)}
+        >
+          <div
+            className="modal-panel max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="batch-payroll-title" className="panel-title">
+                批量填入工资单扣缴数
+              </h2>
+            </div>
+            <div className="modal-body">
+              <p className="m-0 mb-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                将所选月份的「本期应预扣」写入对应「工资单扣缴」。勾选会记住，下次打开沿用上次选择。收入与应预扣均为
+                0 的闲置月会自动跳过，不会写成 0。
+              </p>
+              <div className="mb-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setBatchMonths([...ALL_MONTHS])}
+                >
+                  全选
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setBatchMonths([])}
+                >
+                  清空
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_MONTHS.map((m) => {
+                  const on = batchMonths.includes(m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      className={`btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}`}
+                      aria-pressed={on}
+                      onClick={() => toggleBatchMonth(m)}
+                    >
+                      {m}月
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 mb-0 text-[11px] text-[var(--text-faint)]">
+                已选 {batchMonths.length} 个月
+                {batchMonths.length > 0
+                  ? `：${batchMonths.map((m) => `${m}月`).join('、')}`
+                  : ''}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setBatchFillOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={batchMonths.length === 0}
+                onClick={confirmBatchFill}
+              >
+                确认填入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }

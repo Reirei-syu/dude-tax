@@ -19,7 +19,16 @@ export class TauriSqlClient implements SqlClient {
 
   static async open(dbUrl: string = getTauriDbUrl()): Promise<TauriSqlClient> {
     const db = await Database.load(dbUrl);
-    return new TauriSqlClient(db);
+    const client = new TauriSqlClient(db);
+    // 写冲突时等待而非立刻 SQLITE_BUSY（开发/关窗 flush 并发时常见）
+    try {
+      await client.execute('PRAGMA busy_timeout = 8000');
+      await client.execute('PRAGMA journal_mode = WAL');
+      await client.execute('PRAGMA synchronous = NORMAL');
+    } catch {
+      /* 部分环境 pragma 失败不阻断打开 */
+    }
+    return client;
   }
 
   /** 当前环境实际库文件名（开发 / 安装不同） */

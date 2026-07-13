@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 
 interface NumberInputProps {
-  value: number;
-  onChange: (v: number) => void;
+  value: number | null;
+  onChange: (v: number | null) => void;
   min?: number;
   step?: number;
   className?: string;
   ariaLabel?: string;
+  /**
+   * true：清空 → null，0 显示为 "0"（用于工资单扣缴等「未填」与 0 需区分的场景）
+   * false（默认）：清空 → 0，0 显示为空（现有工资字段习惯）
+   */
+  nullable?: boolean;
 }
 
 /**
  * 数字录入：
- * - 存 0 时界面显示为空（不显示 0），避免在「0」后输入变成「10」
- * - 清空时写回 0
+ * - 默认：存 0 时界面显示为空，清空写回 0
+ * - nullable：null 显示为空；0 显示 0；清空写回 null
  */
 export function NumberInput({
   value,
@@ -21,16 +26,33 @@ export function NumberInput({
   step = 1,
   className = '',
   ariaLabel,
+  nullable = false,
 }: NumberInputProps) {
-  const [text, setText] = useState(() => formatDisplay(value));
+  const [text, setText] = useState(() => formatDisplay(value, nullable));
   const [focused, setFocused] = useState(false);
 
-  // 外部 value 变化且未聚焦时同步显示（如切换月份、复制）
   useEffect(() => {
     if (!focused) {
-      setText(formatDisplay(value));
+      setText(formatDisplay(value, nullable));
     }
-  }, [value, focused]);
+  }, [value, focused, nullable]);
+
+  const commit = (raw: string) => {
+    if (raw === '' || raw === '.') {
+      if (nullable) {
+        onChange(null);
+        setText('');
+      } else {
+        const n = min > 0 ? min : 0;
+        onChange(n);
+        setText(formatDisplay(n, nullable));
+      }
+      return;
+    }
+    const n = parseInput(raw, min);
+    onChange(n);
+    setText(formatDisplay(n, nullable));
+  };
 
   return (
     <input
@@ -46,19 +68,19 @@ export function NumberInput({
       onFocus={() => setFocused(true)}
       onBlur={() => {
         setFocused(false);
-        const n = parseInput(text, min);
-        onChange(n);
-        setText(formatDisplay(n));
+        commit(text);
       }}
       onChange={(e) => {
         const raw = e.target.value;
-        // 允许空、小数点过程态（如 "1."、"."）
         if (raw === '' || raw === '.' || raw === '-') {
           setText(raw === '-' ? '' : raw);
-          onChange(min > 0 ? min : 0);
+          if (nullable) {
+            onChange(null);
+          } else {
+            onChange(min > 0 ? min : 0);
+          }
           return;
         }
-        // 仅允许数字与一个小数点
         if (!/^\d*\.?\d*$/.test(raw)) return;
         setText(raw);
         const n = parseFloat(raw);
@@ -71,19 +93,17 @@ export function NumberInput({
   );
 }
 
-/** 0 / 非有限数 → 空字符串，否则去掉多余尾零的展示 */
-function formatDisplay(value: number): string {
-  if (!Number.isFinite(value) || value === 0) return '';
-  // 避免 10.5 变成科学计数；保留合理小数
+function formatDisplay(value: number | null, nullable: boolean): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  if (!nullable && value === 0) return '';
+  if (nullable && value === 0) return '0';
   const s = String(value);
   if (s.includes('e') || s.includes('E')) return value.toFixed(2);
   return s;
 }
 
 function parseInput(text: string, min: number): number {
-  const t = text.trim();
-  if (t === '' || t === '.' || t === '-') return Math.max(min, 0);
-  const n = parseFloat(t);
-  if (!Number.isFinite(n)) return Math.max(min, 0);
+  const n = parseFloat(text);
+  if (!Number.isFinite(n)) return min > 0 ? min : 0;
   return Math.max(min, n);
 }

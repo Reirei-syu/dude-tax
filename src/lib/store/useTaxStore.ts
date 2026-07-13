@@ -30,6 +30,7 @@ import {
   type TaxRepository,
 } from '../db/repository';
 import { createPersistQueue, type PersistQueue } from '../db/persist-queue';
+import { formatPersistError } from '../db/sql-client';
 import { compareBonusMethods } from '../tax/engine';
 import type { BonusCompareResult, MonthCalcResult } from '../../types';
 import { createDirtyTracker } from './dirty-tracker';
@@ -83,7 +84,13 @@ export interface TaxState {
     bonusRecords: Record<string, number>;
     boardLayout: BoardLayout;
   }) => void;
+  /**
+   * 测试/工具：创建带示例员工的单位。
+   * 正式首次启动请用 enterEmptyState，勿自动建「默认单位」。
+   */
   bootstrapDefault: (orgName?: string, year?: number) => void;
+  /** 无单位空壳：hydrated=true，引导用户自行创建单位 */
+  enterEmptyState: () => void;
   switchWorkspaceSnapshot: (args: {
     organization: Organization;
     workspace: Workspace;
@@ -139,7 +146,29 @@ export interface TaxState {
     month: number,
     treatyReduction: number,
   ) => void;
-  /** 将 fromMonth 的工资与全部扣除明细复制到后续月份（fromMonth+1…12） */
+  /**
+   * 工资单个税扣缴（对照台账，不参与引擎）
+   * null = 清空未录入
+   */
+  updateMonthPayrollTaxWithheld: (
+    employeeId: string,
+    month: number,
+    payrollTaxWithheld: number | null,
+  ) => void;
+  /**
+   * 将指定月份的「本期应预扣」批量写入工资单扣缴（对照台账）
+   * @param months 1–12，空则不改
+   */
+  /**
+   * 批量将「本期应预扣」写入工资单扣缴。
+   * 跳过收入与应预扣均为 0 的闲置月（保持 null，不算已录入）。
+   * @returns 实际写入的月份数
+   */
+  fillPayrollTaxWithheldFromDue: (
+    employeeId: string,
+    months: number[],
+  ) => number;
+  /** 将 fromMonth 的工资与全部扣除明细复制到后续月份（fromMonth+1…12）；不复制工资单扣缴 */
   copyMonthToFollowing: (employeeId: string, fromMonth: number) => void;
   /**
    * 批量导入月度工资（按姓名匹配；可选自动新建员工）
@@ -281,8 +310,7 @@ function getPersistQueue(
           });
           if (get().lastPersistError) set({ lastPersistError: null });
         } catch (e) {
-          const msg =
-            e instanceof Error ? e.message : '保存失败，请检查磁盘空间或权限';
+          const msg = formatPersistError(e);
           set({ lastPersistError: msg });
           console.error('persistNow failed', e);
           throw e;
@@ -304,6 +332,12 @@ export function resetPersistQueueForTests(): void {
 function bumpDirty(employeeId: string): { dataEpoch: number } {
   dirtyTracker.markEmployee(employeeId);
   taxCalcCache.invalidate(employeeId);
+  return { dataEpoch: dirtyTracker.getDataEpoch() };
+}
+
+/** 台账字段（工资单扣缴）落盘脏：刷新 UI epoch，不失效税缓存 */
+function bumpDirtyLedgerOnly(employeeId: string): { dataEpoch: number } {
+  dirtyTracker.markEmployeePersistOnly(employeeId);
   return { dataEpoch: dirtyTracker.getDataEpoch() };
 }
 
@@ -429,6 +463,25 @@ export const useTaxStore = create<TaxState>((set, get) => ({
       dataEpoch: dirtyTracker.getDataEpoch(),
     });
     schedulePersist(get);
+  },
+
+  enterEmptyState: () => {
+    dirtyTracker.reset();
+    taxCalcCache.clear();
+    set({
+      organization: null,
+      workspace: null,
+      employees: {},
+      monthlyRecords: {},
+      bonusRecords: {},
+      boardLayout: getDefaultBoardLayout(),
+      selectedEmployeeId: null,
+      pendingConfirm: null,
+      statusBanner: null,
+      lastPersistError: null,
+      hydrated: true,
+      dataEpoch: dirtyTracker.getDataEpoch(),
+    });
   },
 
   switchWorkspaceSnapshot: (args) => {
@@ -619,14 +672,83 @@ export const useTaxStore = create<TaxState>((set, get) => ({
     schedulePersist(get);
   },
 
+  updateMonthPayrollTaxWithheld: (employeeId, month, payrollTaxWithheld) => {
+    if (month < 1 || month > 12) return;
+    const v =
+      payrollTaxWithheld == null || !Number.isFinite(Number(payrollTaxWithheld))
+        ? null
+        : Math.max(0, Number(payrollTaxWithheld));
+    const epoch = bumpDirtyLedgerOnly(employeeId);
+    set((s) => {
+      const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
+      const cur = cloneMonth(months[month - 1] ?? emptyMonth());
+      cur.payrollTaxWithheld = v;
+      months[month - 1] = cur;
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
+        ...epoch,
+      };
+    });
+    schedulePersist(get);
+  },
+
+  fillPayrollTaxWithheldFromDue: (employeeId, months) => {
+    const targets = [
+      ...new Set(
+        months
+          .map((m) => Number(m))
+          .filter((m) => Number.isInteger(m) && m >= 1 && m <= 12),
+      ),
+    ];
+    if (targets.length === 0) return 0;
+    if (!get().employees[employeeId]) return 0;
+    const calc = get().getEmployeeCalc(employeeId);
+    const current =
+      get().monthlyRecords[employeeId] ?? emptyYearMonths();
+    const toWrite: { month: number; due: number }[] = [];
+    for (const month of targets) {
+      const due = calc[month - 1]?.thisMonthTax ?? 0;
+      const salary = current[month - 1]?.salary ?? 0;
+      // 闲置月（无收入且应预扣为 0）：保持未录入，勿写入 0
+      if (salary <= 0 && due <= 0) continue;
+      toWrite.push({ month, due: Math.max(0, due) });
+    }
+    if (toWrite.length === 0) return 0;
+    const epoch = bumpDirtyLedgerOnly(employeeId);
+    set((s) => {
+      const yearMonths = [
+        ...(s.monthlyRecords[employeeId] ?? emptyYearMonths()),
+      ].map((m) => cloneMonth(m));
+      for (const { month, due } of toWrite) {
+        const cur = cloneMonth(yearMonths[month - 1] ?? emptyMonth());
+        cur.payrollTaxWithheld = due;
+        yearMonths[month - 1] = cur;
+      }
+      return {
+        monthlyRecords: { ...s.monthlyRecords, [employeeId]: yearMonths },
+        ...epoch,
+      };
+    });
+    schedulePersist(get);
+    return toWrite.length;
+  },
+
   copyMonthToFollowing: (employeeId, fromMonth) => {
     if (fromMonth < 1 || fromMonth > 11) return;
     const epoch = bumpDirty(employeeId);
     set((s) => {
       const months = [...(s.monthlyRecords[employeeId] ?? emptyYearMonths())];
       const src = cloneMonth(months[fromMonth - 1] ?? emptyMonth());
+      // 工资/扣除可复制；工资单扣缴每月独立，保留目标月原值
       for (let m = fromMonth + 1; m <= 12; m++) {
-        months[m - 1] = cloneMonth(src);
+        const prevWithheld =
+          months[m - 1]?.payrollTaxWithheld ?? null;
+        const dest = cloneMonth(src);
+        dest.payrollTaxWithheld =
+          prevWithheld == null || !Number.isFinite(prevWithheld)
+            ? null
+            : Math.max(0, prevWithheld);
+        months[m - 1] = dest;
       }
       return {
         monthlyRecords: { ...s.monthlyRecords, [employeeId]: months },
@@ -938,6 +1060,16 @@ export function mergeMonthPatch(
   if (!keep(patch.donation)) b.donation = patch.donation;
   if (!keep(patch.taxReduction)) b.taxReduction = patch.taxReduction;
   if (!keep(patch.treatyReduction)) b.treatyReduction = patch.treatyReduction;
+
+  // 工资单扣缴：NaN（FIELD_ABSENT）= 未提供保留；有限数字写入
+  const pWithheld = patch.payrollTaxWithheld;
+  if (
+    typeof pWithheld === 'number' &&
+    !Number.isNaN(pWithheld) &&
+    Number.isFinite(pWithheld)
+  ) {
+    b.payrollTaxWithheld = Math.max(0, pWithheld);
+  }
 
   for (const k of Object.keys(b.social) as (keyof typeof b.social)[]) {
     const v = patch.social[k];

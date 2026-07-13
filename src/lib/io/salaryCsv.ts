@@ -43,6 +43,7 @@ export const SALARY_CSV_COLUMNS = [
   { key: 'donation', label: '准予扣除的捐赠额' },
   { key: 'taxReduction', label: '减免税额' },
   { key: 'treatyReduction', label: '协定减免' },
+  { key: 'payrollTaxWithheld', label: '工资单个税扣缴' },
   { key: 'bonus', label: '年终奖' },
 ] as const;
 
@@ -167,6 +168,11 @@ function monthToFlat(m: MonthInput, bonus: number): Record<SalaryCsvFieldKey, st
     donation: m.donation || 0,
     taxReduction: m.taxReduction || 0,
     treatyReduction: m.treatyReduction || 0,
+    // 未录入导出空单元格（勿写 0，避免与合法实扣 0 混淆于「未填」语义时由导入空不覆盖处理）
+    payrollTaxWithheld:
+      m.payrollTaxWithheld == null || !Number.isFinite(m.payrollTaxWithheld)
+        ? ''
+        : m.payrollTaxWithheld,
     bonus: bonus || 0,
   };
 }
@@ -215,6 +221,8 @@ export function flatToMonthPatch(
     donation: orAbsent(parseAmountOptional(cells.donation)),
     taxReduction: orAbsent(parseAmountOptional(cells.taxReduction)),
     treatyReduction: orAbsent(parseAmountOptional(cells.treatyReduction)),
+    // 空 → NaN 哨兵（merge 时保留库内值）；有数字含 0 → 覆盖
+    payrollTaxWithheld: orAbsent(parseAmountOptional(cells.payrollTaxWithheld)),
     __partial: true,
   };
 }

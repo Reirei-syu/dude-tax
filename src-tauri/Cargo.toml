@@ -1,6 +1,6 @@
 [package]
 name = "taxopt-helper"
-version = "1.0.0"
+version = "1.0.6"
 description = "Dude Tax — 个人所得税预估与年终奖优化"
 authors = ["Dude Tax"]
 edition = "2021"
@@ -13,6 +13,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-fs = "2.5.1"
 
 [lib]
 name = "taxopt_helper_lib"

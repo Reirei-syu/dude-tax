@@ -7,6 +7,7 @@ import {
   parseCsvLine,
   parseSalaryCsv,
 } from './salaryCsv';
+import { mergeMonthPatch } from '../store/useTaxStore';
 
 describe('parseCsvLine', () => {
   it('handles quotes and commas', () => {
@@ -52,6 +53,7 @@ describe('salary csv roundtrip', () => {
       donation: 0,
       taxReduction: 0,
       treatyReduction: 0,
+      payrollTaxWithheld: 888.5,
     };
     months[1] = { ...emptyMonth(), salary: 12_500 };
 
@@ -70,13 +72,59 @@ describe('salary csv roundtrip', () => {
     expect(jan.data.social.housingFund).toBe(1_200);
     expect(jan.data.specialAddl.elderlySupport).toBe(2_000);
     expect(jan.data.other.enterpriseAnnuity).toBe(100);
+    expect(jan.data.payrollTaxWithheld).toBe(888.5);
     expect(jan.bonus).toBe(36_000);
+
+    const feb = parsed.rows.find((r) => r.month === 2)!;
+    // 未录入导出为空 → 导入为 FIELD_ABSENT（NaN），不覆盖
+    expect(Number.isNaN(feb.data.payrollTaxWithheld as number)).toBe(true);
 
     const plan = groupSalaryCsvRows(parsed.rows);
     expect(plan.names).toEqual(['王五']);
     expect(plan.byEmployeeName.get('王五')!.months[1]!.salary).toBe(12_000);
+    expect(plan.byEmployeeName.get('王五')!.months[1]!.payrollTaxWithheld).toBe(
+      888.5,
+    );
     expect(plan.byEmployeeName.get('王五')!.months[2]!.salary).toBe(12_500);
     expect(plan.byEmployeeName.get('王五')!.bonus).toBe(36_000);
+  });
+
+  it('empty payroll tax cell does not wipe existing via merge semantics', () => {
+    const base = { ...emptyMonth(), payrollTaxWithheld: 100 };
+    const patch = {
+      ...emptyMonth(),
+      salary: Number.NaN,
+      freeIncome: Number.NaN,
+      donation: Number.NaN,
+      taxReduction: Number.NaN,
+      treatyReduction: Number.NaN,
+      payrollTaxWithheld: Number.NaN as unknown as null,
+      social: {
+        pension: Number.NaN,
+        medical: Number.NaN,
+        unemployment: Number.NaN,
+        housingFund: Number.NaN,
+      },
+      specialAddl: {
+        childEducation: Number.NaN,
+        housingLoan: Number.NaN,
+        housingRent: Number.NaN,
+        elderlySupport: Number.NaN,
+        continuingEdu: Number.NaN,
+        infantCare: Number.NaN,
+        personalPension: Number.NaN,
+      },
+      other: {
+        enterpriseAnnuity: Number.NaN,
+        commercialHealth: Number.NaN,
+        deferredPension: Number.NaN,
+        officialTransport: Number.NaN,
+        communication: Number.NaN,
+        lawyerFees: Number.NaN,
+      },
+    };
+    const merged = mergeMonthPatch(base, patch);
+    expect(merged.payrollTaxWithheld).toBe(100);
   });
 
   it('rejects missing required headers', () => {

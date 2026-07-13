@@ -53,4 +53,23 @@ describe('dirty-tracker clearAfterWrite revision guard', () => {
     });
     expect(t.isLayoutDirty()).toBe(true);
   });
+
+  it('markEmployeePersistOnly dirties without bumping calc revision', () => {
+    const t = createDirtyTracker();
+    t.markEmployee('a');
+    expect(t.getEmployeeRevision('a')).toBe(1);
+    t.markEmployeePersistOnly('a');
+    expect(t.getEmployeeRevision('a')).toBe(1);
+    expect(t.getDirtyEmployeeIds()).toEqual(['a']);
+    const rev = t.getEmployeeRevision('a');
+    t.clearAfterWrite({
+      dirtyIds: ['a'],
+      removedIds: [],
+      layout: false,
+      revisionsAtCapture: { a: rev },
+      removedGensAtCapture: {},
+      layoutGenAtCapture: 0,
+    });
+    expect(t.getDirtyEmployeeIds()).toEqual([]);
+  });
 });

@@ -121,4 +121,24 @@ describe('hire/leave confirm state machine', () => {
     // 之前月份不受影响（seed 为 10000）
     expect(months[0]!.salary).toBe(10_000);
   });
+
+  it('copyMonthToFollowing does not overwrite target payrollTaxWithheld', () => {
+    const empId = seedEmployee();
+    useTaxStore.getState().updateMonthPayrollTaxWithheld(empId, 3, 500);
+    useTaxStore.getState().updateMonthPayrollTaxWithheld(empId, 5, 120);
+    useTaxStore.getState().updateMonthPayrollTaxWithheld(empId, 8, 80);
+    useTaxStore.getState().updateMonthSalary(empId, 3, 15_000);
+    useTaxStore.getState().copyMonthToFollowing(empId, 3);
+
+    const months = useTaxStore.getState().monthlyRecords[empId]!;
+    expect(months[2]!.payrollTaxWithheld).toBe(500);
+    // 源月扣缴不得覆盖后续月
+    expect(months[4]!.payrollTaxWithheld).toBe(120);
+    expect(months[7]!.payrollTaxWithheld).toBe(80);
+    // 未录入的后续月保持 null
+    expect(months[3]!.payrollTaxWithheld).toBeNull();
+    expect(months[5]!.payrollTaxWithheld).toBeNull();
+    // 工资已复制
+    expect(months[4]!.salary).toBe(15_000);
+  });
 });

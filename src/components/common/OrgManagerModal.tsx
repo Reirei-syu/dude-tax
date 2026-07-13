@@ -20,12 +20,18 @@ interface OrgManagerModalProps {
   currentOrgId: string | null;
   /** 默认启用年份（打开弹窗时预填） */
   defaultYear?: number;
+  /**
+   * 首次无单位：必须创建才能关闭；文案改为引导创建。
+   * 创建成功后由父级关闭（onOrgsChanged 后）。
+   */
+  requireCreate?: boolean;
   onOrgsChanged: (opts?: {
     deletedCurrent?: boolean;
     newOrgId?: string;
     /** 新建单位时选用的启用年份 */
     newOrgYear?: number;
-  }) => void;
+  }) => void | Promise<void>;
+  /** 删除最后一个单位后：进入空状态并继续引导创建 */
   onNeedBootstrap: () => void;
 }
 
@@ -35,6 +41,7 @@ export function OrgManagerModal({
   repo,
   currentOrgId,
   defaultYear,
+  requireCreate = false,
   onOrgsChanged,
   onNeedBootstrap,
 }: OrgManagerModalProps) {
@@ -90,12 +97,14 @@ export function OrgManagerModal({
       return;
     }
     const org = await repo.createOrganization(name);
-    // 按用户选择的启用年份创建首个工作区
+    // 按用户选择的启用年份创建首个工作区（无示例员工）
     await repo.ensureOrgAndWorkspace(org.name, year);
     setNewName('');
     setError(null);
     await refresh();
-    onOrgsChanged({ newOrgId: org.id, newOrgYear: year });
+    // 父级 await hydrate 后自行 setOrgManagerOpen(false)；
+    // 此处不再 onClose，避免 render 闭包里 organization=null 时又被强制打开
+    await onOrgsChanged({ newOrgId: org.id, newOrgYear: year });
   };
 
   const confirmDelete = async () => {
@@ -108,10 +117,17 @@ export function OrgManagerModal({
     setOrgs(remaining);
     if (remaining.length === 0) {
       onNeedBootstrap();
-      onClose();
       return;
     }
     onOrgsChanged({ deletedCurrent: wasCurrent });
+  };
+
+  const tryClose = () => {
+    if (requireCreate) {
+      setError('请先创建单位名称并添加，才能开始使用');
+      return;
+    }
+    onClose();
   };
 
   return (
@@ -126,24 +142,40 @@ export function OrgManagerModal({
               <Building2 size={16} />
             </span>
             <div>
-              <h2 className="panel-title">单位管理</h2>
-              <p className="panel-subtitle">添加或删除独立核算单位</p>
+              <h2 className="panel-title">
+                {requireCreate ? '欢迎使用 Dude Tax' : '单位管理'}
+              </h2>
+              <p className="panel-subtitle">
+                {requireCreate
+                  ? '请先创建核算单位，再添加员工与工资'
+                  : '添加或删除独立核算单位'}
+              </p>
             </div>
           </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            <X size={16} />
-          </button>
+          {!requireCreate && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={tryClose}
+              aria-label="关闭"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <div className="modal-body min-h-0 flex-1 overflow-auto">
-          <p className="mb-4 mt-0 text-xs leading-relaxed text-[var(--text-muted)]">
-            每个单位可独立维护多年份工作区与员工数据。删除单位将清除其下全部工作区、员工与工资记录，且不可恢复。
-          </p>
+          {requireCreate ? (
+            <p className="mb-4 mt-0 text-xs leading-relaxed text-[var(--text-muted)]">
+              首次使用需创建至少一个单位（如公司、工作室或团队名称）。创建后单位内
+              <strong className="text-[var(--text)]"> 不会自动添加示例员工</strong>
+              ，请到画布中的「员工花名册」模块自行新建员工。
+            </p>
+          ) : (
+            <p className="mb-4 mt-0 text-xs leading-relaxed text-[var(--text-muted)]">
+              每个单位可独立维护多年份工作区与员工数据。删除单位将清除其下全部工作区、员工与工资记录，且不可恢复。新建单位不会附带示例员工。
+            </p>
+          )}
 
           <div className="mb-4 space-y-2">
             <div className="flex flex-wrap items-end gap-2">
@@ -255,7 +287,7 @@ export function OrgManagerModal({
         </div>
 
         <div className="modal-footer shrink-0">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <button type="button" className="btn btn-secondary" onClick={tryClose}>
             完成
           </button>
         </div>

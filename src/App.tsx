@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   HardDriveDownload,
+  LogOut,
   Save,
   Upload,
 } from 'lucide-react';
@@ -24,14 +25,16 @@ import {
 import {
   BackupFormatError,
   buildBackupFilename,
-  downloadBackupFile,
   exportBackupBytes,
   restoreBackupBytes,
 } from './lib/db/backup';
+import {
+  canUseNativeBackupPicker,
+  pickBackupFileWithPicker,
+  saveBackupWithPicker,
+} from './lib/db/backup-file-picker';
 import { TaxRepository } from './lib/db/repository';
 import { useTaxStore } from './lib/store/useTaxStore';
-import { POLICY_VERSION_BANNER } from './lib/tax/brackets';
-
 export default function App() {
   const hydrated = useTaxStore((s) => s.hydrated);
   const organization = useTaxStore((s) => s.organization);
@@ -39,7 +42,7 @@ export default function App() {
   const lastPersistError = useTaxStore((s) => s.lastPersistError);
   const setRepo = useTaxStore((s) => s.setRepo);
   const hydrateFromSnapshot = useTaxStore((s) => s.hydrateFromSnapshot);
-  const bootstrapDefault = useTaxStore((s) => s.bootstrapDefault);
+  const enterEmptyState = useTaxStore((s) => s.enterEmptyState);
   const switchWorkspaceSnapshot = useTaxStore((s) => s.switchWorkspaceSnapshot);
   const resetBoardLayout = useTaxStore((s) => s.resetBoardLayout);
   const saveCurrentLayoutAsDefault = useTaxStore(
@@ -54,7 +57,10 @@ export default function App() {
   const [orgManagerOpen, setOrgManagerOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [dataBusy, setDataBusy] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+  /** 由关窗 effect 注入：落盘 + 强制退出 */
+  const exitAppRef = useRef<(() => Promise<void>) | null>(null);
 
   const refreshWorkspaceList = useCallback(async (r: TaxRepository) => {
     setWorkspaces(await r.listWorkspaces());
@@ -214,11 +220,9 @@ export default function App() {
             return;
           }
         }
-        bootstrapDefault('默认单位', new Date().getFullYear());
-        await useTaxStore.getState().persistNow();
-        setWorkspaces(await r.listWorkspaces());
-        const wsId = useTaxStore.getState().workspace?.id;
-        if (wsId) rememberWorkspaceId(wsId);
+        // 无单位：干净空状态，引导用户自行创建（不建默认单位/示例员工）
+        enterEmptyState();
+        setOrgManagerOpen(true);
       } catch (e) {
         console.error(e);
         const msg = e instanceof Error ? e.message : String(e);
@@ -235,9 +239,9 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [setRepo, hydrateFromSnapshot, bootstrapDefault]);
+  }, [setRepo, hydrateFromSnapshot, enterEmptyState]);
 
-  // 关闭 / 刷新 / 切走页面前尽量刷写；Tauri 关窗会 await 落盘后再关
+  // 关闭 / 刷新 / 切走页面前尽量刷写；Tauri 关窗：落盘后 force_quit（避免 destroy 重入卡死）
   useEffect(() => {
     const flush = () => {
       void useTaxStore.getState().flushPersist().catch(() => {
@@ -253,16 +257,53 @@ export default function App() {
 
     let unlistenClose: (() => void) | undefined;
     let cancelled = false;
-    /** 防止 destroy 再次触发 CloseRequested 时重复 preventDefault 卡死 */
+    /** 正在执行退出：二次 CloseRequested 直接放行，不再 preventDefault */
     let closing = false;
 
     const flushWithTimeout = (ms: number) =>
       Promise.race([
-        useTaxStore.getState().flushPersist(),
+        useTaxStore.getState().flushPersist().catch(() => {
+          /* 落盘失败仍退出 */
+        }),
         new Promise<void>((resolve) => {
           window.setTimeout(() => resolve(), ms);
         }),
       ]);
+
+    /** 落盘后强制退出进程（dev/正式均可靠） */
+    const forceQuitAfterFlush = async (timeoutMs: number) => {
+      try {
+        await flushWithTimeout(timeoutMs);
+      } catch (e) {
+        console.error('exit flush failed', e);
+      }
+      try {
+        unlistenClose?.();
+        unlistenClose = undefined;
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('force_quit');
+      } catch (e) {
+        console.error('force_quit failed', e);
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().destroy();
+        } catch {
+          try {
+            window.close();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    };
+
+    // 供导航「退出」按钮调用
+    // ≥ busy_timeout(8s) + 事务重试预算，避免未写完就 force_quit
+    exitAppRef.current = () => forceQuitAfterFlush(12_000);
 
     (async () => {
       try {
@@ -270,47 +311,34 @@ export default function App() {
         if (cancelled) return;
         const win = getCurrentWindow();
         unlistenClose = await win.onCloseRequested(async (event) => {
-          // 二次进入（通常来自 destroy）：不再拦截，允许窗口真正关闭
-          if (closing) return;
-
+          if (closing) {
+            // 已在退出流程中：不再拦截，避免卡死
+            return;
+          }
           event.preventDefault();
           closing = true;
-
+          await forceQuitAfterFlush(12_000);
+        });
+      } catch {
+        /* 非 Tauri：Web 退出 */
+        exitAppRef.current = async () => {
           try {
-            await flushWithTimeout(8_000);
-          } catch (e) {
-            console.error('close flush failed', e);
-            // 仍继续关闭，避免用户永远关不掉窗口
-            toast.message('关闭前保存未完成，已尽量落盘');
-          }
-
-          // 先卸监听，避免 destroy → CloseRequested 再进本逻辑
-          try {
-            unlistenClose?.();
-            unlistenClose = undefined;
+            await flushWithTimeout(2_000);
           } catch {
             /* ignore */
           }
-
           try {
-            await win.destroy();
-          } catch (e) {
-            console.error('window destroy failed', e);
-            // 兜底：再试一次关闭 API
-            try {
-              await win.close();
-            } catch {
-              /* ignore */
-            }
+            window.close();
+          } catch {
+            toast.message('请直接关闭浏览器标签页');
           }
-        });
-      } catch {
-        /* 非 Tauri 环境：仅浏览器事件 */
+        };
       }
     })();
 
     return () => {
       cancelled = true;
+      exitAppRef.current = null;
       window.removeEventListener('pagehide', flush);
       window.removeEventListener('beforeunload', flush);
       document.removeEventListener('visibilitychange', onVisibility);
@@ -319,14 +347,14 @@ export default function App() {
       } catch {
         /* ignore */
       }
-      // 卸载时不要 fire-and-forget 再拦一次关窗路径
       flush();
     };
   }, []);
 
   useEffect(() => {
     if (lastPersistError) {
-      toast.error(`保存失败：${lastPersistError}`);
+      // formatPersistError 已含完整用户文案，勿再叠「保存失败：」前缀
+      toast.error(lastPersistError);
     }
   }, [lastPersistError]);
 
@@ -351,6 +379,7 @@ export default function App() {
           return;
         }
       }
+      // 仍有单位但工作区异常：加载空工作区，不添加示例员工
       const orgs = await repo.listOrganizations();
       if (orgs.length > 0) {
         const { organization: org, workspace: ws } =
@@ -358,24 +387,21 @@ export default function App() {
             orgs[0]!.name,
             new Date().getFullYear(),
           );
-        useTaxStore.setState({
+        switchWorkspaceSnapshot({
           organization: org,
           workspace: ws,
-          employees: {},
+          employees: [],
           monthlyRecords: {},
           bonusRecords: {},
-          boardLayout: { nodes: [] },
-          selectedEmployeeId: null,
-          pendingConfirm: null,
-          statusBanner: null,
-          hydrated: true,
+          boardLayout: useTaxStore.getState().boardLayout,
         });
         useTaxStore.getState().resetBoardLayout();
-        useTaxStore.getState().addEmployee('示例员工');
         await useTaxStore.getState().persistNow();
         rememberWorkspaceId(ws.id);
         await refreshWorkspaceList(repo);
-        toast.message(`已切换到 ${org.name}`);
+        toast.message(
+          `已切换到 ${org.name}。请在「员工花名册」中新建员工。`,
+        );
       }
     }
 
@@ -394,25 +420,27 @@ export default function App() {
           switchWorkspaceSnapshot(snap);
           rememberWorkspaceId(pick.id);
           await refreshWorkspaceList(repo);
+          // 父级在 hydrate 成功后关弹窗（勿依赖子组件 onClose + 渲染期 organization 闭包）
+          setOrgManagerOpen(false);
           toast.success(
-            `已添加「${snap.organization.name}」并启用 ${snap.workspace.year} 年`,
+            `已创建「${snap.organization.name}」· ${snap.workspace.year} 年。请在「员工花名册」中新建员工。`,
           );
           return;
         }
       }
-      toast.success('单位已添加');
+      toast.success('单位已创建。请在「员工花名册」中新建员工。');
+      if (useTaxStore.getState().organization) {
+        setOrgManagerOpen(false);
+      }
     }
   };
 
+  /** 删光单位后：回到无单位引导，不自动重建默认单位 */
   const handleNeedBootstrap = async () => {
-    if (!repo) {
-      bootstrapDefault();
-      return;
-    }
-    bootstrapDefault('默认单位', new Date().getFullYear());
-    await useTaxStore.getState().persistNow();
-    await refreshWorkspaceList(repo);
-    toast.message('已重建默认单位');
+    enterEmptyState();
+    if (repo) await refreshWorkspaceList(repo);
+    setOrgManagerOpen(true);
+    toast.message('已删除全部单位。请创建新单位后继续。');
   };
 
   const copyDbPath = async () => {
@@ -445,7 +473,7 @@ export default function App() {
     }
   };
 
-  /** 导出全量备份（先 flush 再导出） */
+  /** 导出全量备份：Tauri 下弹出「另存为」自选路径；Web 走下载 */
   const handleExportBackup = async () => {
     if (!repo) {
       toast.error('数据库未就绪，无法导出备份');
@@ -455,9 +483,17 @@ export default function App() {
     try {
       await useTaxStore.getState().flushPersist();
       const bytes = await exportBackupBytes(repo);
-      const name = buildBackupFilename();
-      downloadBackupFile(name, bytes);
-      toast.success(`已导出备份：${name}`);
+      const defaultName = buildBackupFilename();
+      const saved = await saveBackupWithPicker(bytes, defaultName);
+      if (!saved) {
+        toast.message('已取消导出');
+        return;
+      }
+      toast.success(
+        canUseNativeBackupPicker()
+          ? `已导出备份到：${saved}`
+          : `已导出备份：${saved}`,
+      );
     } catch (e) {
       console.error(e);
       toast.error(
@@ -468,14 +504,14 @@ export default function App() {
     }
   };
 
-  /** 从备份文件恢复（覆盖当前全部数据） */
-  const handleRestoreBackupFile = async (file: File) => {
+  /** 从字节恢复并刷新界面 */
+  const restoreFromBytes = async (label: string, buf: Uint8Array) => {
     if (!repo) {
       toast.error('数据库未就绪，无法恢复');
       return;
     }
     const ok = window.confirm(
-      `确定从备份「${file.name}」恢复吗？\n\n将覆盖当前全部单位、员工与工资数据，且不可撤销。\n建议先点「导出备份」留一份当前数据。`,
+      `确定从备份「${label}」恢复吗？\n\n将覆盖当前全部单位、员工与工资数据，且不可撤销。\n建议先点「导出备份」留一份当前数据。`,
     );
     if (!ok) return;
 
@@ -484,16 +520,14 @@ export default function App() {
       await useTaxStore.getState().flushPersist().catch(() => {
         /* 仍尝试恢复 */
       });
-      const buf = new Uint8Array(await file.arrayBuffer());
       await restoreBackupBytes(repo, buf);
 
       const list = await repo.listWorkspaces();
       setWorkspaces(list);
       if (list.length === 0) {
-        bootstrapDefault('默认单位', new Date().getFullYear());
-        await useTaxStore.getState().persistNow();
-        await refreshWorkspaceList(repo);
-        toast.success('已恢复备份（备份为空，已重建默认单位）');
+        enterEmptyState();
+        setOrgManagerOpen(true);
+        toast.success('已恢复备份（备份为空）。请创建单位后开始使用。');
         return;
       }
       let targetId = list[0]!.id;
@@ -521,6 +555,37 @@ export default function App() {
     }
   };
 
+  /** Web 回退：input[type=file] */
+  const handleRestoreBackupFile = async (file: File) => {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    await restoreFromBytes(file.name, buf);
+  };
+
+  /** 桌面：系统「打开文件」；Web：触发隐藏 file input */
+  const handleRestoreBackup = async () => {
+    if (!repo) {
+      toast.error('数据库未就绪，无法恢复');
+      return;
+    }
+    if (canUseNativeBackupPicker()) {
+      try {
+        const picked = await pickBackupFileWithPicker();
+        if (!picked) {
+          toast.message('已取消选择备份文件');
+          return;
+        }
+        await restoreFromBytes(picked.name, picked.bytes);
+      } catch (e) {
+        console.error(e);
+        toast.error(
+          e instanceof Error ? `打开备份失败：${e.message}` : '打开备份失败',
+        );
+      }
+      return;
+    }
+    backupFileInputRef.current?.click();
+  };
+
   if (!hydrated) {
     return (
       <div className="app-loading">
@@ -542,16 +607,22 @@ export default function App() {
             </div>
             <div className="min-w-0">
               <h1 className="app-title">Dude Tax</h1>
-              <p className="app-policy">{POLICY_VERSION_BANNER}</p>
             </div>
           </div>
 
           <div className="app-divider hidden sm:block" />
 
-          <span className="workspace-chip" title="当前单位">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary)]" />
+          <span
+            className="workspace-chip"
+            title={organization ? '当前单位' : '尚未创建单位'}
+          >
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                organization ? 'bg-[var(--primary)]' : 'bg-[var(--text-faint)]'
+              }`}
+            />
             <span className="truncate max-w-[8rem] sm:max-w-[12rem]">
-              {organization?.name ?? '—'}
+              {organization?.name ?? '未创建单位'}
             </span>
           </span>
 
@@ -633,7 +704,7 @@ export default function App() {
               className="btn btn-secondary btn-sm"
               tabIndex={navCollapsed ? -1 : 0}
               disabled={dataBusy || !repo}
-              title="导出全部单位与工作区数据为备份文件，请保存到安全位置"
+              title="导出全部单位与工作区数据；可自选保存路径与文件名"
               onClick={() => {
                 void handleExportBackup();
               }}
@@ -646,8 +717,10 @@ export default function App() {
               className="btn btn-secondary btn-sm"
               tabIndex={navCollapsed ? -1 : 0}
               disabled={dataBusy || !repo}
-              title="从备份文件恢复；将覆盖当前全部数据，请先导出备份"
-              onClick={() => backupFileInputRef.current?.click()}
+              title="自选备份文件恢复；将覆盖当前全部数据，请先导出备份"
+              onClick={() => {
+                void handleRestoreBackup();
+              }}
             >
               <Upload size={14} />
               从备份恢复
@@ -701,9 +774,42 @@ export default function App() {
             </span>
           </div>
 
-          <div className="app-disclaimer hidden xl:block">
-            仅供参考，请以税务机关官方计算器与最终汇算为准
-          </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm nav-exit-btn"
+            tabIndex={navCollapsed ? -1 : 0}
+            disabled={exiting}
+            title="保存当前修改并退出程序"
+            onClick={() => {
+              if (exiting) return;
+              setExiting(true);
+              const run = exitAppRef.current;
+              if (run) {
+                void run().finally(() => {
+                  // 若未真正退出（极少见），允许再点
+                  window.setTimeout(() => setExiting(false), 4_000);
+                });
+              } else {
+                void (async () => {
+                  try {
+                    await useTaxStore.getState().flushPersist();
+                  } catch {
+                    /* ignore */
+                  }
+                  try {
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    await invoke('force_quit');
+                  } catch {
+                    toast.error('退出失败，请尝试关闭窗口或结束进程');
+                    setExiting(false);
+                  }
+                })();
+              }
+            }}
+          >
+            <LogOut size={14} />
+            {exiting ? '正在退出…' : '退出'}
+          </button>
         </header>
 
         <button
@@ -718,19 +824,50 @@ export default function App() {
         </button>
       </div>
 
-      <main className="min-h-0 flex-1">
-        <TaxCanvas />
+      <main className="min-h-0 flex-1 relative">
+        {organization ? (
+          <TaxCanvas />
+        ) : (
+          <div className="empty-org-guide">
+            <div className="empty-org-guide-card">
+              <div className="empty-org-guide-icon" aria-hidden>
+                <Building2 size={28} strokeWidth={1.75} />
+              </div>
+              <h2 className="empty-org-guide-title">开始使用 Dude Tax</h2>
+              <p className="empty-org-guide-text">
+                当前没有任何单位。请先创建核算单位，再在「员工花名册」中新建员工并录入工资。
+                不会自动生成默认单位或示例员工。
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setOrgManagerOpen(true)}
+              >
+                <Building2 size={15} />
+                创建单位
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
       <ConfirmModal />
       <OrgManagerModal
         open={orgManagerOpen}
-        onClose={() => setOrgManagerOpen(false)}
+        onClose={() => {
+          // 读 store 当前值，避免 await 后仍闭包到 render 时 organization=null
+          if (!useTaxStore.getState().organization) {
+            setOrgManagerOpen(true);
+            return;
+          }
+          setOrgManagerOpen(false);
+        }}
         repo={repo}
         currentOrgId={organization?.id ?? null}
         defaultYear={workspace?.year ?? new Date().getFullYear()}
-        onOrgsChanged={(opts) => {
-          void handleOrgsChanged(opts);
+        requireCreate={!organization}
+        onOrgsChanged={async (opts) => {
+          await handleOrgsChanged(opts);
         }}
         onNeedBootstrap={() => {
           void handleNeedBootstrap();

@@ -16,7 +16,13 @@ export interface DirtyWriteCapture {
 }
 
 export interface DirtyTracker {
+  /** 业务数据变更：脏 + 递增 revision（使税缓存失效） */
   markEmployee(id: string): void;
+  /**
+   * 仅落盘脏（如工资单扣缴台账）：脏 + dataEpoch，**不**递增 revision，
+   * 避免无谓重算累计预扣。
+   */
+  markEmployeePersistOnly(id: string): void;
   markRemoved(id: string): void;
   markLayout(): void;
   getDirtyEmployeeIds(): string[];
@@ -49,6 +55,15 @@ export function createDirtyTracker(): DirtyTracker {
       empRev.set(id, (empRev.get(id) ?? 0) + 1);
       dataEpoch += 1;
     },
+    markEmployeePersistOnly(id: string) {
+      if (!id) return;
+      dirty.add(id);
+      removed.delete(id);
+      removedGen.delete(id);
+      // 确保 revision 键存在，便于 clearAfterWrite 比对；不递增
+      if (!empRev.has(id)) empRev.set(id, 0);
+      dataEpoch += 1;
+    },
     markRemoved(id: string) {
       if (!id) return;
       removed.add(id);
@@ -76,7 +91,7 @@ export function createDirtyTracker(): DirtyTracker {
         const captured = job.revisionsAtCapture[id];
         if (
           captured !== undefined &&
-          empRev.get(id) === captured &&
+          (empRev.get(id) ?? 0) === captured &&
           dirty.has(id)
         ) {
           dirty.delete(id);

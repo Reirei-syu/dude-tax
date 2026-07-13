@@ -62,7 +62,7 @@ export function BonusOptimizerCard({ fill = false }: { fill?: boolean }) {
             value={bonus}
             step={100}
             ariaLabel="年终奖金额"
-            onChange={(v) => setBonus(emp.id, v)}
+            onChange={(v) => setBonus(emp.id, v ?? 0)}
           />
         </div>
       </label>

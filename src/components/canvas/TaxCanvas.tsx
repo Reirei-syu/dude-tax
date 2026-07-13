@@ -51,7 +51,8 @@ function roundPx(n: number | undefined, fallback: number): number {
  */
 function ResizableShell({ children }: { children: ReactNode }) {
   return (
-    <div className="resizable-card-shell">
+    /* nowheel：悬停卡片时滚轮优先滚动卡片内容，不平移/缩放无限画布 */
+    <div className="resizable-card-shell nowheel">
       <div className="resizable-card-body">{children}</div>
       <NodeResizer
         isVisible
